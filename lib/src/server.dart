@@ -25,12 +25,12 @@ final class Server implements ServerHandle, ServerTransportHost {
     ServerLogger? logger,
     this.securityLimits = const ServerSecurityLimits(),
     this.webSocketLimits = const WebSocketLimits(),
-    this.node = const NodeOptions(),
-    this.bun = const BunOptions(),
-    this.deno = const DenoOptions(),
-    this.cloudflare = const CloudflareOptions(),
-    this.vercel = const VercelOptions(),
-    this.netlify = const NetlifyOptions(),
+    this.node = const NodeOptions(<String, Object?>{}),
+    this.bun = const BunOptions(<String, Object?>{}),
+    this.deno = const DenoOptions(<String, Object?>{}),
+    this.cloudflare = const CloudflareOptions(<String, Object?>{}),
+    this.vercel = const VercelOptions(<String, Object?>{}),
+    this.netlify = const NetlifyOptions(<String, Object?>{}),
     Map<String, String>? environment,
   }) : middleware = List<Middleware>.unmodifiable(middleware ?? const []),
        plugins = List<ServerPlugin>.unmodifiable(plugins ?? const []),
@@ -126,7 +126,6 @@ final class Server implements ServerHandle, ServerTransportHost {
     try {
       await _runBeforeServe();
       await _transport.serve();
-      await _transport.ready();
       _serving = true;
       await _runAfterServe();
       return this;
@@ -138,11 +137,6 @@ final class Server implements ServerHandle, ServerTransportHost {
       );
       rethrow;
     }
-  }
-
-  Future<Server> ready() async {
-    await _transport.ready();
-    return this;
   }
 
   Future<void> close({bool force = false}) async {

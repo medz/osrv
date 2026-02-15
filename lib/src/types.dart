@@ -225,41 +225,128 @@ final class WebSocketLimits {
   final int maxBufferedBytes;
 }
 
-final class NodeOptions {
-  const NodeOptions({this.http2, this.extra = const <String, Object?>{}});
+extension type const NodeOptions(Map<String, Object?> _)
+    implements Map<String, Object?> {
+  bool? get http2 => _asBool(this['http2']);
 
-  final bool? http2;
-  final Map<String, Object?> extra;
+  set http2(bool? value) {
+    _setOrRemove(this, 'http2', value);
+  }
+
+  int? get maxHeaderSize => _asInt(this['maxHeaderSize']);
+
+  set maxHeaderSize(int? value) {
+    _setOrRemove(this, 'maxHeaderSize', value);
+  }
 }
 
-final class BunOptions {
-  const BunOptions({this.extra = const <String, Object?>{}});
+extension type const BunOptions(Map<String, Object?> _)
+    implements Map<String, Object?> {
+  bool? get reusePort => _asBool(this['reusePort']);
 
-  final Map<String, Object?> extra;
+  set reusePort(bool? value) {
+    _setOrRemove(this, 'reusePort', value);
+  }
+
+  int? get idleTimeoutMs => _asInt(this['idleTimeoutMs']);
+
+  set idleTimeoutMs(int? value) {
+    _setOrRemove(this, 'idleTimeoutMs', value);
+  }
 }
 
-final class DenoOptions {
-  const DenoOptions({this.extra = const <String, Object?>{}});
+extension type const DenoOptions(Map<String, Object?> _)
+    implements Map<String, Object?> {
+  bool? get reusePort => _asBool(this['reusePort']);
 
-  final Map<String, Object?> extra;
+  set reusePort(bool? value) {
+    _setOrRemove(this, 'reusePort', value);
+  }
+
+  String? get certFile => _asString(this['certFile']);
+
+  set certFile(String? value) {
+    _setOrRemove(this, 'certFile', value);
+  }
+
+  String? get keyFile => _asString(this['keyFile']);
+
+  set keyFile(String? value) {
+    _setOrRemove(this, 'keyFile', value);
+  }
 }
 
-final class CloudflareOptions {
-  const CloudflareOptions({this.extra = const <String, Object?>{}});
+extension type const CloudflareOptions(Map<String, Object?> _)
+    implements Map<String, Object?> {
+  String? get compatibilityDate => _asString(this['compatibilityDate']);
 
-  final Map<String, Object?> extra;
+  set compatibilityDate(String? value) {
+    _setOrRemove(this, 'compatibilityDate', value);
+  }
+
+  List<String>? get compatibilityFlags =>
+      _asStringList(this['compatibilityFlags']);
+
+  set compatibilityFlags(List<String>? value) {
+    _setOrRemove(
+      this,
+      'compatibilityFlags',
+      value == null ? null : List<String>.from(value),
+    );
+  }
 }
 
-final class VercelOptions {
-  const VercelOptions({this.extra = const <String, Object?>{}});
+extension type const VercelOptions(Map<String, Object?> _)
+    implements Map<String, Object?> {
+  String? get region => _asString(this['region']);
 
-  final Map<String, Object?> extra;
+  set region(String? value) {
+    _setOrRemove(this, 'region', value);
+  }
+
+  bool? get edge => _asBool(this['edge']);
+
+  set edge(bool? value) {
+    _setOrRemove(this, 'edge', value);
+  }
 }
 
-final class NetlifyOptions {
-  const NetlifyOptions({this.extra = const <String, Object?>{}});
+extension type const NetlifyOptions(Map<String, Object?> _)
+    implements Map<String, Object?> {
+  String? get siteId => _asString(this['siteId']);
 
-  final Map<String, Object?> extra;
+  set siteId(String? value) {
+    _setOrRemove(this, 'siteId', value);
+  }
+
+  bool? get edge => _asBool(this['edge']);
+
+  set edge(bool? value) {
+    _setOrRemove(this, 'edge', value);
+  }
+}
+
+void _setOrRemove(Map<String, Object?> target, String key, Object? value) {
+  if (value == null) {
+    target.remove(key);
+    return;
+  }
+
+  target[key] = value;
+}
+
+bool? _asBool(Object? value) => value is bool ? value : null;
+
+int? _asInt(Object? value) => value is int ? value : null;
+
+String? _asString(Object? value) => value is String ? value : null;
+
+List<String>? _asStringList(Object? value) {
+  if (value is! List || !value.every((item) => item is String)) {
+    return null;
+  }
+
+  return List<String>.from(value);
 }
 
 /// Public surface exposed to plugins.

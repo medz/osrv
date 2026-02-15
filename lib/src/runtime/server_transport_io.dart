@@ -61,11 +61,6 @@ final class _IoServerTransport implements ServerTransport {
   }
 
   @override
-  Future<void> ready() {
-    return _readyFuture ?? Future<void>.value();
-  }
-
-  @override
   Future<void> close({required bool force}) {
     return _closeFuture ??= _doClose(force: force);
   }

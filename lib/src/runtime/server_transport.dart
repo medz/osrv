@@ -33,7 +33,6 @@ abstract interface class ServerTransport {
   String? get url;
 
   Future<void> serve();
-  Future<void> ready();
   Future<void> close({required bool force});
 }
 

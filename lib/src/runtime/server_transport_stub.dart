@@ -33,9 +33,6 @@ final class _UnsupportedTransport implements ServerTransport {
   Future<void> close({required bool force}) async {}
 
   @override
-  Future<void> ready() async {}
-
-  @override
   Future<void> serve() async {
     _host.logWarn(
       'Current runtime does not support native server transport. '

@@ -6,11 +6,10 @@ import 'package:test/test.dart';
 
 void main() {
   group('Server', () {
-    test('serve/ready/close lifecycle and basic response', () async {
+    test('serve/close lifecycle and basic response', () async {
       final server = Server(port: 0, fetch: (request) => Response.text('ok'));
 
       await server.serve();
-      await server.ready();
 
       final result = await _sendRequest(server.url!, method: 'GET');
       expect(result.statusCode, 200);

@@ -93,9 +93,6 @@ final class _JsBridgeServerTransport implements ServerTransport {
   }
 
   @override
-  Future<void> ready() async {}
-
-  @override
   Future<void> close({required bool force}) async {
     if (!_registered) {
       return;
