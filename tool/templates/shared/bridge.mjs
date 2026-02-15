@@ -1,20 +1,46 @@
 const BODY_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const BRIDGE_MODE = 'json-v1';
+const MAIN_READY_PROMISE_KEY = '__osrv_main_ready_promise__';
+const MAIN_READY_RESOLVE_KEY = '__osrv_main_ready_resolve__';
 
 export function getMainHandler() {
   return globalThis.__osrv_main__;
 }
 
-export async function waitForMain(timeoutMs = 5000) {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt <= timeoutMs) {
-    const handler = getMainHandler();
-    if (typeof handler === 'function') {
-      return handler;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 10));
+function ensureMainReadyPromise() {
+  const existing = globalThis[MAIN_READY_PROMISE_KEY];
+  if (existing && typeof existing.then === 'function') {
+    return existing;
   }
-  return null;
+
+  const current = getMainHandler();
+  if (typeof current === 'function') {
+    const ready = Promise.resolve(current);
+    globalThis[MAIN_READY_PROMISE_KEY] = ready;
+    globalThis[MAIN_READY_RESOLVE_KEY] = null;
+    return ready;
+  }
+
+  let resolveReady;
+  const ready = new Promise((resolve) => {
+    resolveReady = resolve;
+  });
+  globalThis[MAIN_READY_PROMISE_KEY] = ready;
+  globalThis[MAIN_READY_RESOLVE_KEY] = (handler) => {
+    resolveReady(handler);
+    globalThis[MAIN_READY_RESOLVE_KEY] = null;
+  };
+  return ready;
+}
+
+const mainReadyPromise = ensureMainReadyPromise();
+
+export async function waitForMain() {
+  const handler = getMainHandler();
+  if (typeof handler === 'function') {
+    return handler;
+  }
+  return mainReadyPromise;
 }
 
 export function isBridgeHandler(handler) {

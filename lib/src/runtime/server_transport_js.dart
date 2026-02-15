@@ -14,6 +14,7 @@ import 'server_transport.dart';
 external JSObject get _globalThis;
 
 const String _mainKey = '__osrv_main__';
+const String _mainReadyResolveKey = '__osrv_main_ready_resolve__';
 const String _bridgeModeKey = '__osrv_bridge__';
 const String _bridgeModeValue = 'json-v1';
 
@@ -81,6 +82,10 @@ final class _JsBridgeServerTransport implements ServerTransport {
 
     bridge.setProperty(_bridgeModeKey.toJS, _bridgeModeValue.toJS);
     _globalThis.setProperty(_mainKey.toJS, bridge);
+    final readyResolve = _globalThis.getProperty(_mainReadyResolveKey.toJS);
+    if (readyResolve.isA<JSFunction>()) {
+      (readyResolve as JSFunction).callAsFunction(readyResolve, bridge);
+    }
 
     _bridgeFunction = bridge;
     _registered = true;
