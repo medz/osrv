@@ -9,6 +9,8 @@ dart pub get
 dart run osrv serve
 ```
 
+This uses `server.dart` by default.
+
 ## Build
 
 ```bash
@@ -20,7 +22,8 @@ Build output:
 
 - `dist/bin/server` (or `dist/bin/server.exe` on Windows)
 - `dist/js/core/server.js`
-- runtime adapter scaffolds under `dist/js/*` and `dist/edge/*`
+- Node/Bun/Deno direct deploy adapters under `dist/js/*`
+- edge direct deploy adapters under `dist/edge/*`
 
 If you want to run source directly without osrv CLI:
 

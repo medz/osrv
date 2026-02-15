@@ -25,7 +25,7 @@ jobs:
       - name: Build artifacts
         run: dart run tool/build.dart
 
-  node-smoke:
+  contract-matrix:
     runs-on: ubuntu-latest
     needs: dart
     steps:
@@ -34,63 +34,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: latest
-      - run: dart pub get
-      - run: dart run tool/build.dart
-      - name: Node adapter scaffold smoke
-        run: |
-          node --input-type=module -e "
-          import { serve } from './dist/js/node/index.mjs';
-          try {
-            serve();
-            process.exit(1);
-          } catch (e) {
-            if (!String(e).includes('scaffold')) process.exit(1);
-          }
-          "
-
-  bun-smoke:
-    runs-on: ubuntu-latest
-    needs: dart
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
       - uses: oven-sh/setup-bun@v2
-      - run: dart pub get
-      - run: dart run tool/build.dart
-      - name: Bun adapter scaffold smoke
-        run: |
-          bun --eval "
-          import { serve } from './dist/js/bun/index.mjs';
-          try {
-            serve();
-            process.exit(1);
-          } catch (e) {
-            if (!String(e).includes('scaffold')) process.exit(1);
-          }
-          "
-
-  deno-smoke:
-    runs-on: ubuntu-latest
-    needs: dart
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dart-lang/setup-dart@v1
       - uses: denoland/setup-deno@v1
-      - run: dart pub get
-      - run: dart run tool/build.dart
-      - name: Deno adapter scaffold smoke
-        run: |
-          deno eval "
-          import { serve } from './dist/js/deno/index.mjs';
-          try {
-            serve();
-            Deno.exit(1);
-          } catch (e) {
-            if (!String(e).includes('scaffold')) Deno.exit(1);
-          }
-          "
+      - name: Install dependencies
+        run: dart pub get
+      - name: Runtime contract matrix
+        run: dart run tool/contract_matrix.dart
 
-  edge-smoke:
+  edge-contract:
     runs-on: ubuntu-latest
     needs: dart
     steps:
@@ -101,17 +52,32 @@ jobs:
           node-version: latest
       - run: dart pub get
       - run: dart run tool/build.dart
-      - name: Edge adapters scaffold smoke
+      - name: Edge adapters contract
         run: |
           node --input-type=module -e "
           import cf from './dist/edge/cloudflare/index.mjs';
           import vercel from './dist/edge/vercel/index.mjs';
           import netlify from './dist/edge/netlify/index.mjs';
-          const req = new Request('https://example.com/');
-          const cfRes = await cf.fetch(req, {}, { waitUntil() {} });
-          const veRes = await vercel(req, { env: {}, waitUntil() {} });
-          const neRes = await netlify(req, { env: {}, waitUntil() {} });
-          if (cfRes.status !== 501 || veRes.status !== 501 || neRes.status !== 501) {
+          const req = new Request('https://example.com/edge');
+
+          const cfRes = await cf.fetch(req, { TOKEN: 'cf' }, { waitUntil() {} });
+          const cfBody = await cfRes.json();
+
+          const veRes = await vercel(req, { env: { TOKEN: 've' }, waitUntil() {} });
+          const veBody = await veRes.json();
+
+          const neRes = await netlify(req, { env: { TOKEN: 'ne' }, waitUntil() {} });
+          const neBody = await neRes.json();
+
+          const valid =
+            cfBody.ok === true &&
+            veBody.ok === true &&
+            neBody.ok === true &&
+            cfBody.runtime === 'cloudflare' &&
+            veBody.runtime === 'vercel' &&
+            neBody.runtime === 'netlify';
+
+          if (!valid) {
             process.exit(1);
           }
           "

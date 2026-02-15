@@ -2,6 +2,7 @@ import 'package:ht/ht.dart';
 
 import '../types.dart';
 import 'server_transport_stub.dart'
+    if (dart.library.js_interop) 'server_transport_js.dart'
     if (dart.library.io) 'server_transport_io.dart'
     as impl;
 

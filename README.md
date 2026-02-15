@@ -7,8 +7,8 @@ Dart-first unified server core with a single `Server(...)` API.
 - Core API implemented: `Server`, middleware, plugins, lifecycle, error handling.
 - `dart:io` runtime transport implemented and tested.
 - WebSocket upgrade helper implemented for `dart:io`.
-- Build pipeline implemented with `dart run tool/build.dart`.
-- JS/Edge adapters are generated as scaffolds under `dist/` and are ready for runtime-bridge wiring.
+- Maintainer helper script available at `dart run tool/build.dart` (delegates to CLI build).
+- `dart run osrv build` generates direct-deploy Node/Bun/Deno/Edge adapters under `dist/` that load Dart-compiled JS core.
 
 ## Install
 
@@ -81,18 +81,40 @@ dart run osrv build
 
 `serve` defaults to `server.dart` (fallback: `bin/server.dart`), and `build` also defaults to the same entry.
 
+Dependency-mode workflow (inside your app package):
+
+1. Add `osrv` dependency.
+2. Create `server.dart` with your server entrypoint.
+3. Run `dart run osrv serve` for local run.
+4. Run `dart run osrv build` for distributable artifacts.
+
 CLI config precedence:
 
 1. CLI flags
 2. Environment variables
-3. `osrv.config.dart` (best-effort parse)
+3. `osrv.config.dart` (executed, expects top-level `osrvConfig` map)
 4. Defaults
 
-## Build
+`osrv.config.dart` executable config contract:
+
+```dart
+const Map<String, Object> osrvConfig = <String, Object>{
+  'port': 3000,
+  'hostname': '0.0.0.0',
+  'protocol': 'http',
+};
+```
+
+osrv executes this file in a local trust model and reads the top-level `osrvConfig` map.
+
+## Maintainer Build Helper
 
 ```bash
 dart run tool/build.dart
 ```
+
+This is for local osrv repo development convenience.
+User/application build flow remains `dart run osrv build`.
 
 Artifacts:
 
@@ -112,8 +134,19 @@ Contract runner:
 dart run tool/contract.dart
 ```
 
+Multi-runtime contract matrix (auto-detects available runtimes):
+
+```bash
+dart run tool/contract_matrix.dart
+```
+
 Benchmark gate (fractional overhead, `0.05` == 5%):
 
 ```bash
 dart run tool/bench.dart --requests=200 --max-overhead=0.05
 ```
+
+## Docs
+
+- [`docs/troubleshooting.md`](docs/troubleshooting.md)
+- [`docs/examples.md`](docs/examples.md)
