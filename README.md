@@ -19,23 +19,16 @@ Edge WebSocket support:
 ## Install
 
 ```bash
-dart pub get
+dart pub add osrv
 ```
 
 ## Use osrv in your own package
 
-`osrv` is meant to be used as a dependency from another Dart package:
+Published dependency:
 
 ```yaml
-name: my_server_app
-publish_to: none
-
-environment:
-  sdk: ^3.10.0
-
 dependencies:
-  osrv:
-    path: ../osrv
+  osrv: ^0.1.0
 ```
 
 Then create `bin/main.dart`:
@@ -49,6 +42,14 @@ Future<void> main() async {
   );
   await server.serve();
 }
+```
+
+Local path dependency (for osrv contributors):
+
+```yaml
+dependencies:
+  osrv:
+    path: ../osrv
 ```
 
 ## Example package
@@ -86,6 +87,8 @@ dart run osrv build
 ```
 
 `serve` defaults to `server.dart` (fallback: `bin/server.dart`), and `build` also defaults to the same entry.
+
+`osrv.config.dart` is not supported in V1. Use CLI flags, environment variables, or constructor options.
 
 TLS/HTTP2 flags for local serve:
 

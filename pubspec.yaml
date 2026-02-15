@@ -1,7 +1,10 @@
 name: osrv
 description: Unified Dart-first server runtime across Dart native, JS runtimes, and edge adapters.
 version: 0.1.0
-publish_to: 'none'
+homepage: https://github.com/medz/osrv
+repository: https://github.com/medz/osrv
+issue_tracker: https://github.com/medz/osrv/issues
+documentation: https://github.com/medz/osrv#readme
 
 environment:
   sdk: ^3.10.0
@@ -17,3 +20,6 @@ dependencies:
 dev_dependencies:
   lints: ^6.0.0
   test: ^1.26.3
+
+executables:
+  osrv:
