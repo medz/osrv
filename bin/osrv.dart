@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:args/args.dart';
@@ -130,7 +131,33 @@ Future<void> _runServe(ArgResults command) async {
     environment: spawnedEnv,
   );
 
-  exitCode = await child.exitCode;
+  final signalSubscriptions = <StreamSubscription<ProcessSignal>>[];
+
+  void watchSignal(ProcessSignal signal) {
+    try {
+      signalSubscriptions.add(
+        signal.watch().listen((_) {
+          if (!child.kill(signal)) {
+            child.kill();
+          }
+        }),
+      );
+    } on UnsupportedError {
+      // Some signals are not supported on all platforms.
+    }
+  }
+
+  watchSignal(ProcessSignal.sigint);
+  watchSignal(ProcessSignal.sigterm);
+  if (!Platform.isWindows) {
+    watchSignal(ProcessSignal.sighup);
+  }
+
+  final childExitCode = await child.exitCode;
+  for (final subscription in signalSubscriptions) {
+    await subscription.cancel();
+  }
+  exitCode = childExitCode;
 }
 
 Future<void> _runBuild(ArgResults command) async {

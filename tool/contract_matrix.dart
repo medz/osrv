@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -114,6 +115,8 @@ Future<void> main() async {
 
 Future<Map<String, Object?>> _runContractForRuntime(_RuntimeCheck check) async {
   Process? process;
+  StreamSubscription<String>? stdoutSubscription;
+  StreamSubscription<String>? stderrSubscription;
   final stdoutBuffer = StringBuffer();
   final stderrBuffer = StringBuffer();
 
@@ -128,10 +131,10 @@ Future<Map<String, Object?>> _runContractForRuntime(_RuntimeCheck check) async {
       },
     );
 
-    process.stdout
+    stdoutSubscription = process.stdout
         .transform(utf8.decoder)
         .listen(stdoutBuffer.write, onError: (_) {});
-    process.stderr
+    stderrSubscription = process.stderr
         .transform(utf8.decoder)
         .listen(stderrBuffer.write, onError: (_) {});
 
@@ -164,15 +167,13 @@ Future<Map<String, Object?>> _runContractForRuntime(_RuntimeCheck check) async {
     };
   } finally {
     if (process != null) {
-      process.kill(ProcessSignal.sigterm);
-      await process.exitCode.timeout(
-        const Duration(seconds: 4),
-        onTimeout: () {
-          process!.kill(ProcessSignal.sigkill);
-          return -1;
-        },
-      );
+      if (!process.kill(ProcessSignal.sigterm)) {
+        process.kill();
+      }
+      await process.exitCode;
     }
+    await stdoutSubscription?.cancel();
+    await stderrSubscription?.cancel();
 
     final stderrText = stderrBuffer.toString().trim();
     if (stderrText.isNotEmpty) {
