@@ -11,6 +11,7 @@ abstract interface class ServerTransportHost {
   int get resolvedPort;
   String get resolvedHostname;
   ServerProtocol get resolvedProtocol;
+  Map<String, String> get runtimeEnvironment;
   bool get reusePort;
   bool get trustProxy;
   bool get silent;

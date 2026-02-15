@@ -20,6 +20,10 @@ final class _IoServerTransport implements ServerTransport {
   _IoServerTransport(this._host);
 
   final ServerTransportHost _host;
+  late final Map<String, Object?> _runtimeEnvironment =
+      Map<String, Object?>.unmodifiable(
+        _host.runtimeEnvironment.map((key, value) => MapEntry(key, value)),
+      );
 
   HttpServer? _server;
   MultiProtocolHttpServer? _multiProtocolServer;
@@ -228,6 +232,7 @@ final class _IoServerTransport implements ServerTransport {
         ioRequest.connectionInfo?.remotePort,
       ),
       waitUntil: waitUntil,
+      env: _runtimeEnvironment,
       raw: RuntimeRawContext(
         dartRequest: ioRequest,
         dartResponse: ioRequest.response,
@@ -277,6 +282,7 @@ final class _IoServerTransport implements ServerTransport {
         localAddress: _formatAddress(_boundAddress?.address, _boundPort),
         remoteAddress: null,
         waitUntil: waitUntil,
+        env: _runtimeEnvironment,
         raw: RuntimeRawContext(dartRequest: stream),
       );
       request.context = <String, Object?>{};

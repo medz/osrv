@@ -81,6 +81,12 @@ dart run osrv build
 
 `serve` defaults to `server.dart` (fallback: `bin/server.dart`), and `build` also defaults to the same entry.
 
+TLS/HTTP2 flags for local serve:
+
+```bash
+dart run osrv serve --tls --cert=cert.pem --key=key.pem --http2
+```
+
 Dependency-mode workflow (inside your app package):
 
 1. Add `osrv` dependency.

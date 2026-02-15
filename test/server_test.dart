@@ -86,6 +86,7 @@ void main() {
     test('request runtime context exposes stable fields', () async {
       final server = Server(
         port: 0,
+        environment: const <String, String>{'TEST_ENV_KEY': 'TEST_ENV_VALUE'},
         fetch: (request) async {
           final runtime = request.runtime;
           final waitUntil = request.waitUntil;
@@ -98,6 +99,7 @@ void main() {
             'protocol': runtime?.protocol,
             'ip': request.ip,
             'contextReady': request.context.isEmpty,
+            'env': runtime?.env['TEST_ENV_KEY'],
           });
         },
       );
@@ -110,6 +112,7 @@ void main() {
       expect(decoded['runtime'], equals('dart'));
       expect(decoded['protocol'], isNotNull);
       expect(decoded['ip'], isNotNull);
+      expect(decoded['env'], equals('TEST_ENV_VALUE'));
     });
 
     test('default error response is safe in production mode', () async {
@@ -152,6 +155,49 @@ void main() {
       expect(result.statusCode, 413);
       final decoded = jsonDecode(result.body) as Map<String, Object?>;
       expect(decoded['error'], equals('Request body too large'));
+    });
+
+    test('environment can configure protocol, tls and runtime http2 flags', () {
+      final server = Server(
+        fetch: (request) => Response.text('ok'),
+        environment: const <String, String>{
+          'OSRV_PROTOCOL': 'https',
+          'OSRV_TLS_CERT': 'cert.pem',
+          'OSRV_TLS_KEY': 'key.pem',
+          'OSRV_HTTP2': 'true',
+        },
+      );
+
+      expect(server.protocol, equals(ServerProtocol.https));
+      expect(server.tls?.cert, equals('cert.pem'));
+      expect(server.tls?.key, equals('key.pem'));
+      expect(server.node.http2, isTrue);
+      expect(server.bun.http2, isTrue);
+      expect(server.deno.http2, isTrue);
+    });
+
+    test('explicit constructor options override environment defaults', () {
+      final server = Server(
+        fetch: (request) => Response.text('ok'),
+        protocol: ServerProtocol.http,
+        tls: const TlsOptions(cert: 'from-code-cert', key: 'from-code-key'),
+        node: const NodeOptions(<String, Object?>{'http2': false}),
+        bun: const BunOptions(<String, Object?>{'http2': false}),
+        deno: const DenoOptions(<String, Object?>{'http2': false}),
+        environment: const <String, String>{
+          'OSRV_PROTOCOL': 'https',
+          'OSRV_TLS_CERT': 'env-cert.pem',
+          'OSRV_TLS_KEY': 'env-key.pem',
+          'OSRV_HTTP2': 'true',
+        },
+      );
+
+      expect(server.protocol, equals(ServerProtocol.http));
+      expect(server.tls?.cert, equals('from-code-cert'));
+      expect(server.tls?.key, equals('from-code-key'));
+      expect(server.node.http2, isFalse);
+      expect(server.bun.http2, isFalse);
+      expect(server.deno.http2, isFalse);
     });
   });
 }

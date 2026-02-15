@@ -25,6 +25,21 @@ Future<void> main(List<String> args) async {
       allowed: <String>['http', 'https'],
       help: 'Protocol preference.',
     )
+    ..addFlag(
+      'tls',
+      defaultsTo: null,
+      negatable: true,
+      help: 'Enable TLS mode for the spawned server process.',
+    )
+    ..addOption('cert', help: 'TLS certificate path or PEM content.')
+    ..addOption('key', help: 'TLS private key path or PEM content.')
+    ..addOption('passphrase', help: 'TLS private key passphrase.')
+    ..addFlag(
+      'http2',
+      defaultsTo: null,
+      negatable: true,
+      help: 'Request HTTP/2 mode when the runtime supports it.',
+    )
     ..addFlag('silent', defaultsTo: false, help: 'Silence osrv CLI logs.');
 
   parser.commands['build']!
@@ -105,9 +120,40 @@ Future<void> _runServe(ArgResults command) async {
       ) ??
       '0.0.0.0';
 
-  final protocol =
-      _firstNonEmpty(command['protocol'] as String?, env['OSRV_PROTOCOL']) ??
-      'http';
+  final protocol = _firstNonEmpty(
+    command['protocol'] as String?,
+    env['OSRV_PROTOCOL'],
+  );
+  final tlsFlag = command['tls'] as bool?;
+  final certFromArgs = command['cert'] as String?;
+  final keyFromArgs = command['key'] as String?;
+  final passphraseFromArgs = command['passphrase'] as String?;
+  final http2Flag = command['http2'] as bool?;
+
+  final envTls = _parseBoolish(_firstNonEmpty(env['OSRV_TLS'], env['TLS']));
+  final envHttp2 = _parseBoolish(env['OSRV_HTTP2']);
+
+  var cert = _firstNonEmpty(
+    certFromArgs,
+    env['OSRV_TLS_CERT'],
+    env['TLS_CERT'],
+  );
+  var key = _firstNonEmpty(keyFromArgs, env['OSRV_TLS_KEY'], env['TLS_KEY']);
+  var passphrase = _firstNonEmpty(
+    passphraseFromArgs,
+    env['OSRV_TLS_PASSPHRASE'],
+    env['TLS_PASSPHRASE'],
+  );
+
+  final tlsEnabled = tlsFlag ?? envTls ?? (cert != null && key != null);
+  if (!tlsEnabled) {
+    cert = null;
+    key = null;
+    passphrase = null;
+  }
+
+  final effectiveProtocol = protocol ?? (tlsEnabled ? 'https' : 'http');
+  final http2Enabled = http2Flag ?? envHttp2 ?? false;
 
   final spawnedEnv = <String, String>{
     ...env,
@@ -115,12 +161,28 @@ Future<void> _runServe(ArgResults command) async {
     'HOSTNAME': hostname,
     'OSRV_PORT': port,
     'OSRV_HOSTNAME': hostname,
-    'OSRV_PROTOCOL': protocol,
+    'OSRV_PROTOCOL': effectiveProtocol,
+    'OSRV_TLS': tlsEnabled ? 'true' : 'false',
+    'OSRV_HTTP2': http2Enabled ? 'true' : 'false',
+    'OSRV_NODE_HTTP2': http2Enabled ? 'true' : 'false',
+    'OSRV_BUN_HTTP2': http2Enabled ? 'true' : 'false',
+    'OSRV_DENO_HTTP2': http2Enabled ? 'true' : 'false',
+    'OSRV_TLS_CERT': cert ?? '',
+    'OSRV_TLS_KEY': key ?? '',
+    'OSRV_TLS_PASSPHRASE': passphrase ?? '',
+    'TLS_CERT': cert ?? '',
+    'TLS_KEY': key ?? '',
+    'TLS_PASSPHRASE': passphrase ?? '',
   };
 
   if (!(command['silent'] as bool)) {
     stdout.writeln(
-      '[osrv] serving `$entry` with PORT=$port HOSTNAME=$hostname PROTOCOL=$protocol',
+      '[osrv] serving `$entry` with '
+      'PORT=$port HOSTNAME=$hostname PROTOCOL=$effectiveProtocol '
+      'TLS=${tlsEnabled ? 'on' : 'off'} '
+      'CERT=${cert != null ? 'set' : 'unset'} '
+      'KEY=${key != null ? 'set' : 'unset'} '
+      'HTTP2=${http2Enabled ? 'on' : 'off'}',
     );
   }
 
@@ -191,6 +253,31 @@ String? _firstNonEmpty(String? first, String? second, [String? third]) {
     if (value != null && value.isNotEmpty) {
       return value;
     }
+  }
+
+  return null;
+}
+
+bool? _parseBoolish(String? value) {
+  if (value == null) {
+    return null;
+  }
+
+  final normalized = value.trim().toLowerCase();
+  if (normalized.isEmpty) {
+    return null;
+  }
+  if (normalized == '1' ||
+      normalized == 'true' ||
+      normalized == 'yes' ||
+      normalized == 'on') {
+    return true;
+  }
+  if (normalized == '0' ||
+      normalized == 'false' ||
+      normalized == 'no' ||
+      normalized == 'off') {
+    return false;
   }
 
   return null;

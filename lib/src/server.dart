@@ -20,14 +20,14 @@ final class Server implements ServerHandle, ServerTransportHost {
     this.reusePort = false,
     this.silent = false,
     this.gracefulShutdown = const GracefulShutdownOptions(),
-    this.tls,
+    TlsOptions? tls,
     this.trustProxy = false,
     ServerLogger? logger,
     this.securityLimits = const ServerSecurityLimits(),
     this.webSocketLimits = const WebSocketLimits(),
-    this.node = const NodeOptions(<String, Object?>{}),
-    this.bun = const BunOptions(<String, Object?>{}),
-    this.deno = const DenoOptions(<String, Object?>{}),
+    NodeOptions node = const NodeOptions(<String, Object?>{}),
+    BunOptions bun = const BunOptions(<String, Object?>{}),
+    DenoOptions deno = const DenoOptions(<String, Object?>{}),
     this.cloudflare = const CloudflareOptions(<String, Object?>{}),
     this.vercel = const VercelOptions(<String, Object?>{}),
     this.netlify = const NetlifyOptions(<String, Object?>{}),
@@ -38,6 +38,16 @@ final class Server implements ServerHandle, ServerTransportHost {
        _environment = Map<String, String>.unmodifiable(
          environment ?? readRuntimeEnvironment(),
        ),
+       tls = _resolveTls(tls, environment ?? readRuntimeEnvironment()),
+       node = _resolveNodeOptions(
+         node,
+         environment ?? readRuntimeEnvironment(),
+       ),
+       bun = _resolveBunOptions(bun, environment ?? readRuntimeEnvironment()),
+       deno = _resolveDenoOptions(
+         deno,
+         environment ?? readRuntimeEnvironment(),
+       ),
        _resolvedPort = _resolvePort(
          port,
          environment ?? readRuntimeEnvironment(),
@@ -46,11 +56,11 @@ final class Server implements ServerHandle, ServerTransportHost {
          hostname,
          environment ?? readRuntimeEnvironment(),
        ),
-       _resolvedProtocol =
-           protocol ??
-           ((tls?.isConfigured ?? false)
-               ? ServerProtocol.https
-               : ServerProtocol.http) {
+       _resolvedProtocol = _resolveProtocol(
+         protocol,
+         tls,
+         environment ?? readRuntimeEnvironment(),
+       ) {
     _transport = createServerTransport(this);
   }
 
@@ -102,6 +112,9 @@ final class Server implements ServerHandle, ServerTransportHost {
 
   @override
   ServerCapabilities get capabilities => _transport.capabilities;
+
+  @override
+  Map<String, String> get runtimeEnvironment => _environment;
 
   int get port => _resolvedPort;
 
@@ -454,5 +467,192 @@ final class Server implements ServerHandle, ServerTransportHost {
     }
 
     return '0.0.0.0';
+  }
+
+  static ServerProtocol _resolveProtocol(
+    ServerProtocol? configured,
+    TlsOptions? tls,
+    Map<String, String> environment,
+  ) {
+    if (configured != null) {
+      return configured;
+    }
+
+    final envProtocol = (environment['OSRV_PROTOCOL'] ?? '').toLowerCase();
+    if (envProtocol == 'https') {
+      return ServerProtocol.https;
+    }
+    if (envProtocol == 'http') {
+      return ServerProtocol.http;
+    }
+
+    final tlsConfigured = tls?.isConfigured ?? false;
+    if (tlsConfigured || _hasTlsEnvironmentInputs(environment)) {
+      return ServerProtocol.https;
+    }
+
+    final tlsRequested = _parseBoolish(environment['OSRV_TLS']);
+    if (tlsRequested == true) {
+      return ServerProtocol.https;
+    }
+
+    return ServerProtocol.http;
+  }
+
+  static TlsOptions? _resolveTls(
+    TlsOptions? configured,
+    Map<String, String> environment,
+  ) {
+    final cert = _firstNonEmptyString(
+      configured?.cert,
+      environment['OSRV_TLS_CERT'],
+      environment['TLS_CERT'],
+    );
+    final key = _firstNonEmptyString(
+      configured?.key,
+      environment['OSRV_TLS_KEY'],
+      environment['TLS_KEY'],
+    );
+    final passphrase = _firstNonEmptyString(
+      configured?.passphrase,
+      environment['OSRV_TLS_PASSPHRASE'],
+      environment['TLS_PASSPHRASE'],
+    );
+
+    if (cert == null && key == null && passphrase == null) {
+      return null;
+    }
+
+    return TlsOptions(cert: cert, key: key, passphrase: passphrase);
+  }
+
+  static NodeOptions _resolveNodeOptions(
+    NodeOptions configured,
+    Map<String, String> environment,
+  ) {
+    final values = <String, Object?>{};
+
+    final http2 = _parseBoolish(
+      _firstNonEmptyString(
+        environment['OSRV_NODE_HTTP2'],
+        environment['OSRV_HTTP2'],
+      ),
+    );
+    if (http2 != null) {
+      values['http2'] = http2;
+    }
+
+    final maxHeaderSize = int.tryParse(
+      environment['OSRV_NODE_MAX_HEADER_SIZE'] ?? '',
+    );
+    if (maxHeaderSize != null) {
+      values['maxHeaderSize'] = maxHeaderSize;
+    }
+
+    values.addAll(configured);
+    return NodeOptions(values);
+  }
+
+  static BunOptions _resolveBunOptions(
+    BunOptions configured,
+    Map<String, String> environment,
+  ) {
+    final values = <String, Object?>{};
+
+    final http2 = _parseBoolish(
+      _firstNonEmptyString(
+        environment['OSRV_BUN_HTTP2'],
+        environment['OSRV_HTTP2'],
+      ),
+    );
+    if (http2 != null) {
+      values['http2'] = http2;
+    }
+
+    final idleTimeoutMs = int.tryParse(
+      environment['OSRV_BUN_IDLE_TIMEOUT_MS'] ?? '',
+    );
+    if (idleTimeoutMs != null) {
+      values['idleTimeoutMs'] = idleTimeoutMs;
+    }
+
+    final reusePort = _parseBoolish(environment['OSRV_BUN_REUSE_PORT']);
+    if (reusePort != null) {
+      values['reusePort'] = reusePort;
+    }
+
+    values.addAll(configured);
+    return BunOptions(values);
+  }
+
+  static DenoOptions _resolveDenoOptions(
+    DenoOptions configured,
+    Map<String, String> environment,
+  ) {
+    final values = <String, Object?>{};
+
+    final http2 = _parseBoolish(
+      _firstNonEmptyString(
+        environment['OSRV_DENO_HTTP2'],
+        environment['OSRV_HTTP2'],
+      ),
+    );
+    if (http2 != null) {
+      values['http2'] = http2;
+    }
+
+    values.addAll(configured);
+    return DenoOptions(values);
+  }
+
+  static bool _hasTlsEnvironmentInputs(Map<String, String> environment) {
+    final cert = _firstNonEmptyString(
+      environment['OSRV_TLS_CERT'],
+      environment['TLS_CERT'],
+    );
+    final key = _firstNonEmptyString(
+      environment['OSRV_TLS_KEY'],
+      environment['TLS_KEY'],
+    );
+    return cert != null && key != null;
+  }
+
+  static String? _firstNonEmptyString(
+    String? first,
+    String? second, [
+    String? third,
+  ]) {
+    for (final value in <String?>[first, second, third]) {
+      if (value != null && value.isNotEmpty) {
+        return value;
+      }
+    }
+
+    return null;
+  }
+
+  static bool? _parseBoolish(String? value) {
+    if (value == null) {
+      return null;
+    }
+
+    final normalized = value.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return null;
+    }
+    if (normalized == '1' ||
+        normalized == 'true' ||
+        normalized == 'yes' ||
+        normalized == 'on') {
+      return true;
+    }
+    if (normalized == '0' ||
+        normalized == 'false' ||
+        normalized == 'no' ||
+        normalized == 'off') {
+      return false;
+    }
+
+    return null;
   }
 }
