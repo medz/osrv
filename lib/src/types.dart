@@ -242,6 +242,12 @@ extension type const NodeOptions(Map<String, Object?> _)
 
 extension type const BunOptions(Map<String, Object?> _)
     implements Map<String, Object?> {
+  bool? get http2 => _asBool(this['http2']);
+
+  set http2(bool? value) {
+    _setOrRemove(this, 'http2', value);
+  }
+
   bool? get reusePort => _asBool(this['reusePort']);
 
   set reusePort(bool? value) {
@@ -257,6 +263,12 @@ extension type const BunOptions(Map<String, Object?> _)
 
 extension type const DenoOptions(Map<String, Object?> _)
     implements Map<String, Object?> {
+  bool? get http2 => _asBool(this['http2']);
+
+  set http2(bool? value) {
+    _setOrRemove(this, 'http2', value);
+  }
+
   bool? get reusePort => _asBool(this['reusePort']);
 
   set reusePort(bool? value) {
