@@ -95,8 +95,8 @@ import '../../js/core/osrv_core.js';
 
 export default {
   async fetch(request, env, ctx) {
-    if (typeof globalThis.__osrvFetch === 'function') {
-      return globalThis.__osrvFetch(request, { env, ctx, provider: 'cloudflare' });
+    if (typeof globalThis.__osrv_main__ === 'function') {
+      return globalThis.__osrv_main__(request, { env, ctx, provider: 'cloudflare' });
     }
 
     return new Response('osrv Cloudflare adapter scaffold generated.', { status: 501 });
@@ -108,8 +108,8 @@ const String _vercelWrapper = '''
 import '../../js/core/osrv_core.js';
 
 export default async function handler(request, context) {
-  if (typeof globalThis.__osrvFetch === 'function') {
-    return globalThis.__osrvFetch(request, {
+  if (typeof globalThis.__osrv_main__ === 'function') {
+    return globalThis.__osrv_main__(request, {
       env: context?.env ?? {},
       ctx: context,
       provider: 'vercel',
@@ -124,8 +124,8 @@ const String _netlifyWrapper = '''
 import '../../js/core/osrv_core.js';
 
 export default async (request, context) => {
-  if (typeof globalThis.__osrvFetch === 'function') {
-    return globalThis.__osrvFetch(request, {
+  if (typeof globalThis.__osrv_main__ === 'function') {
+    return globalThis.__osrv_main__(request, {
       env: context?.env ?? {},
       ctx: context,
       provider: 'netlify',

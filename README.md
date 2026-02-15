@@ -16,6 +16,46 @@ Dart-first unified server core with a single `Server(...)` API.
 dart pub get
 ```
 
+## Use osrv in your own package
+
+`osrv` is meant to be used as a dependency from another Dart package:
+
+```yaml
+name: my_server_app
+publish_to: none
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  osrv:
+    path: ../osrv
+```
+
+Then create `bin/main.dart`:
+
+```dart
+import 'package:osrv/osrv.dart';
+
+Future<void> main() async {
+  final server = Server(
+    fetch: (request) => Response.json({'ok': true, 'path': request.url.path}),
+  );
+  await server.serve();
+}
+```
+
+## Example package
+
+`/example` is a minimal non-publishable pub package that depends on `osrv` via path dependency.
+
+```bash
+cd example
+dart pub get
+dart run osrv serve
+dart run osrv build
+```
+
 ## Quick start
 
 ```dart
@@ -35,8 +75,11 @@ Future<void> main() async {
 ## CLI
 
 ```bash
-dart run bin/osrv.dart serve --entry example/main.dart
+dart run osrv serve
+dart run osrv build
 ```
+
+`serve` defaults to `server.dart` (fallback: `bin/server.dart`), and `build` also defaults to the same entry.
 
 CLI config precedence:
 

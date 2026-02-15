@@ -2,13 +2,19 @@ import 'dart:io';
 
 import 'package:args/args.dart';
 
+const String _defaultEntry = 'server.dart';
+
 Future<void> main(List<String> args) async {
   final parser = ArgParser()
     ..addCommand('serve')
     ..addCommand('build');
 
   parser.commands['serve']!
-    ..addOption('entry', help: 'Dart entry file that boots your fetch handler.')
+    ..addOption(
+      'entry',
+      defaultsTo: _defaultEntry,
+      help: 'Dart entry file. Defaults to `server.dart`.',
+    )
     ..addOption('port', help: 'Port to listen on.')
     ..addOption('hostname', help: 'Hostname to bind to.')
     ..addOption(
@@ -23,7 +29,18 @@ Future<void> main(List<String> args) async {
     )
     ..addFlag('silent', defaultsTo: false, help: 'Silence osrv CLI logs.');
 
-  parser.commands['build']!.addFlag('silent', defaultsTo: false);
+  parser.commands['build']!
+    ..addOption(
+      'entry',
+      defaultsTo: _defaultEntry,
+      help: 'Dart entry file to compile. Defaults to `server.dart`.',
+    )
+    ..addOption('out-dir', defaultsTo: 'dist', help: 'Build output directory.')
+    ..addFlag(
+      'silent',
+      defaultsTo: false,
+      help: 'Silence build progress logs.',
+    );
 
   ArgResults result;
   try {
@@ -49,20 +66,20 @@ Future<void> main(List<String> args) async {
     case 'build':
       await _runBuild(command);
       return;
+    default:
+      stderr.writeln('[osrv] unknown command: ${command.name}');
+      exitCode = 64;
+      return;
   }
 }
 
 Future<void> _runServe(ArgResults command) async {
-  final entry = command['entry'] as String?;
-  if (entry == null || entry.isEmpty) {
-    stderr.writeln('[osrv] --entry is required for `osrv serve`.');
-    exitCode = 64;
-    return;
-  }
-
-  final entryFile = File(entry);
-  if (!entryFile.existsSync()) {
-    stderr.writeln('[osrv] entry file not found: $entry');
+  final entry = _resolveEntry(command['entry'] as String);
+  if (entry == null) {
+    stderr.writeln(
+      '[osrv] entry not found. looked for `${command['entry']}` '
+      'and fallback `bin/server.dart`.',
+    );
     exitCode = 66;
     return;
   }
@@ -105,7 +122,7 @@ Future<void> _runServe(ArgResults command) async {
 
   if (!(command['silent'] as bool)) {
     stdout.writeln(
-      '[osrv] launching `$entry` with PORT=$port HOSTNAME=$hostname PROTOCOL=$protocol',
+      '[osrv] serving `$entry` with PORT=$port HOSTNAME=$hostname PROTOCOL=$protocol',
     );
   }
 
@@ -120,14 +137,156 @@ Future<void> _runServe(ArgResults command) async {
 }
 
 Future<void> _runBuild(ArgResults command) async {
-  final child = await Process.start(
-    'dart',
-    <String>['run', 'tool/build.dart'],
+  final entry = _resolveEntry(command['entry'] as String);
+  if (entry == null) {
+    stderr.writeln(
+      '[osrv] entry not found. looked for `${command['entry']}` '
+      'and fallback `bin/server.dart`.',
+    );
+    exitCode = 66;
+    return;
+  }
+
+  final outDir = command['out-dir'] as String;
+  final silent = command['silent'] as bool;
+  final baseName = _basenameWithoutExtension(entry);
+
+  _ensureDir('$outDir/js/core');
+  _ensureDir('$outDir/js/node');
+  _ensureDir('$outDir/js/bun');
+  _ensureDir('$outDir/js/deno');
+  _ensureDir('$outDir/edge/cloudflare');
+  _ensureDir('$outDir/edge/vercel');
+  _ensureDir('$outDir/edge/netlify');
+  _ensureDir('$outDir/bin');
+
+  final coreJsName = '$baseName.js';
+  final coreJsPath = '$outDir/js/core/$coreJsName';
+  final exeName = Platform.isWindows ? '$baseName.exe' : baseName;
+  final exePath = '$outDir/bin/$exeName';
+
+  await _run('dart', <String>[
+    'compile',
+    'js',
+    entry,
+    '-o',
+    coreJsPath,
+  ], silent: silent);
+
+  await _run('dart', <String>[
+    'compile',
+    'exe',
+    entry,
+    '-o',
+    exePath,
+  ], silent: silent);
+
+  _writeRuntimeWrappers(outDir, coreJsName);
+
+  if (!silent) {
+    stdout.writeln('[osrv] build complete');
+    stdout.writeln('[osrv] js core: $coreJsPath');
+    stdout.writeln('[osrv] exe: $exePath');
+  }
+}
+
+void _writeRuntimeWrappers(String outDir, String coreJsName) {
+  File('$outDir/js/node/index.mjs').writeAsStringSync('''
+import '../core/$coreJsName';
+
+export function serve(options = {}) {
+  throw new Error(
+    'osrv node adapter scaffold generated. Bridge runtime requests to globalThis.__osrv_main__.',
+  );
+}
+''');
+
+  File('$outDir/js/bun/index.mjs').writeAsStringSync('''
+import '../core/$coreJsName';
+
+export function serve(options = {}) {
+  throw new Error(
+    'osrv bun adapter scaffold generated. Bridge runtime requests to globalThis.__osrv_main__.',
+  );
+}
+''');
+
+  File('$outDir/js/deno/index.mjs').writeAsStringSync('''
+import '../core/$coreJsName';
+
+export function serve(options = {}) {
+  throw new Error(
+    'osrv deno adapter scaffold generated. Bridge runtime requests to globalThis.__osrv_main__.',
+  );
+}
+''');
+
+  File('$outDir/edge/cloudflare/index.mjs').writeAsStringSync('''
+import '../../js/core/$coreJsName';
+
+export default {
+  async fetch(request, env, ctx) {
+    if (typeof globalThis.__osrv_main__ === 'function') {
+      return globalThis.__osrv_main__(request, { env, ctx, provider: 'cloudflare' });
+    }
+
+    return new Response('osrv Cloudflare adapter scaffold generated.', { status: 501 });
+  },
+};
+''');
+
+  File('$outDir/edge/vercel/index.mjs').writeAsStringSync('''
+import '../../js/core/$coreJsName';
+
+export default async function handler(request, context) {
+  if (typeof globalThis.__osrv_main__ === 'function') {
+    return globalThis.__osrv_main__(request, {
+      env: context?.env ?? {},
+      ctx: context,
+      provider: 'vercel',
+    });
+  }
+
+  return new Response('osrv Vercel adapter scaffold generated.', { status: 501 });
+}
+''');
+
+  File('$outDir/edge/netlify/index.mjs').writeAsStringSync('''
+import '../../js/core/$coreJsName';
+
+export default async (request, context) => {
+  if (typeof globalThis.__osrv_main__ === 'function') {
+    return globalThis.__osrv_main__(request, {
+      env: context?.env ?? {},
+      ctx: context,
+      provider: 'netlify',
+    });
+  }
+
+  return new Response('osrv Netlify adapter scaffold generated.', { status: 501 });
+};
+''');
+}
+
+Future<void> _run(
+  String executable,
+  List<String> arguments, {
+  required bool silent,
+}) async {
+  if (!silent) {
+    stdout.writeln('\$ $executable ${arguments.join(' ')}');
+  }
+
+  final process = await Process.start(
+    executable,
+    arguments,
     mode: ProcessStartMode.inheritStdio,
-    environment: Platform.environment,
   );
 
-  exitCode = await child.exitCode;
+  final code = await process.exitCode;
+  if (code != 0) {
+    throw ProcessException(executable, arguments, 'Command failed', code);
+  }
 }
 
 Future<_ConfigFile> _loadConfigFile(String path) async {
@@ -152,6 +311,40 @@ Future<_ConfigFile> _loadConfigFile(String path) async {
     hostname: hostMatch?.group(1),
     protocol: protocolMatch?.group(1),
   );
+}
+
+String? _resolveEntry(String preferred) {
+  final preferredFile = File(preferred);
+  if (preferredFile.existsSync()) {
+    return preferred;
+  }
+
+  if (preferred == _defaultEntry) {
+    final fallback = File('bin/server.dart');
+    if (fallback.existsSync()) {
+      return 'bin/server.dart';
+    }
+  }
+
+  return null;
+}
+
+void _ensureDir(String path) {
+  final dir = Directory(path);
+  if (!dir.existsSync()) {
+    dir.createSync(recursive: true);
+  }
+}
+
+String _basenameWithoutExtension(String path) {
+  final normalized = path.replaceAll('\\', '/');
+  final fileName = normalized.split('/').last;
+  final dotIndex = fileName.lastIndexOf('.');
+  if (dotIndex <= 0) {
+    return fileName;
+  }
+
+  return fileName.substring(0, dotIndex);
 }
 
 String? _firstNonEmpty(String? first, String? second, [String? third]) {
