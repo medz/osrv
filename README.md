@@ -100,8 +100,8 @@ Programmatic build API (for downstream packages):
 import 'package:osrv/build.dart';
 
 Future<void> main() async {
-  await buildOsrv(
-    const OsrvBuildOptions(
+  await build(
+    const BuildOptions(
       entry: 'server.dart',
       outDir: 'dist',
     ),

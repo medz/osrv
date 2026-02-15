@@ -37,14 +37,6 @@ If your entry path differs:
 dart run osrv serve --entry path/to/custom_entry.dart
 ```
 
-## Config file is ignored
-
-`osrv.config.dart` must export a top-level `osrvConfig` map.
-
-If execution fails, osrv logs:
-
-- `[osrv] failed to execute config ...`
-
 ## Edge adapter returns 500
 
 Edge adapters require Dart core to register `globalThis.__osrv_main__`.

@@ -39,8 +39,8 @@ Future<void> main(List<String> args) async {
   final outDir = parsed['out-dir'] as String;
   final silent = parsed['silent'] as bool;
   try {
-    await buildOsrv(
-      OsrvBuildOptions(
+    await build(
+      BuildOptions(
         entry: entry,
         outDir: outDir,
         silent: silent,

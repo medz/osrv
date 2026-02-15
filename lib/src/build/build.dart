@@ -1,10 +1,10 @@
 import 'dart:io';
 import 'dart:isolate';
 
-typedef OsrvBuildLogger = void Function(String message);
+typedef BuildLogger = void Function(String message);
 
-final class OsrvBuildOptions {
-  const OsrvBuildOptions({
+final class BuildOptions {
+  const BuildOptions({
     this.entry = 'server.dart',
     this.outDir = 'dist',
     this.silent = false,
@@ -23,8 +23,8 @@ final class OsrvBuildOptions {
   final String fallbackEntry;
 }
 
-final class OsrvBuildResult {
-  const OsrvBuildResult({
+final class BuildResult {
+  const BuildResult({
     required this.entry,
     required this.outDir,
     required this.coreJsPath,
@@ -37,7 +37,7 @@ final class OsrvBuildResult {
   final String executablePath;
 }
 
-String? resolveOsrvEntry(
+String? resolveEntry(
   String preferred, {
   String defaultEntry = 'server.dart',
   String fallbackEntry = 'bin/server.dart',
@@ -55,11 +55,8 @@ String? resolveOsrvEntry(
   return null;
 }
 
-Future<OsrvBuildResult> buildOsrv(
-  OsrvBuildOptions options, {
-  OsrvBuildLogger? logger,
-}) async {
-  final resolvedEntry = resolveOsrvEntry(
+Future<BuildResult> build(BuildOptions options, {BuildLogger? logger}) async {
+  final resolvedEntry = resolveEntry(
     options.entry,
     defaultEntry: options.defaultEntry,
     fallbackEntry: options.fallbackEntry,
@@ -143,7 +140,7 @@ Future<OsrvBuildResult> buildOsrv(
     logger('[osrv] exe: $exePath');
   }
 
-  return OsrvBuildResult(
+  return BuildResult(
     entry: resolvedEntry,
     outDir: options.outDir,
     coreJsPath: coreJsPath,
@@ -168,21 +165,21 @@ Future<void> _writeRuntimeWrappers(
 
   _writeRenderedTemplate(
     templatesRoot: templatesRoot,
-    templatePath: 'runtime/node_index.mjs',
+    templatePath: 'runtime/node.mjs',
     outputPath: '$outDir/js/node/index.mjs',
     vars: vars,
     workingDirectory: workingDirectory,
   );
   _writeRenderedTemplate(
     templatesRoot: templatesRoot,
-    templatePath: 'runtime/bun_index.mjs',
+    templatePath: 'runtime/bun.mjs',
     outputPath: '$outDir/js/bun/index.mjs',
     vars: vars,
     workingDirectory: workingDirectory,
   );
   _writeRenderedTemplate(
     templatesRoot: templatesRoot,
-    templatePath: 'runtime/deno_index.mjs',
+    templatePath: 'runtime/deno.mjs',
     outputPath: '$outDir/js/deno/index.mjs',
     vars: vars,
     workingDirectory: workingDirectory,
@@ -190,21 +187,21 @@ Future<void> _writeRuntimeWrappers(
 
   _writeRenderedTemplate(
     templatesRoot: templatesRoot,
-    templatePath: 'edge/cloudflare_index.mjs',
+    templatePath: 'edge/cloudflare.mjs',
     outputPath: '$outDir/edge/cloudflare/index.mjs',
     vars: vars,
     workingDirectory: workingDirectory,
   );
   _writeRenderedTemplate(
     templatesRoot: templatesRoot,
-    templatePath: 'edge/vercel_index.mjs',
+    templatePath: 'edge/vercel.mjs',
     outputPath: '$outDir/edge/vercel/index.mjs',
     vars: vars,
     workingDirectory: workingDirectory,
   );
   _writeRenderedTemplate(
     templatesRoot: templatesRoot,
-    templatePath: 'edge/netlify_index.mjs',
+    templatePath: 'edge/netlify.mjs',
     outputPath: '$outDir/edge/netlify/index.mjs',
     vars: vars,
     workingDirectory: workingDirectory,
@@ -265,7 +262,7 @@ Future<void> _run(
   String executable,
   List<String> arguments, {
   required bool silent,
-  required OsrvBuildLogger? logger,
+  required BuildLogger? logger,
   required String? workingDirectory,
 }) async {
   if (!silent && logger != null) {

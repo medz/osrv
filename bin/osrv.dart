@@ -72,7 +72,7 @@ Future<void> main(List<String> args) async {
 
 Future<void> _runServe(ArgResults command) async {
   final requestedEntry = command['entry'] as String;
-  final entry = resolveOsrvEntry(
+  final entry = resolveEntry(
     requestedEntry,
     defaultEntry: _defaultEntry,
     fallbackEntry: _defaultFallbackEntry,
@@ -139,8 +139,8 @@ Future<void> _runBuild(ArgResults command) async {
   final silent = command['silent'] as bool;
 
   try {
-    await buildOsrv(
-      OsrvBuildOptions(
+    await build(
+      BuildOptions(
         entry: requestedEntry,
         outDir: outDir,
         silent: silent,
