@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -23,11 +22,6 @@ Future<void> main(List<String> args) async {
       'protocol',
       allowed: <String>['http', 'https'],
       help: 'Protocol preference.',
-    )
-    ..addOption(
-      'config',
-      defaultsTo: 'osrv.config.dart',
-      help: 'Config file path.',
     )
     ..addFlag('silent', defaultsTo: false, help: 'Silence osrv CLI logs.');
 
@@ -86,8 +80,6 @@ Future<void> _runServe(ArgResults command) async {
     return;
   }
 
-  final configPath = command['config'] as String;
-  final fileConfig = await _loadConfigFile(configPath);
   final env = Platform.environment;
 
   final port =
@@ -96,7 +88,6 @@ Future<void> _runServe(ArgResults command) async {
         env['PORT'],
         env['OSRV_PORT'],
       ) ??
-      fileConfig.port ??
       '3000';
 
   final hostname =
@@ -105,12 +96,10 @@ Future<void> _runServe(ArgResults command) async {
         env['HOSTNAME'],
         env['OSRV_HOSTNAME'],
       ) ??
-      fileConfig.hostname ??
       '0.0.0.0';
 
   final protocol =
       _firstNonEmpty(command['protocol'] as String?, env['OSRV_PROTOCOL']) ??
-      fileConfig.protocol ??
       'http';
 
   final spawnedEnv = <String, String>{
@@ -184,10 +173,7 @@ Future<void> _runBuild(ArgResults command) async {
     exePath,
   ], silent: silent);
 
-  await _writeRuntimeWrappers(
-    outDir,
-    coreJsName: coreJsName,
-  );
+  await _writeRuntimeWrappers(outDir, coreJsName: coreJsName);
 
   if (!silent) {
     stdout.writeln('[osrv] build complete');
@@ -259,9 +245,7 @@ Future<String> _resolveTemplatesRoot() async {
 
   final templatesRoot = '$packageRoot/tool/templates';
   if (!Directory(templatesRoot).existsSync()) {
-    throw StateError(
-      'osrv template directory not found: $templatesRoot',
-    );
+    throw StateError('osrv template directory not found: $templatesRoot');
   }
 
   return templatesRoot;
@@ -295,6 +279,7 @@ String _renderTemplate(String template, Map<String, String> vars) {
 
   return rendered;
 }
+
 Future<void> _run(
   String executable,
   List<String> arguments, {
@@ -313,85 +298,6 @@ Future<void> _run(
   final code = await process.exitCode;
   if (code != 0) {
     throw ProcessException(executable, arguments, 'Command failed', code);
-  }
-}
-
-Future<_ConfigFile> _loadConfigFile(String path) async {
-  final file = File(path);
-  if (!file.existsSync()) {
-    return const _ConfigFile();
-  }
-
-  final configMap = await _evaluateConfigMap(file);
-  if (configMap == null) {
-    return const _ConfigFile();
-  }
-
-  String? readString(String key) {
-    final value = configMap[key];
-    if (value == null) {
-      return null;
-    }
-    return value.toString();
-  }
-
-  return _ConfigFile(
-    port: readString('port'),
-    hostname: readString('hostname'),
-    protocol: readString('protocol'),
-  );
-}
-
-Future<Map<String, Object?>?> _evaluateConfigMap(File file) async {
-  final tempDir = await Directory.systemTemp.createTemp('osrv-config-');
-  final runner = File('${tempDir.path}/runner.dart');
-  try {
-    final configUri = file.absolute.uri.toString();
-    runner.writeAsStringSync('''
-import 'dart:convert';
-import 'dart:io';
-
-import '$configUri';
-
-void main() {
-  final dynamic value = osrvConfig;
-  if (value is! Map) {
-    stderr.writeln('`osrvConfig` must be a Map.');
-    exit(2);
-  }
-
-  stdout.write(jsonEncode(Map<String, Object?>.from(value)));
-}
-''');
-
-    final result = await Process.run('dart', <String>[
-      'run',
-      runner.path,
-    ], workingDirectory: file.parent.path);
-
-    if (result.exitCode != 0) {
-      stderr.writeln('[osrv] failed to execute config `${file.path}`.');
-      if (result.stderr != null && result.stderr.toString().trim().isNotEmpty) {
-        stderr.writeln(result.stderr.toString().trim());
-      }
-      return null;
-    }
-
-    final text = result.stdout?.toString().trim();
-    if (text == null || text.isEmpty) {
-      return null;
-    }
-
-    final decoded = jsonDecode(text);
-    if (decoded is! Map) {
-      return null;
-    }
-
-    return Map<String, Object?>.from(decoded);
-  } finally {
-    if (tempDir.existsSync()) {
-      tempDir.deleteSync(recursive: true);
-    }
   }
 }
 
@@ -437,12 +343,4 @@ String? _firstNonEmpty(String? first, String? second, [String? third]) {
   }
 
   return null;
-}
-
-final class _ConfigFile {
-  const _ConfigFile({this.port, this.hostname, this.protocol});
-
-  final String? port;
-  final String? hostname;
-  final String? protocol;
 }

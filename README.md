@@ -92,20 +92,7 @@ CLI config precedence:
 
 1. CLI flags
 2. Environment variables
-3. `osrv.config.dart` (executed, expects top-level `osrvConfig` map)
-4. Defaults
-
-`osrv.config.dart` executable config contract:
-
-```dart
-const Map<String, Object> osrvConfig = <String, Object>{
-  'port': 3000,
-  'hostname': '0.0.0.0',
-  'protocol': 'http',
-};
-```
-
-osrv executes this file in a local trust model and reads the top-level `osrvConfig` map.
+3. Defaults
 
 ## Maintainer Build Helper
 
