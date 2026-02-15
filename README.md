@@ -93,6 +93,12 @@ TLS/HTTP2 flags for local serve:
 dart run osrv serve --tls --cert=cert.pem --key=key.pem --http2
 ```
 
+`http2` is tri-state in CLI:
+
+- `--http2`: force on.
+- `--no-http2`: force off.
+- omitted: runtime default (`auto`).
+
 Dependency-mode workflow (inside your app package):
 
 1. Add `osrv` dependency.

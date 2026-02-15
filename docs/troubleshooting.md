@@ -55,9 +55,14 @@ Provider behavior:
 
 ## HTTP/2 expectation mismatch
 
-Current Dart native transport path uses `dart:io HttpServer`, which does not
-negotiate ALPN h2 in this implementation path yet. If you force HTTP/2 clients,
-they may fall back to HTTP/1.1.
+HTTP/2 requires HTTPS/TLS. If TLS is missing, osrv falls back to HTTP/1.1.
+
+Behavior by runtime:
+
+1. Dart native: HTTPS + TLS enables HTTP/2 (ALPN).
+2. Node: HTTPS + TLS uses HTTP/2 by default unless `http2` is explicitly set to `false`.
+3. Bun: `http2=true` uses Node compatibility `node:http2` path; otherwise Bun path reports `http2=false`.
+4. Deno: `Deno.serve` TLS path negotiates HTTP/2 by runtime default, and explicit disable is not supported.
 
 ## Contract matrix failures
 

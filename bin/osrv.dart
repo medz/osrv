@@ -153,7 +153,7 @@ Future<void> _runServe(ArgResults command) async {
   }
 
   final effectiveProtocol = protocol ?? (tlsEnabled ? 'https' : 'http');
-  final http2Enabled = http2Flag ?? envHttp2 ?? false;
+  final effectiveHttp2 = http2Flag ?? envHttp2;
 
   final spawnedEnv = <String, String>{
     ...env,
@@ -163,10 +163,12 @@ Future<void> _runServe(ArgResults command) async {
     'OSRV_HOSTNAME': hostname,
     'OSRV_PROTOCOL': effectiveProtocol,
     'OSRV_TLS': tlsEnabled ? 'true' : 'false',
-    'OSRV_HTTP2': http2Enabled ? 'true' : 'false',
-    'OSRV_NODE_HTTP2': http2Enabled ? 'true' : 'false',
-    'OSRV_BUN_HTTP2': http2Enabled ? 'true' : 'false',
-    'OSRV_DENO_HTTP2': http2Enabled ? 'true' : 'false',
+    if (effectiveHttp2 != null) ...<String, String>{
+      'OSRV_HTTP2': effectiveHttp2 ? 'true' : 'false',
+      'OSRV_NODE_HTTP2': effectiveHttp2 ? 'true' : 'false',
+      'OSRV_BUN_HTTP2': effectiveHttp2 ? 'true' : 'false',
+      'OSRV_DENO_HTTP2': effectiveHttp2 ? 'true' : 'false',
+    },
     'OSRV_TLS_CERT': cert ?? '',
     'OSRV_TLS_KEY': key ?? '',
     'OSRV_TLS_PASSPHRASE': passphrase ?? '',
@@ -182,7 +184,7 @@ Future<void> _runServe(ArgResults command) async {
       'TLS=${tlsEnabled ? 'on' : 'off'} '
       'CERT=${cert != null ? 'set' : 'unset'} '
       'KEY=${key != null ? 'set' : 'unset'} '
-      'HTTP2=${http2Enabled ? 'on' : 'off'}',
+      'HTTP2=${effectiveHttp2 == null ? 'auto' : (effectiveHttp2 ? 'on' : 'off')}',
     );
   }
 
