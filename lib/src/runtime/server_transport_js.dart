@@ -17,6 +17,7 @@ const String _mainKey = '__osrv_main__';
 const String _mainReadyResolveKey = '__osrv_main_ready_resolve__';
 const String _bridgeModeKey = '__osrv_bridge__';
 const String _bridgeModeValue = 'json-v1';
+const String _runtimeCapabilitiesKey = '__osrv_runtime_capabilities__';
 
 ServerTransport createServerTransport(ServerTransportHost host) {
   return _JsBridgeServerTransport(host);
@@ -39,10 +40,11 @@ final class _JsBridgeServerTransport implements ServerTransport {
         _runtimeName == 'cloudflare' ||
         _runtimeName == 'vercel' ||
         _runtimeName == 'netlify';
+    final http2 = _readRuntimeCapabilityBool('http2') ?? false;
     return ServerCapabilities(
       http1: true,
       https: true,
-      http2: false,
+      http2: http2,
       websocket: false,
       requestStreaming: false,
       responseStreaming: false,
@@ -302,5 +304,19 @@ final class _JsBridgeServerTransport implements ServerTransport {
       return value;
     }
     return fallback;
+  }
+
+  bool? _readRuntimeCapabilityBool(String name) {
+    final raw = _globalThis.getProperty(_runtimeCapabilitiesKey.toJS);
+    if (!raw.isA<JSObject>()) {
+      return null;
+    }
+
+    final value = (raw as JSObject).getProperty(name.toJS);
+    if (value.isA<JSBoolean>()) {
+      return (value as JSBoolean).toDart;
+    }
+
+    return null;
   }
 }
