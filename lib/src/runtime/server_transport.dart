@@ -1,5 +1,6 @@
-import 'package:ht/ht.dart';
+import 'package:ht/ht.dart' show Response;
 
+import '../request.dart';
 import '../types.dart';
 import 'server_transport_stub.dart'
     if (dart.library.js_interop) 'server_transport_js.dart'
@@ -19,7 +20,7 @@ abstract interface class ServerTransportHost {
   ServerSecurityLimits get securityLimits;
   WebSocketLimits get webSocketLimits;
 
-  Future<Response> dispatch(Request request);
+  Future<Response> dispatch(ServerRequest request);
   void trackBackgroundTask(Future<Object?> task);
   void logInfo(String message);
   void logWarn(String message);

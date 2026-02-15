@@ -1,10 +1,9 @@
-import 'package:ht/ht.dart';
-
+import '../request.dart';
 import '../types.dart';
 import '../websocket_contract.dart';
 
 Future<ServerWebSocket> upgradeWebSocket(
-  Request request, {
+  ServerRequest request, {
   WebSocketLimits limits = const WebSocketLimits(),
 }) {
   throw UnsupportedError(

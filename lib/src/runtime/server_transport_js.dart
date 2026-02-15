@@ -4,9 +4,9 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
-import 'package:ht/ht.dart';
+import 'package:ht/ht.dart' show Headers, Request, Response;
 
-import '../request_extras.dart';
+import '../request.dart';
 import '../types.dart';
 import 'server_transport.dart';
 
@@ -34,7 +34,8 @@ final class _JsBridgeServerTransport implements ServerTransport {
 
   @override
   ServerCapabilities get capabilities {
-    final edge = _runtimeName == 'cloudflare' ||
+    final edge =
+        _runtimeName == 'cloudflare' ||
         _runtimeName == 'vercel' ||
         _runtimeName == 'netlify';
     return ServerCapabilities(
@@ -53,8 +54,9 @@ final class _JsBridgeServerTransport implements ServerTransport {
 
   @override
   String? get url {
-    final protocol =
-        _host.resolvedProtocol == ServerProtocol.https ? 'https' : 'http';
+    final protocol = _host.resolvedProtocol == ServerProtocol.https
+        ? 'https'
+        : 'http';
     return '$protocol://${_host.resolvedHostname}:${_host.resolvedPort}';
   }
 
@@ -64,17 +66,16 @@ final class _JsBridgeServerTransport implements ServerTransport {
       return;
     }
 
-    final bridge = (
-      JSAny? payloadJson,
-      JSFunction resolve,
-      JSFunction reject,
-    ) {
-      _dispatchPayload(payloadJson).then((responseJson) {
-        resolve.callAsFunction(resolve, responseJson.toJS);
-      }, onError: (Object error, StackTrace stackTrace) {
-        _host.logError('JS bridge dispatch failed', error, stackTrace);
-        resolve.callAsFunction(resolve, _encodeFatalBridgeError(error).toJS);
-      });
+    final bridge = (JSAny? payloadJson, JSFunction resolve, JSFunction reject) {
+      _dispatchPayload(payloadJson).then(
+        (responseJson) {
+          resolve.callAsFunction(resolve, responseJson.toJS);
+        },
+        onError: (Object error, StackTrace stackTrace) {
+          _host.logError('JS bridge dispatch failed', error, stackTrace);
+          resolve.callAsFunction(resolve, _encodeFatalBridgeError(error).toJS);
+        },
+      );
       reject; // Keep static arity stable for JS callers.
     }.toJS;
 
@@ -134,13 +135,10 @@ final class _JsBridgeServerTransport implements ServerTransport {
     final runtime = _decodeRuntime(runtimePayload, waitUntil);
     final ip = _stringOrNull(runtimePayload['ip']);
 
-    attachRequestRuntime(
-      request,
-      runtime: runtime,
-      context: contextPayload,
-      ip: ip,
-      waitUntil: waitUntil,
-    );
+    request.runtime = runtime;
+    request.context = contextPayload;
+    request.ip = ip;
+    request.waitUntil = waitUntil;
 
     final response = await _host.dispatch(request);
     if (waitUntilTasks.isNotEmpty) {
@@ -150,7 +148,7 @@ final class _JsBridgeServerTransport implements ServerTransport {
     return _encodeResponse(response);
   }
 
-  Request _decodeRequest(Map<String, Object?> payload) {
+  ServerRequest _decodeRequest(Map<String, Object?> payload) {
     final urlRaw = payload['url'];
     if (urlRaw is! String || urlRaw.isEmpty) {
       throw StateError('Bridge request.url must be a non-empty string.');
@@ -173,7 +171,9 @@ final class _JsBridgeServerTransport implements ServerTransport {
       body = Uint8List.fromList(base64Decode(bodyBase64));
     }
 
-    return Request(Uri.parse(urlRaw), method: method, headers: headers, body: body);
+    return ServerRequest(
+      Request(Uri.parse(urlRaw), method: method, headers: headers, body: body),
+    );
   }
 
   RequestRuntimeContext _decodeRuntime(

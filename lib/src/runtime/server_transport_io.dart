@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:ht/ht.dart';
+import 'package:ht/ht.dart' show Headers, Request, Response;
 
 import '../exceptions.dart';
-import '../request_extras.dart';
+import '../request.dart';
 import '../types.dart';
 import 'server_transport.dart';
 
@@ -174,17 +174,14 @@ final class _IoServerTransport implements ServerTransport {
       ),
     );
 
-    attachRequestRuntime(
-      request,
-      runtime: runtimeContext,
-      context: <String, Object?>{},
-      ip: _resolveClientIp(ioRequest),
-      waitUntil: waitUntil,
-    );
+    request.runtime = runtimeContext;
+    request.context = <String, Object?>{};
+    request.ip = _resolveClientIp(ioRequest);
+    request.waitUntil = waitUntil;
 
     final response = await _host.dispatch(request);
 
-    if (isWebSocketUpgraded(request)) {
+    if (request.isWebSocketUpgraded) {
       await Future.wait(waitUntilTasks, eagerError: false);
       return;
     }
@@ -193,7 +190,7 @@ final class _IoServerTransport implements ServerTransport {
     await Future.wait(waitUntilTasks, eagerError: false);
   }
 
-  Request _toFetchRequest(HttpRequest ioRequest) {
+  ServerRequest _toFetchRequest(HttpRequest ioRequest) {
     final headers = Headers();
     ioRequest.headers.forEach((name, values) {
       for (final value in values) {
@@ -211,7 +208,9 @@ final class _IoServerTransport implements ServerTransport {
           )
         : null;
 
-    return Request(uri, method: method, headers: headers, body: body);
+    return ServerRequest(
+      Request(uri, method: method, headers: headers, body: body),
+    );
   }
 
   Stream<List<int>> _limitBody(Stream<List<int>> source, int maxBytes) async* {

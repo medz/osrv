@@ -1,8 +1,9 @@
 import 'dart:async';
 
-import 'package:ht/ht.dart';
+import 'package:ht/ht.dart' show Response;
 
 import 'exceptions.dart';
+import 'request.dart';
 import 'runtime/environment.dart';
 import 'runtime/server_transport.dart';
 import 'types.dart';
@@ -163,7 +164,7 @@ final class Server implements ServerHandle, ServerTransportHost {
     }
   }
 
-  Future<Response> _runHandler(Request request) async {
+  Future<Response> _runHandler(ServerRequest request) async {
     Future<Response> runAt(int index) {
       if (index >= middleware.length) {
         return Future<Response>.value(fetch(request));
@@ -177,7 +178,7 @@ final class Server implements ServerHandle, ServerTransportHost {
   }
 
   @override
-  Future<Response> dispatch(Request request) async {
+  Future<Response> dispatch(ServerRequest request) async {
     try {
       return await _runHandler(request);
     } catch (error, stackTrace) {
@@ -311,7 +312,7 @@ final class Server implements ServerHandle, ServerTransportHost {
     Object error,
     StackTrace stackTrace, {
     required ErrorStage stage,
-    Request? request,
+    ServerRequest? request,
   }) async {
     await _emitPluginError(
       stage: stage,
@@ -338,7 +339,7 @@ final class Server implements ServerHandle, ServerTransportHost {
     required ErrorStage stage,
     required Object error,
     required StackTrace stackTrace,
-    Request? request,
+    ServerRequest? request,
   }) async {
     if (_emittingPluginError) {
       logError('Nested plugin error', error, stackTrace);

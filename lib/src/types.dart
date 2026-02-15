@@ -1,22 +1,25 @@
 import 'dart:async';
 
-import 'package:ht/ht.dart';
+import 'package:ht/ht.dart' show Response;
+
+import 'request.dart';
 
 /// Unified fetch handler for all runtimes.
-typedef FetchHandler = FutureOr<Response> Function(Request request);
+typedef FetchHandler = FutureOr<Response> Function(ServerRequest request);
 
 /// Middleware continuation function.
 typedef Next = Future<Response> Function();
 
 /// Onion-style middleware.
-typedef Middleware = Future<Response> Function(Request request, Next next);
+typedef Middleware =
+    Future<Response> Function(ServerRequest request, Next next);
 
 /// Error handler used for request and lifecycle failures.
 typedef ErrorHandler =
     FutureOr<Response> Function(
       Object error,
       StackTrace stackTrace,
-      Request? request,
+      ServerRequest? request,
     );
 
 /// Wait-until function used by request/runtime contexts.
@@ -311,7 +314,7 @@ final class ErrorPluginContext {
   final ErrorStage stage;
   final Object error;
   final StackTrace stackTrace;
-  final Request? request;
+  final ServerRequest? request;
 }
 
 /// Plugin API with full lifecycle hooks.

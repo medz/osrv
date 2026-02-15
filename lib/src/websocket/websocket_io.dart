@@ -3,14 +3,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:ht/ht.dart';
-
-import '../request_extras.dart';
+import '../request.dart';
 import '../types.dart';
 import '../websocket_contract.dart';
 
 Future<ServerWebSocket> upgradeWebSocket(
-  Request request, {
+  ServerRequest request, {
   WebSocketLimits limits = const WebSocketLimits(),
 }) async {
   final runtimeRequest = request.runtime?.raw.dartRequest;
@@ -20,7 +18,7 @@ Future<ServerWebSocket> upgradeWebSocket(
     );
   }
 
-  if (isWebSocketUpgraded(request)) {
+  if (request.isWebSocketUpgraded) {
     throw StateError('Request has already been upgraded to websocket.');
   }
 
@@ -30,8 +28,8 @@ Future<ServerWebSocket> upgradeWebSocket(
     socket.pingInterval = Duration(milliseconds: pingMs);
   }
 
-  markWebSocketUpgraded(request);
-  setRawWebSocket(request, socket);
+  request.markWebSocketUpgraded();
+  request.setRawWebSocket(socket);
   return _IoServerWebSocket(socket, limits);
 }
 

@@ -1,6 +1,6 @@
-export 'package:ht/ht.dart' show Headers, Request, Response;
+export 'package:ht/ht.dart' show Headers, Response;
 
-export 'src/request_extras.dart' show ServerRequestX;
+export 'src/request.dart';
 export 'src/server.dart';
 export 'src/types.dart';
 export 'src/exceptions.dart';
