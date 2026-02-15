@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:ht/ht.dart' show Response;
+
 import '../request.dart';
 import '../types.dart';
 import '../websocket_contract.dart';
@@ -81,6 +83,9 @@ final class _IoServerWebSocket implements ServerWebSocket {
 
   @override
   Future<void> done() => _socket.done;
+
+  @override
+  Response toResponse() => Response.empty(status: 101);
 
   void _assertOpen() {
     if (!_isOpen) {

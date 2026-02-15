@@ -162,6 +162,18 @@ Future<void> _writeRuntimeWrappers(
     outputPath: '$outDir/shared/bridge.mjs',
     workingDirectory: workingDirectory,
   );
+  _writeRenderedTemplate(
+    templatesRoot: templatesRoot,
+    templatePath: 'shared/runtime_utils.mjs',
+    outputPath: '$outDir/shared/runtime_utils.mjs',
+    workingDirectory: workingDirectory,
+  );
+  _writeRenderedTemplate(
+    templatesRoot: templatesRoot,
+    templatePath: 'shared/ws_bridge.mjs',
+    outputPath: '$outDir/shared/ws_bridge.mjs',
+    workingDirectory: workingDirectory,
+  );
 
   _writeRenderedTemplate(
     templatesRoot: templatesRoot,

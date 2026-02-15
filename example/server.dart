@@ -16,7 +16,7 @@ Future<void> main() async {
       if (request.url.path == '/ws') {
         final socket = await upgradeWebSocket(request);
         unawaited(_runWebSocketEcho(socket));
-        return Response.empty(status: 101);
+        return socket.toResponse();
       }
 
       final payload = <String, Object?>{

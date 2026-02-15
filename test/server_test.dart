@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -81,6 +82,41 @@ void main() {
           'afterClose',
         ]),
       );
+    });
+
+    test('websocket upgrade supports toResponse and message echo', () async {
+      final server = Server(
+        port: 0,
+        fetch: (request) async {
+          if (request.url.path != '/ws') {
+            return Response.text('ok');
+          }
+
+          final socket = await upgradeWebSocket(request);
+          unawaited(() async {
+            await for (final message in socket.messages) {
+              if (message is String) {
+                await socket.sendText('echo:$message');
+              }
+            }
+          }());
+          return socket.toResponse();
+        },
+      );
+
+      await server.serve();
+
+      final wsUrl = server.url!.replaceFirst('http://', 'ws://');
+      final socket = await WebSocket.connect('$wsUrl/ws');
+      try {
+        socket.add('hello-ws');
+        final message = await socket.first.timeout(const Duration(seconds: 3));
+        expect(message, equals('echo:hello-ws'));
+      } finally {
+        await socket.close();
+      }
+
+      await server.close();
     });
 
     test('request runtime context exposes stable fields', () async {

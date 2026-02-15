@@ -42,6 +42,17 @@ dart run osrv serve --entry path/to/custom_entry.dart
 Edge adapters require Dart core to register `globalThis.__osrv_main__`.
 Ensure your build includes `dist/js/core/<entry>.js` and entry calls `server.serve()`.
 
+## Edge WebSocket returns 501/426
+
+- `426` means request was not a websocket upgrade request (`Upgrade: websocket` missing).
+- `501` means current edge provider/runtime does not expose inbound websocket upgrade APIs.
+
+Provider behavior:
+
+1. Cloudflare Workers: websocket upgrade supported.
+2. Netlify Edge: requires runtime `Deno.upgradeWebSocket` (or `WebSocketPair`).
+3. Vercel Edge: inbound websocket upgrade is not supported.
+
 ## HTTP/2 expectation mismatch
 
 Current Dart native transport path uses `dart:io HttpServer`, which does not

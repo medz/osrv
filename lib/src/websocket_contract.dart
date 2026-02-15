@@ -1,3 +1,5 @@
+import 'package:ht/ht.dart' show Response;
+
 abstract interface class ServerWebSocket {
   Stream<Object> get messages;
 
@@ -10,4 +12,6 @@ abstract interface class ServerWebSocket {
   Future<void> close({int? code, String? reason});
 
   Future<void> done();
+
+  Response toResponse();
 }

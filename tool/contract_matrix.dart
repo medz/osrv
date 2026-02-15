@@ -147,6 +147,10 @@ Future<Map<String, Object?>> _runContractForRuntime(_RuntimeCheck check) async {
       body: 'hello',
     );
     final error = await _request(Uri.parse('${check.url}/error'));
+    final wsEcho = await _webSocketEcho(
+      Uri.parse('${check.url}/ws'),
+      message: 'hello-ws',
+    );
 
     final rootJson = jsonDecode(root.body) as Map<String, Object?>;
     final errorJson = jsonDecode(error.body) as Map<String, Object?>;
@@ -164,6 +168,7 @@ Future<Map<String, Object?>> _runContractForRuntime(_RuntimeCheck check) async {
         'ok': errorJson['ok'],
         'error': errorJson['error'],
       },
+      'ws': <String, Object?>{'echo': wsEcho},
     };
   } finally {
     if (process != null) {
@@ -179,6 +184,32 @@ Future<Map<String, Object?>> _runContractForRuntime(_RuntimeCheck check) async {
     if (stderrText.isNotEmpty) {
       stdout.writeln('[contract/${check.name}/stderr] $stderrText');
     }
+  }
+}
+
+Future<String> _webSocketEcho(Uri url, {required String message}) async {
+  final wsUri = Uri(
+    scheme: url.scheme == 'https' ? 'wss' : 'ws',
+    userInfo: url.userInfo,
+    host: url.host,
+    port: url.port,
+    path: url.path,
+    query: url.query,
+  );
+
+  final socket = await WebSocket.connect(wsUri.toString());
+  try {
+    socket.add(message);
+    final response = await socket.first.timeout(const Duration(seconds: 5));
+    if (response is String) {
+      return response;
+    }
+    if (response is List<int>) {
+      return utf8.decode(response, allowMalformed: true);
+    }
+    return response.toString();
+  } finally {
+    await socket.close();
   }
 }
 

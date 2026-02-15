@@ -41,11 +41,12 @@ final class _JsBridgeServerTransport implements ServerTransport {
         _runtimeName == 'vercel' ||
         _runtimeName == 'netlify';
     final http2 = _readRuntimeCapabilityBool('http2') ?? false;
+    final websocket = _readRuntimeCapabilityBool('websocket') ?? false;
     return ServerCapabilities(
       http1: true,
       https: true,
       http2: http2,
-      websocket: false,
+      websocket: websocket,
       requestStreaming: false,
       responseStreaming: false,
       waitUntil: true,
