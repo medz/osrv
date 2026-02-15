@@ -1,9 +1,10 @@
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:args/args.dart';
+import 'package:osrv/build.dart';
 
 const String _defaultEntry = 'server.dart';
+const String _defaultFallbackEntry = 'bin/server.dart';
 
 Future<void> main(List<String> args) async {
   final parser = ArgParser()
@@ -70,11 +71,16 @@ Future<void> main(List<String> args) async {
 }
 
 Future<void> _runServe(ArgResults command) async {
-  final entry = _resolveEntry(command['entry'] as String);
+  final requestedEntry = command['entry'] as String;
+  final entry = resolveOsrvEntry(
+    requestedEntry,
+    defaultEntry: _defaultEntry,
+    fallbackEntry: _defaultFallbackEntry,
+  );
   if (entry == null) {
     stderr.writeln(
-      '[osrv] entry not found. looked for `${command['entry']}` '
-      'and fallback `bin/server.dart`.',
+      '[osrv] entry not found. looked for `$requestedEntry` '
+      'and fallback `$_defaultFallbackEntry`.',
     );
     exitCode = 66;
     return;
@@ -128,211 +134,29 @@ Future<void> _runServe(ArgResults command) async {
 }
 
 Future<void> _runBuild(ArgResults command) async {
-  final entry = _resolveEntry(command['entry'] as String);
-  if (entry == null) {
+  final requestedEntry = command['entry'] as String;
+  final outDir = command['out-dir'] as String;
+  final silent = command['silent'] as bool;
+
+  try {
+    await buildOsrv(
+      OsrvBuildOptions(
+        entry: requestedEntry,
+        outDir: outDir,
+        silent: silent,
+        defaultEntry: _defaultEntry,
+        fallbackEntry: _defaultFallbackEntry,
+      ),
+      logger: silent ? null : stdout.writeln,
+    );
+  } on ArgumentError {
     stderr.writeln(
-      '[osrv] entry not found. looked for `${command['entry']}` '
-      'and fallback `bin/server.dart`.',
+      '[osrv] entry not found. looked for `$requestedEntry` '
+      'and fallback `$_defaultFallbackEntry`.',
     );
     exitCode = 66;
     return;
   }
-
-  final outDir = command['out-dir'] as String;
-  final silent = command['silent'] as bool;
-  final baseName = _basenameWithoutExtension(entry);
-
-  _ensureDir('$outDir/js/core');
-  _ensureDir('$outDir/js/node');
-  _ensureDir('$outDir/js/bun');
-  _ensureDir('$outDir/js/deno');
-  _ensureDir('$outDir/edge/cloudflare');
-  _ensureDir('$outDir/edge/vercel');
-  _ensureDir('$outDir/edge/netlify');
-  _ensureDir('$outDir/shared');
-  _ensureDir('$outDir/bin');
-
-  final coreJsName = '$baseName.js';
-  final coreJsPath = '$outDir/js/core/$coreJsName';
-  final exeName = Platform.isWindows ? '$baseName.exe' : baseName;
-  final exePath = '$outDir/bin/$exeName';
-
-  await _run('dart', <String>[
-    'compile',
-    'js',
-    entry,
-    '-o',
-    coreJsPath,
-  ], silent: silent);
-
-  await _run('dart', <String>[
-    'compile',
-    'exe',
-    entry,
-    '-o',
-    exePath,
-  ], silent: silent);
-
-  await _writeRuntimeWrappers(outDir, coreJsName: coreJsName);
-
-  if (!silent) {
-    stdout.writeln('[osrv] build complete');
-    stdout.writeln('[osrv] js core: $coreJsPath');
-    stdout.writeln('[osrv] exe: $exePath');
-  }
-}
-
-Future<void> _writeRuntimeWrappers(
-  String outDir, {
-  required String coreJsName,
-}) async {
-  final templatesRoot = await _resolveTemplatesRoot();
-  final vars = <String, String>{'CORE_JS_NAME': coreJsName};
-
-  _writeRenderedTemplate(
-    templatesRoot: templatesRoot,
-    templatePath: 'shared/bridge.mjs',
-    outputPath: '$outDir/shared/bridge.mjs',
-  );
-
-  _writeRenderedTemplate(
-    templatesRoot: templatesRoot,
-    templatePath: 'runtime/node_index.mjs',
-    outputPath: '$outDir/js/node/index.mjs',
-    vars: vars,
-  );
-  _writeRenderedTemplate(
-    templatesRoot: templatesRoot,
-    templatePath: 'runtime/bun_index.mjs',
-    outputPath: '$outDir/js/bun/index.mjs',
-    vars: vars,
-  );
-  _writeRenderedTemplate(
-    templatesRoot: templatesRoot,
-    templatePath: 'runtime/deno_index.mjs',
-    outputPath: '$outDir/js/deno/index.mjs',
-    vars: vars,
-  );
-
-  _writeRenderedTemplate(
-    templatesRoot: templatesRoot,
-    templatePath: 'edge/cloudflare_index.mjs',
-    outputPath: '$outDir/edge/cloudflare/index.mjs',
-    vars: vars,
-  );
-  _writeRenderedTemplate(
-    templatesRoot: templatesRoot,
-    templatePath: 'edge/vercel_index.mjs',
-    outputPath: '$outDir/edge/vercel/index.mjs',
-    vars: vars,
-  );
-  _writeRenderedTemplate(
-    templatesRoot: templatesRoot,
-    templatePath: 'edge/netlify_index.mjs',
-    outputPath: '$outDir/edge/netlify/index.mjs',
-    vars: vars,
-  );
-}
-
-Future<String> _resolveTemplatesRoot() async {
-  final packageUri = await Isolate.resolvePackageUri(
-    Uri.parse('package:osrv/osrv.dart'),
-  );
-
-  final packageRoot = packageUri != null
-      ? File.fromUri(packageUri).parent.parent.path
-      : File.fromUri(Platform.script).parent.parent.path;
-
-  final templatesRoot = '$packageRoot/tool/templates';
-  if (!Directory(templatesRoot).existsSync()) {
-    throw StateError('osrv template directory not found: $templatesRoot');
-  }
-
-  return templatesRoot;
-}
-
-void _writeRenderedTemplate({
-  required String templatesRoot,
-  required String templatePath,
-  required String outputPath,
-  Map<String, String> vars = const <String, String>{},
-}) {
-  final template = _readTemplate(templatesRoot, templatePath);
-  final rendered = _renderTemplate(template, vars);
-  File(outputPath).writeAsStringSync(rendered);
-}
-
-String _readTemplate(String templatesRoot, String templatePath) {
-  final file = File('$templatesRoot/$templatePath');
-  if (!file.existsSync()) {
-    throw StateError('Template not found: ${file.path}');
-  }
-
-  return file.readAsStringSync();
-}
-
-String _renderTemplate(String template, Map<String, String> vars) {
-  var rendered = template;
-  vars.forEach((key, value) {
-    rendered = rendered.replaceAll('{{$key}}', value);
-  });
-
-  return rendered;
-}
-
-Future<void> _run(
-  String executable,
-  List<String> arguments, {
-  required bool silent,
-}) async {
-  if (!silent) {
-    stdout.writeln('\$ $executable ${arguments.join(' ')}');
-  }
-
-  final process = await Process.start(
-    executable,
-    arguments,
-    mode: ProcessStartMode.inheritStdio,
-  );
-
-  final code = await process.exitCode;
-  if (code != 0) {
-    throw ProcessException(executable, arguments, 'Command failed', code);
-  }
-}
-
-String? _resolveEntry(String preferred) {
-  final preferredFile = File(preferred);
-  if (preferredFile.existsSync()) {
-    return preferred;
-  }
-
-  if (preferred == _defaultEntry) {
-    final fallback = File('bin/server.dart');
-    if (fallback.existsSync()) {
-      return 'bin/server.dart';
-    }
-  }
-
-  return null;
-}
-
-void _ensureDir(String path) {
-  final dir = Directory(path);
-  if (!dir.existsSync()) {
-    dir.createSync(recursive: true);
-  }
-}
-
-String _basenameWithoutExtension(String path) {
-  final normalized = path.replaceAll('\\', '/');
-  final fileName = normalized.split('/').last;
-  final dotIndex = fileName.lastIndexOf('.');
-  if (dotIndex <= 0) {
-    return fileName;
-  }
-
-  return fileName.substring(0, dotIndex);
 }
 
 String? _firstNonEmpty(String? first, String? second, [String? third]) {

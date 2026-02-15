@@ -1,11 +1,12 @@
 import 'dart:io';
 
 import 'package:args/args.dart';
+import 'package:osrv/build.dart';
 
 /// Maintainer convenience wrapper.
 ///
-/// This script is intentionally internal to the osrv repo and delegates to the
-/// user-facing CLI build command so there is only one build implementation path.
+/// This script is intentionally internal to the osrv repo and calls the same
+/// public build API that downstream users can import from `package:osrv/build.dart`.
 Future<void> main(List<String> args) async {
   final parser = ArgParser()
     ..addOption(
@@ -37,29 +38,22 @@ Future<void> main(List<String> args) async {
   final entry = parsed['entry'] as String;
   final outDir = parsed['out-dir'] as String;
   final silent = parsed['silent'] as bool;
-
-  final command = <String>[
-    'run',
-    'osrv',
-    'build',
-    '--entry',
-    entry,
-    '--out-dir',
-    outDir,
-    if (silent) '--silent',
-  ];
-
-  stdout.writeln(
-    '[tool/build] maintainer helper: delegating to `dart ${command.join(' ')}`',
-  );
-
-  final process = await Process.start(
-    'dart',
-    command,
-    mode: ProcessStartMode.inheritStdio,
-  );
-  final code = await process.exitCode;
-  if (code != 0) {
-    throw ProcessException('dart', command, 'Command failed', code);
+  try {
+    await buildOsrv(
+      OsrvBuildOptions(
+        entry: entry,
+        outDir: outDir,
+        silent: silent,
+        defaultEntry: 'example/server.dart',
+        fallbackEntry: 'example/server.dart',
+      ),
+      logger: silent
+          ? null
+          : (message) => stdout.writeln('[tool/build] $message'),
+    );
+  } on ArgumentError catch (error) {
+    stderr.writeln('[tool/build] ${error.message}');
+    exitCode = 66;
+    return;
   }
 }

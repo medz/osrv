@@ -94,6 +94,21 @@ CLI config precedence:
 2. Environment variables
 3. Defaults
 
+Programmatic build API (for downstream packages):
+
+```dart
+import 'package:osrv/build.dart';
+
+Future<void> main() async {
+  await buildOsrv(
+    const OsrvBuildOptions(
+      entry: 'server.dart',
+      outDir: 'dist',
+    ),
+  );
+}
+```
+
 ## Maintainer Build Helper
 
 ```bash
