@@ -221,7 +221,7 @@ final class _IoServerTransport implements ServerTransport {
 
     final request = _toFetchRequest(ioRequest);
     final isTls = _isSecureBound;
-    request.setRuntimeFactory(
+    request.deferRuntime(
       () => RequestRuntimeContext(
         name: runtimeName,
         protocol: isTls ? 'https' : 'http',
@@ -241,7 +241,7 @@ final class _IoServerTransport implements ServerTransport {
       ),
     );
     if (_host.trustProxy) {
-      request.setIpFactory(() => _resolveClientIp(ioRequest));
+      request.deferIp(() => _resolveClientIp(ioRequest));
     } else {
       request.ip = ioRequest.connectionInfo?.remoteAddress.address;
     }
@@ -281,7 +281,7 @@ final class _IoServerTransport implements ServerTransport {
         ),
       );
 
-      request.setRuntimeFactory(
+      request.deferRuntime(
         () => RequestRuntimeContext(
           name: runtimeName,
           protocol: incoming.scheme,
@@ -586,10 +586,9 @@ final class _IoServerTransport implements ServerTransport {
         });
       },
     );
-    return ServerRequest(
-      request,
-      urlFactory: () => _absoluteRequestUri(ioRequest),
-    );
+    final serverRequest = ServerRequest(request);
+    serverRequest.deferUrl(() => _absoluteRequestUri(ioRequest));
+    return serverRequest;
   }
 
   Stream<List<int>> _limitBody(Stream<List<int>> source, int maxBytes) async* {

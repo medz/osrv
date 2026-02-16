@@ -12,26 +12,16 @@ import 'types.dart';
 class ServerRequest implements ht.Request {
   ServerRequest(
     ht.Request request, {
-    Uri? url,
-    Uri Function()? urlFactory,
     RequestRuntimeContext? runtime,
-    RequestRuntimeContext Function()? runtimeFactory,
     Map<String, Object?>? context,
-    void Function(ht.Headers headers)? headersInitializer,
     String? ip,
-    String? Function()? ipFactory,
     this.waitUntil,
     bool isWebSocketUpgraded = false,
     Object? rawWebSocket,
   }) : _inner = request,
-       _url = url,
-       _urlFactory = urlFactory,
        _runtime = runtime,
-       _runtimeFactory = runtimeFactory,
        _context = context,
-       _headersInitializer = headersInitializer,
        _ip = ip,
-       _ipFactory = ipFactory,
        _isWebSocketUpgraded = isWebSocketUpgraded,
        _rawWebSocket = rawWebSocket;
 
@@ -76,7 +66,7 @@ class ServerRequest implements ht.Request {
     _runtimeFactory = null;
   }
 
-  void setRuntimeFactory(RequestRuntimeContext Function() factory) {
+  void deferRuntime(RequestRuntimeContext Function() factory) {
     _runtime = null;
     _runtimeFactory = factory;
   }
@@ -103,9 +93,18 @@ class ServerRequest implements ht.Request {
     _ipFactory = null;
   }
 
-  void setIpFactory(String? Function() factory) {
+  void deferIp(String? Function() factory) {
     _ip = null;
     _ipFactory = factory;
+  }
+
+  void deferUrl(Uri Function() factory) {
+    _url = null;
+    _urlFactory = factory;
+  }
+
+  void deferHeaders(void Function(ht.Headers headers) initializer) {
+    _headersInitializer = initializer;
   }
 
   bool _isWebSocketUpgraded;
@@ -184,20 +183,20 @@ class ServerRequest implements ht.Request {
   @override
   ServerRequest clone() {
     _ensureHeadersInitialized();
-    return ServerRequest(
+    final cloned = ServerRequest(
       _inner.clone(),
-      url: _url,
-      urlFactory: _urlFactory,
       runtime: _runtime,
-      runtimeFactory: _runtimeFactory,
       context: _context == null ? null : Map<String, Object?>.from(_context!),
-      headersInitializer: null,
       ip: _ip,
-      ipFactory: _ipFactory,
       waitUntil: waitUntil,
       isWebSocketUpgraded: _isWebSocketUpgraded,
       rawWebSocket: _rawWebSocket,
     );
+    cloned._url = _url;
+    cloned._urlFactory = _urlFactory;
+    cloned._runtimeFactory = _runtimeFactory;
+    cloned._ipFactory = _ipFactory;
+    return cloned;
   }
 
   @override
@@ -218,20 +217,22 @@ class ServerRequest implements ht.Request {
             body: body,
           );
 
-    return ServerRequest(
+    final copied = ServerRequest(
       next,
-      url: resolvedUrl,
-      urlFactory: resolvedUrl == null ? _urlFactory : null,
       runtime: _runtime,
-      runtimeFactory: _runtimeFactory,
       context: _context == null ? null : Map<String, Object?>.from(_context!),
-      headersInitializer: null,
       ip: _ip,
-      ipFactory: _ipFactory,
       waitUntil: waitUntil,
       isWebSocketUpgraded: _isWebSocketUpgraded,
       rawWebSocket: _rawWebSocket,
     );
+    copied._url = resolvedUrl;
+    if (resolvedUrl == null) {
+      copied._urlFactory = _urlFactory;
+    }
+    copied._runtimeFactory = _runtimeFactory;
+    copied._ipFactory = _ipFactory;
+    return copied;
   }
 
   void _ensureHeadersInitialized() {
