@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:ht/ht.dart' show Response;
 
 import '../request.dart';
@@ -21,7 +23,7 @@ abstract interface class ServerTransportHost {
   ServerSecurityLimits get securityLimits;
   WebSocketLimits get webSocketLimits;
 
-  Future<Response> dispatch(ServerRequest request);
+  FutureOr<Response> dispatch(ServerRequest request);
   void trackBackgroundTask(Future<Object?> task);
   void logInfo(String message);
   void logWarn(String message);

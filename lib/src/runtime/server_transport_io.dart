@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:ht/ht.dart' show Headers, Request, Response;
+import 'package:ht/ht.dart' show Blob, Headers, Request, Response;
 import 'package:http2/http2.dart' as h2;
 import 'package:http2/multiprotocol_server.dart';
 
@@ -212,54 +212,61 @@ final class _IoServerTransport implements ServerTransport {
   bool _looksLikePem(String value) => value.contains('-----BEGIN ');
 
   Future<void> _handleRequest(HttpRequest ioRequest) async {
-    final waitUntilTasks = <Future<Object?>>[];
+    List<Future<Object?>>? waitUntilTasks;
 
     void waitUntil(Future<Object?> task) {
-      waitUntilTasks.add(task);
+      (waitUntilTasks ??= <Future<Object?>>[]).add(task);
       _host.trackBackgroundTask(task);
     }
 
     final request = _toFetchRequest(ioRequest);
     final isTls = _isSecureBound;
-    final runtimeContext = RequestRuntimeContext(
-      name: runtimeName,
-      protocol: isTls ? 'https' : 'http',
-      httpVersion: ioRequest.protocolVersion,
-      tls: isTls,
-      localAddress: _formatAddress(_boundAddress?.address, _boundPort),
-      remoteAddress: _formatAddress(
-        ioRequest.connectionInfo?.remoteAddress.address,
-        ioRequest.connectionInfo?.remotePort,
-      ),
-      waitUntil: waitUntil,
-      env: _runtimeEnvironment,
-      raw: RuntimeRawContext(
-        dartRequest: ioRequest,
-        dartResponse: ioRequest.response,
+    request.setRuntimeFactory(
+      () => RequestRuntimeContext(
+        name: runtimeName,
+        protocol: isTls ? 'https' : 'http',
+        httpVersion: ioRequest.protocolVersion,
+        tls: isTls,
+        localAddress: _formatAddress(_boundAddress?.address, _boundPort),
+        remoteAddress: _formatAddress(
+          ioRequest.connectionInfo?.remoteAddress.address,
+          ioRequest.connectionInfo?.remotePort,
+        ),
+        waitUntil: waitUntil,
+        env: _runtimeEnvironment,
+        raw: RuntimeRawContext(
+          dartRequest: ioRequest,
+          dartResponse: ioRequest.response,
+        ),
       ),
     );
-
-    request.runtime = runtimeContext;
-    request.context = <String, Object?>{};
-    request.ip = _resolveClientIp(ioRequest);
+    if (_host.trustProxy) {
+      request.setIpFactory(() => _resolveClientIp(ioRequest));
+    } else {
+      request.ip = ioRequest.connectionInfo?.remoteAddress.address;
+    }
     request.waitUntil = waitUntil;
 
     final response = await _host.dispatch(request);
 
     if (request.isWebSocketUpgraded) {
-      await Future.wait(waitUntilTasks, eagerError: false);
+      if (waitUntilTasks case final tasks?) {
+        await Future.wait(tasks, eagerError: false);
+      }
       return;
     }
 
     await _writeResponse(ioRequest.response, response);
-    await Future.wait(waitUntilTasks, eagerError: false);
+    if (waitUntilTasks case final tasks?) {
+      await Future.wait(tasks, eagerError: false);
+    }
   }
 
   Future<void> _handleHttp2Stream(h2.ServerTransportStream stream) async {
-    final waitUntilTasks = <Future<Object?>>[];
+    List<Future<Object?>>? waitUntilTasks;
 
     void waitUntil(Future<Object?> task) {
-      waitUntilTasks.add(task);
+      (waitUntilTasks ??= <Future<Object?>>[]).add(task);
       _host.trackBackgroundTask(task);
     }
 
@@ -274,19 +281,19 @@ final class _IoServerTransport implements ServerTransport {
         ),
       );
 
-      request.runtime = RequestRuntimeContext(
-        name: runtimeName,
-        protocol: incoming.scheme,
-        httpVersion: '2',
-        tls: incoming.scheme == 'https',
-        localAddress: _formatAddress(_boundAddress?.address, _boundPort),
-        remoteAddress: null,
-        waitUntil: waitUntil,
-        env: _runtimeEnvironment,
-        raw: RuntimeRawContext(dartRequest: stream),
+      request.setRuntimeFactory(
+        () => RequestRuntimeContext(
+          name: runtimeName,
+          protocol: incoming.scheme,
+          httpVersion: '2',
+          tls: incoming.scheme == 'https',
+          localAddress: _formatAddress(_boundAddress?.address, _boundPort),
+          remoteAddress: null,
+          waitUntil: waitUntil,
+          env: _runtimeEnvironment,
+          raw: RuntimeRawContext(dartRequest: stream),
+        ),
       );
-      request.context = <String, Object?>{};
-      request.ip = null;
       request.waitUntil = waitUntil;
 
       final response = await _host.dispatch(request);
@@ -295,7 +302,9 @@ final class _IoServerTransport implements ServerTransport {
       _host.logError('HTTP/2 request handling failed', error, stackTrace);
       await _writeHttp2Response(stream, _transportErrorResponse(error));
     } finally {
-      await Future.wait(waitUntilTasks, eagerError: false);
+      if (waitUntilTasks case final tasks?) {
+        await Future.wait(tasks, eagerError: false);
+      }
     }
   }
 
@@ -492,14 +501,13 @@ final class _IoServerTransport implements ServerTransport {
       h2.Header.ascii(':status', response.status.toString()),
     ];
 
-    for (final name in response.headers.names()) {
+    for (final entry in response.headers) {
+      final name = entry.key;
       if (_isDisallowedHttp2ResponseHeader(name)) {
         continue;
       }
 
-      for (final value in response.headers.getAll(name)) {
-        headers.add(h2.Header(ascii.encode(name), utf8.encode(value)));
-      }
+      headers.add(h2.Header(ascii.encode(name), utf8.encode(entry.value)));
     }
 
     final body = response.body;
@@ -554,14 +562,9 @@ final class _IoServerTransport implements ServerTransport {
   }
 
   ServerRequest _toFetchRequest(HttpRequest ioRequest) {
-    final headers = Headers();
-    ioRequest.headers.forEach((name, values) {
-      for (final value in values) {
-        headers.append(name, value);
-      }
-    });
-
-    final uri = _absoluteRequestUri(ioRequest);
+    final uri = ioRequest.requestedUri.hasScheme
+        ? ioRequest.requestedUri
+        : ioRequest.uri;
     final method = ioRequest.method;
     final hasBody = _methodAllowsBody(method);
     final body = hasBody
@@ -571,8 +574,21 @@ final class _IoServerTransport implements ServerTransport {
           )
         : null;
 
+    final request = _DeferredRequest(
+      url: uri,
+      method: method,
+      bodyInit: body,
+      headersLoader: (headers) {
+        ioRequest.headers.forEach((name, values) {
+          for (final value in values) {
+            headers.append(name, value);
+          }
+        });
+      },
+    );
     return ServerRequest(
-      Request(uri, method: method, headers: headers, body: body),
+      request,
+      urlFactory: () => _absoluteRequestUri(ioRequest),
     );
   }
 
@@ -657,34 +673,27 @@ final class _IoServerTransport implements ServerTransport {
     Response response,
   ) async {
     ioResponse.statusCode = response.status;
-    ioResponse.reasonPhrase = response.statusText;
+    if (response.status != HttpStatus.ok || response.statusText != 'OK') {
+      ioResponse.reasonPhrase = response.statusText;
+    }
 
-    for (final name in response.headers.names()) {
-      final values = response.headers.getAll(name);
-      if (values.isEmpty) {
-        continue;
-      }
-
-      if (name == 'set-cookie') {
-        for (final value in values) {
-          ioResponse.headers.add(name, value);
-        }
-      } else {
-        ioResponse.headers.set(name, values);
-      }
+    for (final entry in response.headers) {
+      ioResponse.headers.add(entry.key, entry.value);
     }
 
     final body = response.body;
     if (body != null) {
-      await for (final chunk in body) {
-        ioResponse.add(chunk);
-      }
+      await ioResponse.addStream(body);
     }
 
     await ioResponse.close();
   }
 
   bool _methodAllowsBody(String method) {
+    if (method == 'GET' || method == 'HEAD' || method == 'TRACE') {
+      return false;
+    }
+
     final normalized = method.toUpperCase();
     return normalized != 'GET' && normalized != 'HEAD' && normalized != 'TRACE';
   }
@@ -821,6 +830,86 @@ final class _Http2IncomingRequest {
   final Headers headers;
   final Object? body;
 }
+
+final class _DeferredRequest implements Request {
+  _DeferredRequest({
+    required this.url,
+    required this.method,
+    this.bodyInit,
+    required this.headersLoader,
+  });
+
+  @override
+  final Uri url;
+
+  @override
+  final String method;
+
+  final Object? bodyInit;
+  final void Function(Headers headers) headersLoader;
+
+  Request? _materialized;
+
+  Request _ensureRequest() {
+    final existing = _materialized;
+    if (existing != null) {
+      return existing;
+    }
+
+    final next = Request(url, method: method, body: bodyInit);
+    headersLoader(next.headers);
+    _materialized = next;
+    return next;
+  }
+
+  @override
+  Headers get headers => _ensureRequest().headers;
+
+  @override
+  get bodyData => _ensureRequest().bodyData;
+
+  @override
+  String? get bodyMimeTypeHint => _ensureRequest().bodyMimeTypeHint;
+
+  @override
+  Stream<Uint8List>? get body => _ensureRequest().body;
+
+  @override
+  bool get bodyUsed => _ensureRequest().bodyUsed;
+
+  @override
+  Future<Uint8List> bytes() => _ensureRequest().bytes();
+
+  @override
+  Future<String> text([Encoding encoding = utf8]) =>
+      _ensureRequest().text(encoding);
+
+  @override
+  Future<T> json<T>() => _ensureRequest().json<T>();
+
+  @override
+  Future<Blob> blob() => _ensureRequest().blob();
+
+  @override
+  Request clone() => _ensureRequest().clone();
+
+  @override
+  Request copyWith({
+    Uri? url,
+    String? method,
+    Headers? headers,
+    body = _sentinel,
+  }) {
+    return _ensureRequest().copyWith(
+      url: url,
+      method: method,
+      headers: headers,
+      body: body,
+    );
+  }
+}
+
+const _sentinel = Object();
 
 final class _Authority {
   const _Authority(this.host, this.port);

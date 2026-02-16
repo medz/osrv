@@ -130,9 +130,9 @@ final class _JsBridgeServerTransport implements ServerTransport {
     final runtimePayload = _mapFrom(payload['runtime']);
     final contextPayload = _mapFrom(payload['context']);
 
-    final waitUntilTasks = <Future<Object?>>[];
+    List<Future<Object?>>? waitUntilTasks;
     void waitUntil(Future<Object?> task) {
-      waitUntilTasks.add(task);
+      (waitUntilTasks ??= <Future<Object?>>[]).add(task);
       _host.trackBackgroundTask(task);
     }
 
@@ -146,8 +146,8 @@ final class _JsBridgeServerTransport implements ServerTransport {
     request.waitUntil = waitUntil;
 
     final response = await _host.dispatch(request);
-    if (waitUntilTasks.isNotEmpty) {
-      await Future.wait(waitUntilTasks, eagerError: false);
+    if (waitUntilTasks case final tasks?) {
+      await Future.wait(tasks, eagerError: false);
     }
 
     return _encodeResponse(response);

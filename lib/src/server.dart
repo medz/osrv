@@ -171,7 +171,11 @@ final class Server implements ServerHandle, ServerTransportHost {
     }
   }
 
-  Future<Response> _runHandler(ServerRequest request) async {
+  Future<Response> _runHandler(ServerRequest request) {
+    if (middleware.isEmpty) {
+      return Future<Response>.value(fetch(request));
+    }
+
     Future<Response> runAt(int index) {
       if (index >= middleware.length) {
         return Future<Response>.value(fetch(request));
@@ -184,25 +188,56 @@ final class Server implements ServerHandle, ServerTransportHost {
     return runAt(0);
   }
 
+  bool get _canUseFastDispatch =>
+      middleware.isEmpty && plugins.isEmpty && error == null;
+
   @override
-  Future<Response> dispatch(ServerRequest request) async {
-    try {
-      return await _runHandler(request);
-    } catch (error, stackTrace) {
-      await _emitPluginError(
-        stage: ErrorStage.request,
-        error: error,
-        stackTrace: stackTrace,
-        request: request,
-      );
+  FutureOr<Response> dispatch(ServerRequest request) {
+    if (_canUseFastDispatch) {
+      try {
+        final result = fetch(request);
+        if (result is Future<Response>) {
+          return result.catchError((Object error, StackTrace stackTrace) {
+            return _defaultErrorResponse(error, stackTrace);
+          });
+        }
 
-      final handler = this.error;
-      if (handler != null) {
-        return Future<Response>.value(handler(error, stackTrace, request));
+        return result;
+      } catch (error, stackTrace) {
+        return _defaultErrorResponse(error, stackTrace);
       }
-
-      return _defaultErrorResponse(error, stackTrace);
     }
+
+    try {
+      return _runHandler(request).catchError((
+        Object error,
+        StackTrace stackTrace,
+      ) {
+        return _handleRequestError(error, stackTrace, request);
+      });
+    } catch (error, stackTrace) {
+      return _handleRequestError(error, stackTrace, request);
+    }
+  }
+
+  Future<Response> _handleRequestError(
+    Object error,
+    StackTrace stackTrace,
+    ServerRequest request,
+  ) async {
+    await _emitPluginError(
+      stage: ErrorStage.request,
+      error: error,
+      stackTrace: stackTrace,
+      request: request,
+    );
+
+    final handler = this.error;
+    if (handler != null) {
+      return Future<Response>.value(handler(error, stackTrace, request));
+    }
+
+    return _defaultErrorResponse(error, stackTrace);
   }
 
   Response _defaultErrorResponse(Object error, StackTrace stackTrace) {
