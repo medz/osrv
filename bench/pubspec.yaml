@@ -1,0 +1,16 @@
+name: osrv_bench
+description: Benchmark harness for osrv.
+publish_to: none
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  args: ^2.7.0
+  osrv:
+    path: ..
+  relic: ^1.0.0
+  shelf: ^1.4.2
+
+dev_dependencies:
+  lints: ^6.0.0
