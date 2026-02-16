@@ -88,8 +88,6 @@ dart run osrv build
 
 `serve` defaults to `server.dart` (fallback: `bin/server.dart`), and `build` also defaults to the same entry.
 
-`osrv.config.dart` is not supported in V1. Use CLI flags, environment variables, or constructor options.
-
 TLS/HTTP2 flags for local serve:
 
 ```bash
