@@ -39,20 +39,53 @@ final _scenarios = <_Scenario>[
 
 Future<void> main(List<String> args) async {
   final parser = ArgParser()
-    ..addOption('batch-size', defaultsTo: '48')
-    ..addOption('warmup-batch-size', defaultsTo: '16')
+    ..addFlag(
+      'help',
+      abbr: 'h',
+      negatable: false,
+      help: 'Show usage information.',
+    )
+    ..addOption('requests', defaultsTo: '200')
+    ..addOption('warmup-requests', defaultsTo: '80')
     ..addOption('concurrency', defaultsTo: '12')
+    ..addOption('min-runs', defaultsTo: '3')
+    ..addOption('max-runs', defaultsTo: '8')
+    ..addOption('max-overhead', defaultsTo: '0.05')
     ..addOption('target-filter', defaultsTo: '')
     ..addOption('scenario-filter', defaultsTo: '')
-    ..addFlag('verbose', defaultsTo: false);
+    ..addFlag('verbose', defaultsTo: false)
+    ..addOption('batch-size', hide: true, defaultsTo: '200')
+    ..addOption('warmup-batch-size', hide: true, defaultsTo: '80');
 
   late final _BenchConfig config;
+  late final ArgResults parsed;
   try {
-    final parsed = parser.parse(args);
+    parsed = parser.parse(args);
+    if (parsed['help'] as bool) {
+      stdout.writeln('Usage: dart run bench.dart [options]');
+      stdout.writeln(parser.usage);
+      return;
+    }
+
+    final minRuns = _parseInt(parsed, 'min-runs', min: 1);
+    final maxRuns = _parseInt(parsed, 'max-runs', min: minRuns);
     config = _BenchConfig(
-      batchSize: _parseInt(parsed, 'batch-size', min: 1),
-      warmupBatchSize: _parseInt(parsed, 'warmup-batch-size', min: 1),
+      requests: _parseIntWithFallback(
+        parsed,
+        preferred: 'requests',
+        fallback: 'batch-size',
+        min: 1,
+      ),
+      warmupRequests: _parseIntWithFallback(
+        parsed,
+        preferred: 'warmup-requests',
+        fallback: 'warmup-batch-size',
+        min: 1,
+      ),
       concurrency: _parseInt(parsed, 'concurrency', min: 1),
+      minRuns: minRuns,
+      maxRuns: maxRuns,
+      maxOverhead: _parseDouble(parsed, 'max-overhead', min: 0),
       targetFilter: _parsePattern(parsed['target-filter'] as String),
       scenarioFilter: _parsePattern(parsed['scenario-filter'] as String),
       verbose: parsed['verbose'] as bool,
@@ -94,6 +127,11 @@ Future<void> main(List<String> args) async {
 
   stdout.writeln('Targets: ${selectedTargets.map((e) => e.id).join(', ')}');
   stdout.writeln('Scenarios: ${selectedScenarios.map((e) => e.id).join(', ')}');
+  stdout.writeln(
+    'Config: requests=${config.requests}, warmup=${config.warmupRequests}, '
+    'concurrency=${config.concurrency}, runs=${config.minRuns}-${config.maxRuns}, '
+    'max-overhead=${(config.maxOverhead * 100).toStringAsFixed(2)}%',
+  );
   if (prepared.skipped.isNotEmpty) {
     stdout.writeln('Skipped targets:');
     for (final skip in prepared.skipped) {
@@ -107,32 +145,53 @@ Future<void> main(List<String> args) async {
 
   for (final target in selectedTargets) {
     for (final scenario in selectedScenarios) {
-      final benchmark = _HttpServerBenchmark(
-        target: target,
-        scenario: scenario,
-        batchSize: config.batchSize,
-        warmupBatchSize: config.warmupBatchSize,
-        concurrency: config.concurrency,
-        verbose: config.verbose,
-      );
-      stdout.writeln('Running ${benchmark.name} ...');
+      final runLabel = '${target.id}/${scenario.id}';
+      stdout.writeln('Running $runLabel ...');
+      final samples = <double>[];
+      var stable = false;
+      var overhead = double.infinity;
       try {
-        final microsPerExercise = await benchmark.measure();
-        final microsPerRequest = microsPerExercise / config.batchSize;
-        final requestsPerSecond = 1000000 / microsPerRequest;
+        for (var i = 0; i < config.maxRuns; i++) {
+          final benchmark = _HttpServerBenchmark(
+            target: target,
+            scenario: scenario,
+            batchSize: config.requests,
+            warmupBatchSize: config.warmupRequests,
+            concurrency: config.concurrency,
+            verbose: config.verbose,
+          );
+          final microsPerExercise = await benchmark.measure();
+          final microsPerRequest = microsPerExercise / config.requests;
+          samples.add(microsPerRequest);
+
+          if (samples.length >= config.minRuns) {
+            overhead = _relativeOverhead(samples);
+            if (overhead <= config.maxOverhead) {
+              stable = true;
+              break;
+            }
+          }
+        }
+
+        final medianMicrosPerRequest = _median(samples);
+        final requestsPerSecond = 1000000 / medianMicrosPerRequest;
 
         rows.add(
           _BenchRow(
             target: target.id,
             scenario: scenario.id,
-            microsPerRequest: microsPerRequest,
+            microsPerRequest: medianMicrosPerRequest,
             requestsPerSecond: requestsPerSecond,
+            runs: samples.length,
+            overhead: overhead.isFinite ? overhead : 0,
+            stable: stable,
           ),
         );
 
         stdout.writeln(
-          '  ${microsPerRequest.toStringAsFixed(2)} us/req, '
-          '${requestsPerSecond.toStringAsFixed(2)} req/s',
+          '  ${medianMicrosPerRequest.toStringAsFixed(2)} us/req, '
+          '${requestsPerSecond.toStringAsFixed(2)} req/s '
+          '(runs=${samples.length}, overhead=${((overhead.isFinite ? overhead : 0) * 100).toStringAsFixed(2)}%, stable=${stable ? 'yes' : 'no'})',
         );
       } catch (error, stackTrace) {
         final summary = _singleLine(error);
@@ -171,9 +230,9 @@ Future<void> main(List<String> args) async {
 
 Future<_PreparedTargets> _prepareTargets({required bool verbose}) async {
   final targets = <_Target>[
-    _Target.vm(name: 'osrv', entry: 'fixture_osrv.dart'),
-    _Target.vm(name: 'shelf', entry: 'fixture_shelf.dart'),
-    _Target.vm(name: 'relic', entry: 'fixture_relic.dart'),
+    _Target.vm(name: 'osrv', entry: 'fixtures/osrv.dart'),
+    _Target.vm(name: 'shelf', entry: 'fixtures/shelf.dart'),
+    _Target.vm(name: 'relic', entry: 'fixtures/relic.dart'),
   ];
   final skipped = <String>[];
 
@@ -184,12 +243,12 @@ Future<_PreparedTargets> _prepareTargets({required bool verbose}) async {
   try {
     osrvBuild = await build(
       BuildOptions(
-        entry: 'fixture_osrv.dart',
+        entry: 'fixtures/osrv.dart',
         outDir: _join(artifactsDir, 'osrv'),
         silent: !verbose,
         workingDirectory: Directory.current.path,
-        defaultEntry: 'fixture_osrv.dart',
-        fallbackEntry: 'fixture_osrv.dart',
+        defaultEntry: 'fixtures/osrv.dart',
+        fallbackEntry: 'fixtures/osrv.dart',
       ),
       logger: verbose ? stdout.writeln : null,
     );
@@ -271,11 +330,11 @@ Future<_PreparedTargets> _prepareTargets({required bool verbose}) async {
   }
 
   final shelfNative = await _compileNative(
-    source: 'fixture_shelf.dart',
+    source: 'fixtures/shelf.dart',
     output: _joinAll(<String>[
       artifactsDir,
       'shelf',
-      _exeName('fixture_shelf'),
+      _exeName('shelf_fixture'),
     ]),
     verbose: verbose,
   );
@@ -286,11 +345,11 @@ Future<_PreparedTargets> _prepareTargets({required bool verbose}) async {
   }
 
   final relicNative = await _compileNative(
-    source: 'fixture_relic.dart',
+    source: 'fixtures/relic.dart',
     output: _joinAll(<String>[
       artifactsDir,
       'relic',
-      _exeName('fixture_relic'),
+      _exeName('relic_fixture'),
     ]),
     verbose: verbose,
   );
@@ -385,6 +444,27 @@ int _parseInt(ArgResults parsed, String name, {required int min}) {
   return value;
 }
 
+int _parseIntWithFallback(
+  ArgResults parsed, {
+  required String preferred,
+  required String fallback,
+  required int min,
+}) {
+  final option = (!parsed.wasParsed(preferred) && parsed.wasParsed(fallback))
+      ? fallback
+      : preferred;
+  return _parseInt(parsed, option, min: min);
+}
+
+double _parseDouble(ArgResults parsed, String name, {required double min}) {
+  final raw = parsed[name] as String;
+  final value = double.tryParse(raw);
+  if (value == null || value < min) {
+    throw FormatException('--$name must be a number >= $min');
+  }
+  return value;
+}
+
 RegExp? _parsePattern(String raw) {
   if (raw.trim().isEmpty) {
     return null;
@@ -427,6 +507,31 @@ String _singleLine(Object value) {
     return text;
   }
   return text.substring(0, index);
+}
+
+double _median(List<double> values) {
+  if (values.isEmpty) {
+    throw StateError('No samples to compute median.');
+  }
+  final sorted = values.toList()..sort();
+  final middle = sorted.length ~/ 2;
+  if (sorted.length.isOdd) {
+    return sorted[middle];
+  }
+  return (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+double _relativeOverhead(List<double> values) {
+  if (values.length < 2) {
+    return 0;
+  }
+  final minValue = values.reduce(math.min);
+  final maxValue = values.reduce(math.max);
+  final medianValue = _median(values);
+  if (medianValue == 0) {
+    return 0;
+  }
+  return (maxValue - minValue) / medianValue;
 }
 
 final class _HttpServerBenchmark extends AsyncBenchmarkBase {
@@ -685,17 +790,23 @@ final class _Scenario {
 
 final class _BenchConfig {
   const _BenchConfig({
-    required this.batchSize,
-    required this.warmupBatchSize,
+    required this.requests,
+    required this.warmupRequests,
     required this.concurrency,
+    required this.minRuns,
+    required this.maxRuns,
+    required this.maxOverhead,
     required this.targetFilter,
     required this.scenarioFilter,
     required this.verbose,
   });
 
-  final int batchSize;
-  final int warmupBatchSize;
+  final int requests;
+  final int warmupRequests;
   final int concurrency;
+  final int minRuns;
+  final int maxRuns;
+  final double maxOverhead;
   final RegExp? targetFilter;
   final RegExp? scenarioFilter;
   final bool verbose;
@@ -714,10 +825,16 @@ final class _BenchRow {
     required this.scenario,
     required this.microsPerRequest,
     required this.requestsPerSecond,
+    required this.runs,
+    required this.overhead,
+    required this.stable,
   });
 
   final String target;
   final String scenario;
   final double microsPerRequest;
   final double requestsPerSecond;
+  final int runs;
+  final double overhead;
+  final bool stable;
 }
