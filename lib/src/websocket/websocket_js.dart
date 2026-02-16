@@ -34,10 +34,6 @@ Future<ServerWebSocket> upgradeWebSocket(
   ServerRequest request, {
   WebSocketLimits limits = const WebSocketLimits(),
 }) async {
-  if (request.isWebSocketUpgraded) {
-    throw StateError('Request has already been upgraded to websocket.');
-  }
-
   final requestId = _extractRequestId(request);
   if (requestId == null) {
     throw UnsupportedError(
@@ -58,8 +54,6 @@ Future<ServerWebSocket> upgradeWebSocket(
   }
 
   _socketsById[socketId] = socket;
-  request.markWebSocketUpgraded();
-  request.setRawWebSocket(socketId);
   return socket;
 }
 
@@ -84,13 +78,24 @@ String? _extractRequestId(ServerRequest request) {
   ];
 
   for (final raw in candidates) {
-    if (raw is! Map) {
+    if (raw is Map) {
+      final id = raw['requestId'];
+      if (id is String && id.isNotEmpty) {
+        return id;
+      }
       continue;
     }
 
-    final id = raw['requestId'];
-    if (id is String && id.isNotEmpty) {
-      return id;
+    if (raw is! JSAny || !raw.isA<JSObject>()) {
+      continue;
+    }
+
+    final id = (raw as JSObject).getProperty('requestId'.toJS);
+    if (id.isA<JSString>()) {
+      final next = (id as JSString).toDart;
+      if (next.isNotEmpty) {
+        return next;
+      }
     }
   }
 

@@ -1,13 +1,14 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
+import 'dart:js_util' as js_util;
 import 'dart:typed_data';
 
 import 'package:ht/ht.dart' show Headers, Request, Response;
+import 'package:web/web.dart' as web;
 
-import '../request.dart';
 import '../types.dart';
+import 'server_request_impl.dart';
 import 'server_transport.dart';
 
 @JS('globalThis')
@@ -15,20 +16,22 @@ external JSObject get _globalThis;
 
 const String _mainKey = '__osrv_main__';
 const String _mainReadyResolveKey = '__osrv_main_ready_resolve__';
-const String _bridgeModeKey = '__osrv_bridge__';
-const String _bridgeModeValue = 'json-v1';
 const String _runtimeCapabilitiesKey = '__osrv_runtime_capabilities__';
 
+const String _upgradeResponseMarker = '__osrv_upgrade_response__';
+const String _wsUpgradeHeader = 'x-osrv-upgrade';
+const String _wsUpgradeValue = 'websocket';
+
 ServerTransport createServerTransport(ServerTransportHost host) {
-  return _JsBridgeServerTransport(host);
+  return _JsDirectServerTransport(host);
 }
 
-final class _JsBridgeServerTransport implements ServerTransport {
-  _JsBridgeServerTransport(this._host);
+final class _JsDirectServerTransport implements ServerTransport {
+  _JsDirectServerTransport(this._host);
 
   final ServerTransportHost _host;
   late final String _runtimeName = _detectRuntimeName();
-  JSFunction? _bridgeFunction;
+  JSFunction? _mainFunction;
   bool _registered = false;
 
   @override
@@ -70,32 +73,22 @@ final class _JsBridgeServerTransport implements ServerTransport {
       return;
     }
 
-    final bridge = (JSAny? payloadJson, JSFunction resolve, JSFunction reject) {
-      _dispatchPayload(payloadJson).then(
-        (responseJson) {
-          resolve.callAsFunction(resolve, responseJson.toJS);
-        },
-        onError: (Object error, StackTrace stackTrace) {
-          _host.logError('JS bridge dispatch failed', error, stackTrace);
-          resolve.callAsFunction(resolve, _encodeFatalBridgeError(error).toJS);
-        },
-      );
-      reject; // Keep static arity stable for JS callers.
-    }.toJS;
+    final main = ((JSAny? requestAny, JSAny? contextAny) {
+      return _dispatchRequest(requestAny, contextAny).toJS;
+    }).toJS;
 
-    bridge.setProperty(_bridgeModeKey.toJS, _bridgeModeValue.toJS);
-    _globalThis.setProperty(_mainKey.toJS, bridge);
+    _globalThis.setProperty(_mainKey.toJS, main);
     final readyResolve = _globalThis.getProperty(_mainReadyResolveKey.toJS);
     if (readyResolve.isA<JSFunction>()) {
-      (readyResolve as JSFunction).callAsFunction(readyResolve, bridge);
+      (readyResolve as JSFunction).callAsFunction(readyResolve, main);
     }
 
-    _bridgeFunction = bridge;
+    _mainFunction = main;
     _registered = true;
 
     if (!_host.silent) {
       _host.logInfo(
-        'JS bridge registered on globalThis.__osrv_main__ ($_runtimeName)',
+        'JS direct handler registered on globalThis.__osrv_main__ ($_runtimeName)',
       );
     }
   }
@@ -107,45 +100,62 @@ final class _JsBridgeServerTransport implements ServerTransport {
     }
 
     final current = _globalThis.getProperty(_mainKey.toJS);
-    if (_bridgeFunction != null && current == _bridgeFunction) {
+    if (_mainFunction != null && current == _mainFunction) {
       _globalThis.setProperty(_mainKey.toJS, null);
     }
-    _bridgeFunction = null;
+    _mainFunction = null;
     _registered = false;
   }
 
-  Future<String> _dispatchPayload(JSAny? payloadJson) async {
-    if (payloadJson == null || !payloadJson.isA<JSString>()) {
-      throw StateError('Bridge payload must be a JSON string.');
+  Future<JSAny?> _dispatchRequest(JSAny? requestAny, JSAny? contextAny) async {
+    if (requestAny == null || !requestAny.isA<web.Request>()) {
+      throw StateError('Direct payload must provide a standard Web Request.');
     }
 
-    final payloadString = payloadJson as JSString;
-    final decoded = jsonDecode(payloadString.toDart);
-    if (decoded is! Map) {
-      throw StateError('Bridge payload JSON must be an object.');
+    final request = requestAny as web.Request;
+    final method = request.method.toUpperCase();
+    final headers = _decodeHeaders(request.headers);
+
+    Object? body;
+    if (_methodAllowsBody(method)) {
+      final cloned = request.clone();
+      final buffer = await cloned.arrayBuffer().toDart;
+      final bytes = Uint8List.view(buffer.toDart);
+      if (bytes.isNotEmpty) {
+        body = bytes;
+      }
     }
 
-    final payload = Map<String, Object?>.from(decoded);
-    final requestPayload = _mapFrom(payload['request']);
-    final runtimePayload = _mapFrom(payload['runtime']);
-    final contextPayload = _mapFrom(payload['context']);
+    final fetchRequest = Request(
+      Uri.parse(request.url),
+      method: method,
+      headers: headers,
+      body: body,
+    );
 
     List<Future<Object?>>? waitUntilTasks;
+    final runtimeWaitUntil = _decodeRuntimeWaitUntil(contextAny);
     void waitUntil(Future<Object?> task) {
       (waitUntilTasks ??= <Future<Object?>>[]).add(task);
       _host.trackBackgroundTask(task);
+      runtimeWaitUntil?.call(task);
     }
 
-    final request = _decodeRequest(requestPayload);
-    final runtime = _decodeRuntime(runtimePayload, waitUntil);
-    final ip = _stringOrNull(runtimePayload['ip']);
+    final runtime = _decodeRuntime(contextAny, waitUntil);
+    final ip = _stringOrNull(_property(contextAny, 'ip'));
+    final contextBag = _mapFrom(_property(contextAny, 'context'));
 
-    request.runtime = runtime;
-    request.context = contextPayload;
-    request.ip = ip;
-    request.waitUntil = waitUntil;
+    final serverRequest = createServerRequest(
+      fetchRequest,
+      runtimeResolver: () => runtime,
+      ipResolver: () => ip,
+      waitUntil: waitUntil,
+      context: contextBag,
+    );
 
-    final response = await _host.dispatch(request);
+    final response = await Future<Response>.value(
+      _host.dispatch(serverRequest),
+    );
     if (waitUntilTasks case final tasks?) {
       await Future.wait(tasks, eagerError: false);
     }
@@ -153,106 +163,109 @@ final class _JsBridgeServerTransport implements ServerTransport {
     return _encodeResponse(response);
   }
 
-  ServerRequest _decodeRequest(Map<String, Object?> payload) {
-    final urlRaw = payload['url'];
-    if (urlRaw is! String || urlRaw.isEmpty) {
-      throw StateError('Bridge request.url must be a non-empty string.');
-    }
-    final method = _stringOr(payload['method'], 'GET').toUpperCase();
-
+  Headers _decodeHeaders(web.Headers source) {
     final headers = Headers();
-    final headerList = payload['headers'];
-    if (headerList is List) {
-      for (final item in headerList) {
-        if (item is List && item.length >= 2) {
-          headers.append(item[0].toString(), item[1].toString());
-        }
+    final callback = ((JSAny? value, JSAny? key, JSAny? ignored) {
+      final name = _stringOrNull(key);
+      final headerValue = _stringOrNull(value);
+      if (name == null || headerValue == null) {
+        return;
       }
-    }
-
-    Object? body;
-    final bodyBase64 = payload['bodyBase64'];
-    if (bodyBase64 is String && bodyBase64.isNotEmpty) {
-      body = Uint8List.fromList(base64Decode(bodyBase64));
-    }
-
-    return ServerRequest(
-      Request(Uri.parse(urlRaw), method: method, headers: headers, body: body),
-    );
+      headers.append(name, headerValue);
+    }).toJS;
+    js_util.callMethod<void>(source, 'forEach', <Object?>[callback]);
+    return headers;
   }
 
-  RequestRuntimeContext _decodeRuntime(
-    Map<String, Object?> payload,
-    WaitUntil waitUntil,
-  ) {
-    final protocol = _stringOr(
-      payload['protocol'],
-      _host.resolvedProtocol == ServerProtocol.https ? 'https' : 'http',
-    );
-    final httpVersion = _stringOr(payload['httpVersion'], '1.1');
-    final runtime = _stringOr(payload['runtime'], _runtimeName);
-    final tls = _boolOr(payload['tls'], protocol == 'https');
-    final env = _mapFrom(payload['env']);
-
-    final provider = _stringOr(payload['provider'], runtime);
-    final rawPayload = Map<String, Object?>.from(payload);
-    final raw = switch (provider) {
-      'node' => RuntimeRawContext(node: rawPayload),
-      'bun' => RuntimeRawContext(bun: rawPayload),
-      'deno' => RuntimeRawContext(deno: rawPayload),
-      'cloudflare' => RuntimeRawContext(cloudflare: rawPayload),
-      'vercel' => RuntimeRawContext(vercel: rawPayload),
-      'netlify' => RuntimeRawContext(netlify: rawPayload),
+  RuntimeRawContext _decodeRawContext(JSAny? contextAny, String provider) {
+    final payload = contextAny;
+    return switch (provider) {
+      'node' => RuntimeRawContext(node: payload),
+      'bun' => RuntimeRawContext(bun: payload),
+      'deno' => RuntimeRawContext(deno: payload),
+      'cloudflare' => RuntimeRawContext(cloudflare: payload),
+      'vercel' => RuntimeRawContext(vercel: payload),
+      'netlify' => RuntimeRawContext(netlify: payload),
       _ => const RuntimeRawContext(),
     };
+  }
+
+  RequestRuntimeContext _decodeRuntime(JSAny? contextAny, WaitUntil waitUntil) {
+    final protocol = _stringOr(
+      _property(contextAny, 'protocol'),
+      _host.resolvedProtocol == ServerProtocol.https ? 'https' : 'http',
+    );
+    final httpVersion = _stringOr(_property(contextAny, 'httpVersion'), '1.1');
+    final runtime = _stringOr(_property(contextAny, 'runtime'), _runtimeName);
+    final provider = _stringOr(_property(contextAny, 'provider'), runtime);
+    final tls = _boolOr(_property(contextAny, 'tls'), protocol == 'https');
+    final env = _mapFrom(_property(contextAny, 'env'));
 
     return RequestRuntimeContext(
       name: runtime,
       protocol: protocol,
       httpVersion: httpVersion,
       tls: tls,
-      localAddress: _stringOrNull(payload['localAddress']),
-      remoteAddress: _stringOrNull(payload['remoteAddress']),
+      localAddress: _stringOrNull(_property(contextAny, 'localAddress')),
+      remoteAddress: _stringOrNull(_property(contextAny, 'remoteAddress')),
       waitUntil: waitUntil,
       env: env,
-      raw: raw,
+      raw: _decodeRawContext(contextAny, provider),
     );
   }
 
-  Future<String> _encodeResponse(Response response) async {
-    final headers = <List<String>>[];
+  WaitUntil? _decodeRuntimeWaitUntil(JSAny? contextAny) {
+    final waitUntilAny = _property(contextAny, 'waitUntil');
+    if (waitUntilAny is! JSAny || !waitUntilAny.isA<JSFunction>()) {
+      return null;
+    }
+    final waitUntilFn = waitUntilAny as JSFunction;
+    final thisArg = contextAny != null && contextAny.isA<JSObject>()
+        ? contextAny as JSObject
+        : waitUntilFn;
+
+    return (Future<Object?> task) {
+      final promise = task.then((_) {}).toJS;
+      waitUntilFn.callAsFunction(thisArg, promise);
+    };
+  }
+
+  Future<JSAny?> _encodeResponse(Response response) async {
+    final headers = web.Headers();
     for (final entry in response.headers) {
-      headers.add(<String>[entry.key, entry.value]);
+      headers.append(entry.key, entry.value);
     }
 
-    String? bodyBase64;
+    final upgrade = headers.get(_wsUpgradeHeader);
+    final isUpgradeHint =
+        upgrade != null && upgrade.toLowerCase() == _wsUpgradeValue;
+    if (isUpgradeHint) {
+      headers.delete(_wsUpgradeHeader);
+    }
+
+    if (response.status == 101 || isUpgradeHint) {
+      final marker = js_util.newObject();
+      js_util.setProperty(marker, _upgradeResponseMarker, true);
+      js_util.setProperty(marker, 'status', 101);
+      js_util.setProperty(marker, 'headers', headers);
+      return marker as JSAny;
+    }
+
+    JSAny? body;
     if (response.body != null) {
       final bytes = await response.bytes();
       if (bytes.isNotEmpty) {
-        bodyBase64 = base64Encode(bytes);
+        body = bytes.toJS;
       }
     }
 
-    return jsonEncode(<String, Object?>{
-      'status': response.status,
-      'headers': headers,
-      'bodyBase64': bodyBase64,
-    });
-  }
-
-  String _encodeFatalBridgeError(Object error) {
-    final body = jsonEncode(<String, Object>{
-      'ok': false,
-      'error': 'Bridge dispatch failed',
-      'details': error.toString(),
-    });
-    return jsonEncode(<String, Object?>{
-      'status': 500,
-      'headers': const <List<String>>[
-        <String>['content-type', 'application/json; charset=utf-8'],
-      ],
-      'bodyBase64': base64Encode(utf8.encode(body)),
-    });
+    final init = web.ResponseInit(
+      status: response.status,
+      statusText: response.statusText,
+      headers: headers,
+    );
+    final next = web.Response(body, init);
+    return next as JSAny;
   }
 
   String _detectRuntimeName() {
@@ -277,18 +290,21 @@ final class _JsBridgeServerTransport implements ServerTransport {
     return 'js';
   }
 
-  Map<String, Object?> _mapFrom(Object? value) {
-    if (value is! Map) {
-      return <String, Object?>{};
+  Object? _property(JSAny? source, String name) {
+    if (source == null || !source.isA<JSObject>()) {
+      return null;
     }
-    return value.map(
-      (key, dynamic mapValue) => MapEntry(key.toString(), mapValue as Object?),
-    );
+    final object = source as JSObject;
+    if (!js_util.hasProperty(object, name)) {
+      return null;
+    }
+    return js_util.getProperty<Object?>(object, name);
   }
 
   String _stringOr(Object? value, String fallback) {
-    if (value is String && value.isNotEmpty) {
-      return value;
+    final normalized = _stringOrNull(value);
+    if (normalized != null && normalized.isNotEmpty) {
+      return normalized;
     }
     return fallback;
   }
@@ -297,14 +313,59 @@ final class _JsBridgeServerTransport implements ServerTransport {
     if (value is String && value.isNotEmpty) {
       return value;
     }
+    if (value is JSAny && value.isA<JSString>()) {
+      final dart = (value as JSString).toDart;
+      if (dart.isNotEmpty) {
+        return dart;
+      }
+      return null;
+    }
     return null;
   }
 
   bool _boolOr(Object? value, bool fallback) {
+    final normalized = _boolOrNull(value);
+    if (normalized == null) {
+      return fallback;
+    }
+    return normalized;
+  }
+
+  bool? _boolOrNull(Object? value) {
     if (value is bool) {
       return value;
     }
-    return fallback;
+    if (value is JSAny && value.isA<JSBoolean>()) {
+      return (value as JSBoolean).toDart;
+    }
+    return null;
+  }
+
+  Map<String, Object?> _mapFrom(Object? value) {
+    final converted = value is JSAny ? _tryDartify(value) : value;
+    if (converted is! Map) {
+      return <String, Object?>{};
+    }
+    return converted.map(
+      (key, dynamic mapValue) => MapEntry(key.toString(), mapValue as Object?),
+    );
+  }
+
+  Object? _tryDartify(JSAny value) {
+    try {
+      return js_util.dartify(value);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool _methodAllowsBody(String method) {
+    if (method == 'GET' || method == 'HEAD' || method == 'TRACE') {
+      return false;
+    }
+
+    final normalized = method.toUpperCase();
+    return normalized != 'GET' && normalized != 'HEAD' && normalized != 'TRACE';
   }
 
   bool? _readRuntimeCapabilityBool(String name) {

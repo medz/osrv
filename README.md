@@ -7,6 +7,7 @@ Dart-first unified server core with a single `Server(...)` API.
 - Core API implemented: `Server`, middleware, plugins, lifecycle, error handling.
 - `dart:io` runtime transport implemented and tested.
 - WebSocket upgrade helper implemented for Dart/Node/Bun, and Edge adapters with provider-specific limits.
+- JS/Edge adapters call `globalThis.__osrv_main__` directly (JSON bridge removed).
 - Maintainer helper script available at `dart run tool/build.dart` (delegates to CLI build).
 - `dart run osrv build` generates direct-deploy Node/Bun/Deno/Edge adapters under `dist/` that load Dart-compiled JS core.
 

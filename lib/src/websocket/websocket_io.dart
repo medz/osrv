@@ -20,18 +20,12 @@ Future<ServerWebSocket> upgradeWebSocket(
     );
   }
 
-  if (request.isWebSocketUpgraded) {
-    throw StateError('Request has already been upgraded to websocket.');
-  }
-
   final socket = await WebSocketTransformer.upgrade(runtimeRequest);
   if (limits.idleTimeout > Duration.zero) {
     final pingMs = math.max(1000, limits.idleTimeout.inMilliseconds ~/ 2);
     socket.pingInterval = Duration(milliseconds: pingMs);
   }
 
-  request.markWebSocketUpgraded();
-  request.setRawWebSocket(socket);
   return _IoServerWebSocket(socket, limits);
 }
 

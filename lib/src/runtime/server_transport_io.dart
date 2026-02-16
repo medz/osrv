@@ -8,8 +8,8 @@ import 'package:http2/http2.dart' as h2;
 import 'package:http2/multiprotocol_server.dart';
 
 import '../exceptions.dart';
-import '../request.dart';
 import '../types.dart';
+import 'server_request_impl.dart';
 import 'server_transport.dart';
 
 ServerTransport createServerTransport(ServerTransportHost host) {
@@ -219,10 +219,11 @@ final class _IoServerTransport implements ServerTransport {
       _host.trackBackgroundTask(task);
     }
 
-    final request = _toFetchRequest(ioRequest);
     final isTls = _isSecureBound;
-    request.deferRuntime(
-      () => RequestRuntimeContext(
+    final request = createServerRequest(
+      _toFetchRequest(ioRequest),
+      urlResolver: () => _absoluteRequestUri(ioRequest),
+      runtimeResolver: () => RequestRuntimeContext(
         name: runtimeName,
         protocol: isTls ? 'https' : 'http',
         httpVersion: ioRequest.protocolVersion,
@@ -239,17 +240,15 @@ final class _IoServerTransport implements ServerTransport {
           dartResponse: ioRequest.response,
         ),
       ),
+      ipResolver: () => _host.trustProxy
+          ? _resolveClientIp(ioRequest)
+          : ioRequest.connectionInfo?.remoteAddress.address,
+      waitUntil: waitUntil,
     );
-    if (_host.trustProxy) {
-      request.deferIp(() => _resolveClientIp(ioRequest));
-    } else {
-      request.ip = ioRequest.connectionInfo?.remoteAddress.address;
-    }
-    request.waitUntil = waitUntil;
 
     final response = await _host.dispatch(request);
 
-    if (request.isWebSocketUpgraded) {
+    if (_isWebSocketUpgradeResponse(response)) {
       if (waitUntilTasks case final tasks?) {
         await Future.wait(tasks, eagerError: false);
       }
@@ -272,17 +271,14 @@ final class _IoServerTransport implements ServerTransport {
 
     try {
       final incoming = await _readHttp2Request(stream);
-      final request = ServerRequest(
+      final request = createServerRequest(
         Request(
           incoming.url,
           method: incoming.method,
           headers: incoming.headers,
           body: incoming.body,
         ),
-      );
-
-      request.deferRuntime(
-        () => RequestRuntimeContext(
+        runtimeResolver: () => RequestRuntimeContext(
           name: runtimeName,
           protocol: incoming.scheme,
           httpVersion: '2',
@@ -293,8 +289,8 @@ final class _IoServerTransport implements ServerTransport {
           env: _runtimeEnvironment,
           raw: RuntimeRawContext(dartRequest: stream),
         ),
+        waitUntil: waitUntil,
       );
-      request.waitUntil = waitUntil;
 
       final response = await _host.dispatch(request);
       await _writeHttp2Response(stream, response);
@@ -561,7 +557,7 @@ final class _IoServerTransport implements ServerTransport {
     }, status: 500);
   }
 
-  ServerRequest _toFetchRequest(HttpRequest ioRequest) {
+  Request _toFetchRequest(HttpRequest ioRequest) {
     final uri = ioRequest.requestedUri.hasScheme
         ? ioRequest.requestedUri
         : ioRequest.uri;
@@ -586,9 +582,16 @@ final class _IoServerTransport implements ServerTransport {
         });
       },
     );
-    final serverRequest = ServerRequest(request);
-    serverRequest.deferUrl(() => _absoluteRequestUri(ioRequest));
-    return serverRequest;
+    return request;
+  }
+
+  bool _isWebSocketUpgradeResponse(Response response) {
+    if (response.status == 101) {
+      return true;
+    }
+
+    final upgrade = response.headers.get('x-osrv-upgrade');
+    return upgrade != null && upgrade.toLowerCase() == 'websocket';
   }
 
   Stream<List<int>> _limitBody(Stream<List<int>> source, int maxBytes) async* {

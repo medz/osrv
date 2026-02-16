@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Refactor: `ServerRequest` is now an interface with server getters only.
+- Removed mutable `ServerRequest` runtime/ip/context setter/defer APIs and websocket request state mutators.
+- `ServerRequest.clone()` / `copyWith()` now preserve request data and reset server metadata.
+- JS transport switched from JSON bridge payloads to direct `__osrv_main__(request, context)` dispatch.
+- Runtime templates removed bridge fallback branches and call Dart handler directly.
+
 ## 0.1.0
 
 - Initial public release.

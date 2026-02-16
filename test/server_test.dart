@@ -181,6 +181,47 @@ void main() {
       },
     );
 
+    test(
+      'request clone/copyWith keep request data but reset server metadata',
+      () async {
+        final server = Server(
+          port: 0,
+          fetch: (request) async {
+            final cloned = request.clone();
+            final copied = request.copyWith();
+            return Response.json(<String, Object?>{
+              'clonePath': cloned.url.path,
+              'copyPath': copied.url.path,
+              'cloneRuntime': cloned.runtime?.name,
+              'copyRuntime': copied.runtime?.name,
+              'cloneIp': cloned.ip,
+              'copyIp': copied.ip,
+              'cloneWaitUntil': cloned.waitUntil != null,
+              'copyWaitUntil': copied.waitUntil != null,
+              'cloneContextEmpty': cloned.context.isEmpty,
+              'copyContextEmpty': copied.context.isEmpty,
+            });
+          },
+        );
+
+        await server.serve();
+        final result = await _sendRequest(server.url!, method: 'GET');
+        await server.close();
+
+        final decoded = jsonDecode(result.body) as Map<String, Object?>;
+        expect(decoded['clonePath'], equals('/'));
+        expect(decoded['copyPath'], equals('/'));
+        expect(decoded['cloneRuntime'], isNull);
+        expect(decoded['copyRuntime'], isNull);
+        expect(decoded['cloneIp'], isNull);
+        expect(decoded['copyIp'], isNull);
+        expect(decoded['cloneWaitUntil'], isFalse);
+        expect(decoded['copyWaitUntil'], isFalse);
+        expect(decoded['cloneContextEmpty'], isTrue);
+        expect(decoded['copyContextEmpty'], isTrue);
+      },
+    );
+
     test('default error response is safe in production mode', () async {
       final server = Server(
         port: 0,

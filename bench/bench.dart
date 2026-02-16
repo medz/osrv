@@ -174,6 +174,7 @@ Future<void> main(List<String> args) async {
         }
 
         final medianMicrosPerRequest = _median(samples);
+        final p95MicrosPerRequest = _percentile(samples, 0.95);
         final requestsPerSecond = 1000000 / medianMicrosPerRequest;
 
         rows.add(
@@ -181,6 +182,7 @@ Future<void> main(List<String> args) async {
             target: target.id,
             scenario: scenario.id,
             microsPerRequest: medianMicrosPerRequest,
+            p95MicrosPerRequest: p95MicrosPerRequest,
             requestsPerSecond: requestsPerSecond,
             runs: samples.length,
             overhead: overhead.isFinite ? overhead : 0,
@@ -189,7 +191,8 @@ Future<void> main(List<String> args) async {
         );
 
         stdout.writeln(
-          '  ${medianMicrosPerRequest.toStringAsFixed(2)} us/req, '
+          '  ${medianMicrosPerRequest.toStringAsFixed(2)} us/req '
+          '(p95=${p95MicrosPerRequest.toStringAsFixed(2)}), '
           '${requestsPerSecond.toStringAsFixed(2)} req/s '
           '(runs=${samples.length}, overhead=${((overhead.isFinite ? overhead : 0) * 100).toStringAsFixed(2)}%, stable=${stable ? 'yes' : 'no'})',
         );
@@ -410,6 +413,7 @@ void _printMatrix({
   final headers = <String>['target'];
   for (final scenario in scenarios) {
     headers.add('${scenario.id} us/req');
+    headers.add('${scenario.id} p95 us/req');
     headers.add('${scenario.id} req/s');
   }
   stdout.writeln('| ${headers.join(' | ')} |');
@@ -426,9 +430,11 @@ void _printMatrix({
       if (row == null) {
         values.add('-');
         values.add('-');
+        values.add('-');
         continue;
       }
       values.add(row.microsPerRequest.toStringAsFixed(2));
+      values.add(row.p95MicrosPerRequest.toStringAsFixed(2));
       values.add(row.requestsPerSecond.toStringAsFixed(2));
     }
     stdout.writeln('| ${values.join(' | ')} |');
@@ -519,6 +525,29 @@ double _median(List<double> values) {
     return sorted[middle];
   }
   return (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+double _percentile(List<double> values, double percentile) {
+  if (values.isEmpty) {
+    throw StateError('No samples to compute percentile.');
+  }
+  if (percentile <= 0) {
+    return values.reduce(math.min);
+  }
+  if (percentile >= 1) {
+    return values.reduce(math.max);
+  }
+
+  final sorted = values.toList()..sort();
+  final position = (sorted.length - 1) * percentile;
+  final lower = position.floor();
+  final upper = position.ceil();
+  if (lower == upper) {
+    return sorted[lower];
+  }
+
+  final weight = position - lower;
+  return sorted[lower] * (1 - weight) + sorted[upper] * weight;
 }
 
 double _relativeOverhead(List<double> values) {
@@ -824,6 +853,7 @@ final class _BenchRow {
     required this.target,
     required this.scenario,
     required this.microsPerRequest,
+    required this.p95MicrosPerRequest,
     required this.requestsPerSecond,
     required this.runs,
     required this.overhead,
@@ -833,6 +863,7 @@ final class _BenchRow {
   final String target;
   final String scenario;
   final double microsPerRequest;
+  final double p95MicrosPerRequest;
   final double requestsPerSecond;
   final int runs;
   final double overhead;
