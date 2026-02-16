@@ -151,6 +151,36 @@ void main() {
       expect(decoded['env'], equals('TEST_ENV_VALUE'));
     });
 
+    test(
+      'request headers/url remain available with lazy request internals',
+      () async {
+        final server = Server(
+          port: 0,
+          fetch: (request) async {
+            final copied = request.copyWith();
+            return Response.json(<String, Object?>{
+              'path': request.url.path,
+              'scheme': request.url.scheme,
+              'xTest': copied.headers.get('x-test'),
+            });
+          },
+        );
+
+        await server.serve();
+        final result = await _sendRequest(
+          server.url!,
+          method: 'GET',
+          headers: const <String, String>{'x-test': 'lazy-ok'},
+        );
+        await server.close();
+
+        final decoded = jsonDecode(result.body) as Map<String, Object?>;
+        expect(decoded['path'], equals('/'));
+        expect(decoded['scheme'], isNotEmpty);
+        expect(decoded['xTest'], equals('lazy-ok'));
+      },
+    );
+
     test('default error response is safe in production mode', () async {
       final server = Server(
         port: 0,
@@ -242,10 +272,12 @@ Future<_HttpResult> _sendRequest(
   String baseUrl, {
   required String method,
   String? body,
+  Map<String, String>? headers,
 }) async {
   final client = HttpClient();
   try {
     final request = await client.openUrl(method, Uri.parse(baseUrl));
+    headers?.forEach(request.headers.set);
     if (body != null) {
       request.write(body);
     }

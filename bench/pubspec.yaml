@@ -1,0 +1,17 @@
+name: osrv_bench
+description: Benchmark matrix runner for osrv/shelf/relic fixtures.
+publish_to: none
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  args: ^2.7.0
+  benchmark_harness: ^2.4.0
+  osrv:
+    path: ..
+  relic: ^1.0.0
+  shelf: ^1.4.2
+
+dev_dependencies:
+  lints: ^6.0.0

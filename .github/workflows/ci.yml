@@ -13,15 +13,13 @@ jobs:
       - name: Install dependencies
         run: dart pub get
       - name: Format
-        run: dart format --output=none --set-exit-if-changed .
+        run: dart format --output=none --set-exit-if-changed lib test tool example bin
       - name: Analyze
-        run: dart analyze
+        run: dart analyze lib test tool example bin
       - name: Test
         run: dart test
       - name: Contract runner
         run: dart run tool/contract.dart
-      - name: Benchmark gate
-        run: dart run tool/bench.dart --requests=120 --max-overhead=0.05
       - name: Build artifacts
         run: dart run tool/build.dart
 

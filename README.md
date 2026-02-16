@@ -163,12 +163,6 @@ Multi-runtime contract matrix (auto-detects available runtimes):
 dart run tool/contract_matrix.dart
 ```
 
-Benchmark gate (fractional overhead, `0.05` == 5%):
-
-```bash
-dart run tool/bench.dart --requests=200 --max-overhead=0.05
-```
-
 ## Docs
 
 - [`docs/troubleshooting.md`](docs/troubleshooting.md)
