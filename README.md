@@ -163,19 +163,6 @@ Multi-runtime contract matrix (auto-detects available runtimes):
 dart run tool/contract_matrix.dart
 ```
 
-Manual benchmark (baseline + osrv + shelf + relic):
-
-```bash
-cd bench
-dart pub get
-dart run bin/bench.dart --requests=200 --max-overhead=0.05
-```
-
-Notes:
-
-- Benchmark is intentionally not part of CI.
-- `--max-overhead` gates median round overhead of `osrv` vs baseline.
-
 ## Docs
 
 - [`docs/troubleshooting.md`](docs/troubleshooting.md)
