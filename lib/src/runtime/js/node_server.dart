@@ -8,6 +8,8 @@ import 'package:ht/ht.dart';
 import '../../core/config.dart';
 import '../../request.dart';
 import '../../types/runtime.dart';
+import '../../websocket/internal.dart';
+import '../../websocket/websocket_js.dart';
 import '../server_transport.dart';
 
 extension type IncomingHttpHeaders._(JSObject _) implements JSObject {
@@ -218,22 +220,36 @@ final class NodeServerTransport implements ServerTransport {
       );
 
       final ip = request.socket.remoteAddress ?? '';
+      final runtimeServer = _runtime;
       final serverRequest = createServerRequest(
         fetchRequest,
         ip: ip,
-        context: <String, Object?>{'runtime': runtime.name},
+        context: <String, Object?>{
+          'runtime': runtime.name,
+          jsRuntimeKey: runtime.name,
+          jsRawRequestKey: request,
+          jsRawContextKey: response,
+          ...?runtimeServer == null
+              ? null
+              : <String, Object?>{jsRawServerKey: runtimeServer},
+        },
       );
 
       final outgoing = await _dispatch(serverRequest);
+      final normalized = isWebSocketUpgradeResponse(outgoing)
+          ? webSocketUpgradeErrorResponse(
+              'Node websocket upgrade is not implemented in osrv yet.',
+            )
+          : outgoing;
 
       final responseHeaders = <JSArray<JSString>>[];
-      for (final entry in outgoing.headers) {
+      for (final entry in normalized.headers) {
         responseHeaders.add([entry.key.toJS, entry.value.toJS].toJS);
       }
 
-      response.writeHead(outgoing.status, responseHeaders.toJS);
+      response.writeHead(normalized.status, responseHeaders.toJS);
 
-      final bodyStream = outgoing.body;
+      final bodyStream = normalized.body;
       if (bodyStream case final stream?) {
         await for (final chunk in stream) {
           response.write(chunk.toJS);

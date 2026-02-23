@@ -6,6 +6,8 @@ import 'package:web/web.dart' as web;
 import '../../core/config.dart';
 import '../../request.dart';
 import '../../types/runtime.dart';
+import '../../websocket/internal.dart';
+import '../../websocket/websocket_js.dart';
 import '../server_transport.dart';
 import 'global.dart';
 import 'web_converters.dart';
@@ -106,10 +108,32 @@ final class EdgeServerTransport implements ServerTransport {
       request,
       ip: ip,
       waitUntil: waitUntil,
-      context: <String, Object?>{'runtime': runtime.name},
+      context: <String, Object?>{
+        'runtime': runtime.name,
+        jsRuntimeKey: runtime.name,
+        jsRawRequestKey: request,
+        jsRawContextKey: contextObject,
+      },
     );
 
     final response = await _dispatch(serverRequest);
+    if (isWebSocketUpgradeResponse(response)) {
+      final pending = takePendingWebSocketUpgrade(serverRequest);
+      if (pending == null) {
+        return htResponseToWebResponse(
+          webSocketUpgradeErrorResponse(
+            'Missing websocket upgrade state in edge transport.',
+          ),
+        );
+      }
+
+      final runtimeResponse = await pending.accept();
+      if (runtimeResponse == null) {
+        throw StateError('Edge websocket upgrade did not return a Response.');
+      }
+      return runtimeResponse as web.Response;
+    }
+
     return htResponseToWebResponse(response);
   }
 

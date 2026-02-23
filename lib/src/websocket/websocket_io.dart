@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:ht/ht.dart' show Response;
 
 import '../request.dart';
+import '../websocket/internal.dart';
 import '../websocket_contract.dart';
 
 const String _ioRequestContextKey = '__io_http_request';
@@ -70,7 +71,11 @@ final class _IoServerWebSocket implements ServerWebSocket {
   Future<void> done() => _socket.done;
 
   @override
-  Response toResponse() => Response.empty(status: 101);
+  Response toResponse() {
+    final response = Response.empty(status: 101);
+    response.headers.set(websocketUpgradeHeader, websocketUpgradeValue);
+    return response;
+  }
 
   void _assertOpen() {
     if (!_open) {

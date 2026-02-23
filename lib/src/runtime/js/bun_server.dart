@@ -4,6 +4,8 @@ import 'package:web/web.dart' as web;
 
 import '../../core/config.dart';
 import '../../types/runtime.dart';
+import '../../websocket/internal.dart';
+import '../../websocket/websocket_js.dart';
 import '../server_transport.dart';
 import 'web_converters.dart';
 
@@ -27,6 +29,7 @@ extension type BunServeOptions._(JSObject _) implements JSObject {
     int? port,
     bool? reusePort,
     JSFunction fetch,
+    JSObject? websocket,
   });
 }
 
@@ -79,6 +82,7 @@ final class BunServerTransport implements ServerTransport {
         port: _config.port,
         reusePort: _config.reusePort,
         fetch: _handleRequest.toJS,
+        websocket: createBunWebSocketHandlers(),
       ),
     );
   }
@@ -91,14 +95,14 @@ final class BunServerTransport implements ServerTransport {
     _runtime?.stop(force);
   }
 
-  JSPromise<web.Response> _handleRequest(
+  JSPromise<JSAny?> _handleRequest(
     web.Request request,
     BunNativeServer server,
   ) {
     return _dispatchRequest(request, server).toJS;
   }
 
-  Future<web.Response> _dispatchRequest(
+  Future<JSAny?> _dispatchRequest(
     web.Request request,
     BunNativeServer server,
   ) async {
@@ -113,10 +117,30 @@ final class BunServerTransport implements ServerTransport {
     final serverRequest = webRequestToServerRequest(
       request,
       ip: ip,
-      context: <String, Object?>{'runtime': runtime.name},
+      context: <String, Object?>{
+        'runtime': runtime.name,
+        jsRuntimeKey: runtime.name,
+        jsRawRequestKey: request,
+        jsRawServerKey: server,
+      },
     );
 
     final response = await _dispatch(serverRequest);
-    return htResponseToWebResponse(response);
+    if (isWebSocketUpgradeResponse(response)) {
+      final pending = takePendingWebSocketUpgrade(serverRequest);
+      if (pending == null) {
+        return htResponseToWebResponse(
+          webSocketUpgradeErrorResponse(
+            'Missing websocket upgrade state in Bun transport.',
+          ),
+        );
+      }
+
+      final runtimeResponse = await pending.accept();
+      return runtimeResponse as JSAny?;
+    }
+
+    final webResponse = await htResponseToWebResponse(response);
+    return webResponse as JSAny?;
   }
 }

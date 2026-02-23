@@ -5,6 +5,8 @@ import 'package:web/web.dart' as web;
 
 import '../../core/config.dart';
 import '../../types/runtime.dart';
+import '../../websocket/internal.dart';
+import '../../websocket/websocket_js.dart';
 import '../server_transport.dart';
 import 'web_converters.dart';
 
@@ -125,10 +127,32 @@ final class DenoServerTransport implements ServerTransport {
     final serverRequest = webRequestToServerRequest(
       request,
       ip: remote.hostname,
-      context: <String, Object?>{'runtime': runtime.name},
+      context: <String, Object?>{
+        'runtime': runtime.name,
+        jsRuntimeKey: runtime.name,
+        jsRawRequestKey: request,
+        jsRawContextKey: info,
+      },
     );
 
     final response = await _dispatch(serverRequest);
+    if (isWebSocketUpgradeResponse(response)) {
+      final pending = takePendingWebSocketUpgrade(serverRequest);
+      if (pending == null) {
+        return htResponseToWebResponse(
+          webSocketUpgradeErrorResponse(
+            'Missing websocket upgrade state in Deno transport.',
+          ),
+        );
+      }
+
+      final runtimeResponse = await pending.accept();
+      if (runtimeResponse == null) {
+        throw StateError('Deno websocket upgrade did not return a Response.');
+      }
+      return runtimeResponse as web.Response;
+    }
+
     return htResponseToWebResponse(response);
   }
 }
