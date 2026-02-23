@@ -1,0 +1,11 @@
+name: osrv_example
+publish_to: none
+description: Minimal local example package depending on osrv.
+version: 0.0.1
+
+environment:
+  sdk: ^3.10.0
+
+dependencies:
+  osrv:
+    path: ../
