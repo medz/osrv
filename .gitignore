@@ -5,3 +5,6 @@ dist/
 .pub/
 pubspec.lock
 coverage/
+node_modules/
+.tmp_js_runtime_tests/
+.tmp_dbg/

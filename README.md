@@ -1,21 +1,17 @@
 # osrv
 
-Dart-first unified server core with a single `Server(...)` API.
+Dart-first server runtime with a single `Server(...)` API.
 
 ## Status
 
-- Core API implemented: `Server`, middleware, plugins, lifecycle, error handling.
-- `dart:io` runtime transport implemented and tested.
-- WebSocket upgrade helper implemented for Dart/Node/Bun, and Edge adapters with provider-specific limits.
-- JS/Edge adapters call `globalThis.__osrv_main__` directly (JSON bridge removed).
-- Maintainer helper script available at `dart run tool/build.dart` (delegates to CLI build).
-- `dart run osrv build` generates direct-deploy Node/Bun/Deno/Edge adapters under `dist/` that load Dart-compiled JS core.
-
-Edge WebSocket support:
-
-- Cloudflare Workers: supported.
-- Netlify Edge: supported when runtime exposes `Deno.upgradeWebSocket` (or `WebSocketPair`).
-- Vercel Edge: not supported by runtime; adapter returns `501` for websocket upgrade attempts.
+- Core API: `Server`, middleware, plugins, lifecycle, error handling.
+- Runtime transports:
+  - `dart:io` (HTTP/1.1, HTTPS, HTTP/2).
+  - JS runtimes (Node/Bun/Deno/Edge) via Dart JS interop.
+- WebSocket:
+  - `dart:io`: supported.
+  - Bun/Deno/Cloudflare/Netlify edge: supported.
+  - Node/Vercel edge: currently returns `501` for upgrade attempts.
 
 ## Install
 
@@ -23,16 +19,7 @@ Edge WebSocket support:
 dart pub add osrv
 ```
 
-## Use osrv in your own package
-
-Published dependency:
-
-```yaml
-dependencies:
-  osrv: ^0.1.0
-```
-
-Then create `bin/main.dart`:
+## Quick Start
 
 ```dart
 import 'package:osrv/osrv.dart';
@@ -40,40 +27,6 @@ import 'package:osrv/osrv.dart';
 Future<void> main() async {
   final server = Server(
     fetch: (request) => Response.json({'ok': true, 'path': request.url.path}),
-  );
-  await server.serve();
-}
-```
-
-Local path dependency (for osrv contributors):
-
-```yaml
-dependencies:
-  osrv:
-    path: ../osrv
-```
-
-## Example package
-
-`/example` is a minimal non-publishable pub package that depends on `osrv` via path dependency.
-
-```bash
-cd example
-dart pub get
-dart run osrv serve
-dart run osrv build
-```
-
-## Quick start
-
-```dart
-import 'package:osrv/osrv.dart';
-
-Future<void> main() async {
-  final server = Server(
-    fetch: (request) async {
-      return Response.json({'ok': true, 'path': request.url.path});
-    },
   );
 
   await server.serve();
@@ -87,79 +40,51 @@ dart run osrv serve
 dart run osrv build
 ```
 
-`serve` defaults to `server.dart` (fallback: `bin/server.dart`), and `build` also defaults to the same entry.
+`serve` and `build` default to `server.dart` (fallback: `bin/server.dart`).
 
-TLS/HTTP2 flags for local serve:
-
-```bash
-dart run osrv serve --tls --cert=cert.pem --key=key.pem --http2
-```
-
-`http2` is tri-state in CLI:
-
-- `--http2`: force on.
-- `--no-http2`: force off.
-- omitted: runtime default (`auto`).
-
-Dependency-mode workflow (inside your app package):
-
-1. Add `osrv` dependency.
-2. Create `server.dart` with your server entrypoint.
-3. Run `dart run osrv serve` for local run.
-4. Run `dart run osrv build` for distributable artifacts.
-
-CLI config precedence:
-
-1. CLI flags
-2. Environment variables
-3. Defaults
-
-Programmatic build API (for downstream packages):
+## Build API
 
 ```dart
 import 'package:osrv/build.dart';
 
 Future<void> main() async {
-  await build(
-    const BuildOptions(
-      entry: 'server.dart',
-      outDir: 'dist',
-    ),
-  );
+  await build(const BuildOptions(entry: 'server.dart', outDir: 'dist'));
 }
 ```
 
-## Maintainer Build Helper
-
-```bash
-dart run tool/build.dart
-```
-
-This is for local osrv repo development convenience.
-User/application build flow remains `dart run osrv build`.
-
 Artifacts:
 
-- `dist/js/<runtime>/`
-- `dist/edge/<provider>/`
-- `dist/bin/`
+- `dist/app.js`
+- `dist/bin/server` (or `server.exe` on Windows)
+- `dist/js/node/index.mjs`
+- `dist/js/bun/index.mjs`
+- `dist/js/deno/index.mjs`
+- `dist/edge/cloudflare/index.mjs`
+- `dist/edge/vercel/index.mjs`
+- `dist/edge/netlify/index.mjs`
+
+## Example
+
+```bash
+cd example
+dart pub get
+dart run osrv serve
+dart run osrv build
+```
 
 ## Test
+
+Dart tests:
 
 ```bash
 dart test
 ```
 
-Contract runner:
+JS runtime integration tests (Bun-managed project under `test/js`):
 
 ```bash
-dart run tool/contract.dart
-```
-
-Multi-runtime contract matrix (auto-detects available runtimes):
-
-```bash
-dart run tool/contract_matrix.dart
+bun install --cwd test/js
+bun test --cwd test/js
 ```
 
 ## Docs

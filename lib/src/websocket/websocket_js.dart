@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:js_interop';
-import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
 import 'package:ht/ht.dart' show Headers, Response;
@@ -31,6 +30,28 @@ extension type BunWebSocketHandlers._(JSObject _) implements JSObject {
   });
 }
 
+extension type _BunUpgradeServer._(JSObject _) implements JSObject {
+  external JSBoolean upgrade(JSObject request, _BunUpgradeData data);
+}
+
+extension type _BunRuntimeSocket._(JSObject _) implements JSObject {
+  external _BunSocketData? get data;
+  external void send(JSAny data);
+  external void close([int? code, String? reason]);
+}
+
+extension type _BunSocketData._(JSObject _) implements JSObject {
+  external String? get id;
+}
+
+extension type _BunUpgradeData._(JSObject _) implements JSObject {
+  external factory _BunUpgradeData({_BunUpgradePayload? data});
+}
+
+extension type _BunUpgradePayload._(JSObject _) implements JSObject {
+  external factory _BunUpgradePayload({String? id});
+}
+
 @JS('Deno')
 extension type _DenoGlobal._(JSObject _) implements JSObject {
   external _DenoUpgradeResult upgradeWebSocket(web.Request request);
@@ -42,7 +63,15 @@ extension type _DenoUpgradeResult._(JSObject _) implements JSObject {
 }
 
 @JS('WebSocketPair')
-external JSFunction get _webSocketPairConstructor;
+extension type _WebSocketPair._(JSObject _) implements JSObject {
+  external factory _WebSocketPair();
+
+  @JS('0')
+  external JSAny? get first;
+
+  @JS('1')
+  external JSAny? get second;
+}
 
 extension type _CloudflareWebSocket._(JSObject _)
     implements web.WebSocket, JSObject {
@@ -108,7 +137,7 @@ BunWebSocketHandlers createBunWebSocketHandlers() {
 }
 
 void _onBunSocketOpen(JSAny? socketAny) {
-  final socket = _asObject(socketAny);
+  final socket = _asBunSocket(socketAny);
   if (socket == null) {
     return;
   }
@@ -128,7 +157,7 @@ void _onBunSocketOpen(JSAny? socketAny) {
 }
 
 void _onBunSocketMessage(JSAny? socketAny, JSAny? messageAny) {
-  final socket = _asObject(socketAny);
+  final socket = _asBunSocket(socketAny);
   if (socket == null) {
     return;
   }
@@ -151,7 +180,7 @@ void _onBunSocketMessage(JSAny? socketAny, JSAny? messageAny) {
 }
 
 void _onBunSocketClose(JSAny? socketAny, JSAny? codeAny, JSAny? reasonAny) {
-  final socket = _asObject(socketAny);
+  final socket = _asBunSocket(socketAny);
   if (socket == null) {
     return;
   }
@@ -172,7 +201,7 @@ void _onBunSocketClose(JSAny? socketAny, JSAny? codeAny, JSAny? reasonAny) {
 }
 
 void _onBunSocketError(JSAny? socketAny) {
-  final socket = _asObject(socketAny);
+  final socket = _asBunSocket(socketAny);
   if (socket == null) {
     return;
   }
@@ -193,8 +222,8 @@ void _onBunSocketError(JSAny? socketAny) {
 ServerWebSocket _upgradeBunWebSocket(ServerRequest request) {
   final rawRequest = request.context[jsRawRequestKey];
   final rawServer = request.context[jsRawServerKey];
-  final runtimeRequest = _asObject(rawRequest);
-  final runtimeServer = _asObject(rawServer);
+  final runtimeRequest = _asJsObject(rawRequest);
+  final runtimeServer = _asBunUpgradeServer(rawServer);
 
   if (runtimeRequest == null || runtimeServer == null) {
     throw UnsupportedError(
@@ -294,11 +323,7 @@ final class _BunPendingUpgradeHolder implements _PendingUpgradeHolder {
     _bunSocketsById[id] = socket;
 
     final upgraded = pending.server
-        .callMethod<JSBoolean>(
-          'upgrade'.toJS,
-          pending.request,
-          pending.upgradeData,
-        )
+        .upgrade(pending.request, pending.upgradeData)
         .toDart;
 
     if (!upgraded) {
@@ -383,7 +408,7 @@ final class _JsServerWebSocket implements ServerWebSocket {
     _socket = socket;
   }
 
-  void attachBunSocket(JSObject socket) {
+  void attachBunSocket(_BunRuntimeSocket socket) {
     _socket = _BunSocketAdapter(socket);
   }
 
@@ -493,9 +518,9 @@ final class _CloudflarePendingUpgrade implements _JsPendingUpgrade {
       throw UnsupportedError('WebSocketPair is not available in this runtime.');
     }
 
-    final pairObject = _webSocketPairConstructor.callAsConstructor<JSObject>();
-    final clientAny = pairObject.getProperty<JSAny>('0'.toJS);
-    final serverAny = pairObject.getProperty<JSAny>('1'.toJS);
+    final pair = _WebSocketPair();
+    final clientAny = pair.first;
+    final serverAny = pair.second;
 
     if (!clientAny.isA<web.WebSocket>() || !serverAny.isA<JSObject>()) {
       throw StateError('WebSocketPair returned invalid socket objects.');
@@ -530,15 +555,11 @@ final class _BunPendingUpgrade implements _JsPendingUpgrade {
 
   final String id;
   final JSObject request;
-  final JSObject server;
-  final JSObject upgradeData;
+  final _BunUpgradeServer server;
+  final _BunUpgradeData upgradeData;
 
-  static JSObject _createUpgradeData(String id) {
-    final data = JSObject();
-    final inner = JSObject();
-    inner.setProperty('id'.toJS, id.toJS);
-    data.setProperty('data'.toJS, inner);
-    return data;
+  static _BunUpgradeData _createUpgradeData(String id) {
+    return _BunUpgradeData(data: _BunUpgradePayload(id: id));
   }
 
   @override
@@ -588,29 +609,21 @@ final class _WebSocketAdapter implements _SocketAdapter {
 final class _BunSocketAdapter implements _SocketAdapter {
   _BunSocketAdapter(this._socket);
 
-  final JSObject _socket;
+  final _BunRuntimeSocket _socket;
 
   @override
   void sendText(String data) {
-    _socket.callMethodVarArgs<JSAny?>('send'.toJS, <JSAny?>[data.toJS]);
+    _socket.send(data.toJS);
   }
 
   @override
   void sendBytes(Uint8List data) {
-    _socket.callMethodVarArgs<JSAny?>('send'.toJS, <JSAny?>[data.toJS]);
+    _socket.send(data.toJS);
   }
 
   @override
   void close({int? code, String? reason}) {
-    final args = <JSAny?>[];
-    if (code != null) {
-      args.add(code.toJS);
-    }
-    if (reason != null) {
-      args.add(reason.toJS);
-    }
-
-    _socket.callMethodVarArgs<JSAny?>('close'.toJS, args);
+    _socket.close(code, reason);
   }
 }
 
@@ -668,26 +681,35 @@ Object? _jsMessageToDart(JSAny? value) {
   return value.toString();
 }
 
-String? _bunSocketId(JSObject socket) {
-  final dataAny = socket.getProperty<JSAny?>('data'.toJS);
-  if (dataAny == null || !dataAny.isA<JSObject>()) {
-    return null;
-  }
-
-  final idAny = (dataAny as JSObject).getProperty<JSAny?>('id'.toJS);
-  return _asString(idAny);
+String? _bunSocketId(_BunRuntimeSocket socket) {
+  return socket.data?.id;
 }
 
-JSObject? _asObject(Object? value) {
+_BunRuntimeSocket? _asBunSocket(JSAny? value) {
+  if (value != null && value.isA<JSObject>()) {
+    return _BunRuntimeSocket._(value as JSObject);
+  }
+  return null;
+}
+
+JSObject? _asJsObject(Object? value) {
   if (value == null) {
     return null;
   }
 
   try {
     return value as JSObject;
-  } catch (_) {
+  } on Object {
     return null;
   }
+}
+
+_BunUpgradeServer? _asBunUpgradeServer(Object? value) {
+  final raw = _asJsObject(value);
+  if (raw == null) {
+    return null;
+  }
+  return _BunUpgradeServer._(raw);
 }
 
 String? _asString(JSAny? value) {
