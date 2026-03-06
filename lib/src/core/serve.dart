@@ -1,6 +1,8 @@
 import 'runtime.dart';
 import 'runtime_config.dart';
 import 'server.dart';
+import '../runtime/bun/config.dart';
+import '../runtime/bun/serve.dart';
 import '../runtime/dart/config.dart';
 import '../runtime/dart/serve.dart';
 import '../runtime/node/config.dart';
@@ -11,6 +13,7 @@ Future<Runtime> serve(
   RuntimeConfig runtime,
 ) async {
   return switch (runtime) {
+    BunRuntimeConfig() => serveBunRuntime(server, runtime),
     DartRuntimeConfig() => serveDartRuntime(server, runtime),
     NodeRuntimeConfig() => serveNodeRuntime(server, runtime),
     _ => throw UnsupportedError(
