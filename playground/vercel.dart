@@ -1,7 +1,10 @@
-import 'package:osrv/runtime/vercel.dart';
+import 'package:osrv/esm.dart';
 
 import 'server.dart' as playground;
 
 void main() {
-  defineVercelFetch(playground.server);
+  defineFetchEntry(
+    playground.server,
+    runtime: const VercelFetchRuntime(),
+  );
 }

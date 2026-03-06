@@ -1,10 +1,15 @@
+import '../core/server.dart';
+import 'fetch_runtime.dart';
+
 const defaultFetchEntryName = '__osrv_fetch__';
 
 void defineFetchEntry(
-  Object fetch, {
+  Server server, {
+  required FetchEntryRuntime runtime,
   String name = defaultFetchEntryName,
 }) {
-  fetch;
+  server;
+  runtime;
   if (name.trim().isEmpty) {
     throw ArgumentError.value(
       name,

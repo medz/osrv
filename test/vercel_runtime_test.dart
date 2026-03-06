@@ -1,15 +1,18 @@
 import 'package:osrv/osrv.dart';
-import 'package:osrv/runtime/vercel.dart';
+import 'package:osrv/esm.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('defineVercelFetch is explicit about requiring a JavaScript host', () {
+  test('defineFetchEntry is explicit about requiring a JavaScript host', () {
     final server = Server(
       fetch: (request, context) => Response.text('ok'),
     );
 
     expect(
-      () => defineVercelFetch(server),
+      () => defineFetchEntry(
+        server,
+        runtime: const VercelFetchRuntime(),
+      ),
       throwsA(
         isA<UnsupportedError>().having(
           (error) => error.message,
@@ -20,13 +23,17 @@ void main() {
     );
   });
 
-  test('defineVercelFetch rejects an empty export name', () {
+  test('defineFetchEntry rejects an empty export name', () {
     final server = Server(
       fetch: (request, context) => Response.text('ok'),
     );
 
     expect(
-      () => defineVercelFetch(server, name: '  '),
+      () => defineFetchEntry(
+        server,
+        runtime: const VercelFetchRuntime(),
+        name: '  ',
+      ),
       throwsA(isA<ArgumentError>()),
     );
   });

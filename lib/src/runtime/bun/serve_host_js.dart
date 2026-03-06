@@ -11,14 +11,14 @@ import 'package:web/web.dart' as web;
 import '../../core/errors.dart';
 import '../../core/runtime.dart';
 import '../../core/server.dart';
+import '../_internal/js/web_request_bridge.dart';
+import '../_internal/js/web_response_bridge.dart';
 import 'extension.dart';
 import 'interop.dart';
 import 'lifecycle_context.dart';
 import 'preflight.dart';
-import 'request_bridge.dart';
 import 'request_context.dart';
 import 'request_host.dart';
-import 'response_bridge.dart';
 import 'runtime.dart';
 
 Future<Runtime> serveBunRuntimeHost(
@@ -189,9 +189,9 @@ Future<web.Response> _handleBunRequest({
   );
 
   try {
-    final htRequest = bunRequestToHtRequest(request);
+    final htRequest = htRequestFromWebRequest(request);
     final htResponse = await server.fetch(htRequest, context);
-    return bunResponseFromHtResponse(htResponse);
+    return webResponseFromHtResponse(htResponse);
   } catch (error, stackTrace) {
     final handled = await _handleRequestError(
       server: server,
@@ -199,7 +199,7 @@ Future<web.Response> _handleBunRequest({
       stackTrace: stackTrace,
       context: lifecycleContext,
     );
-    return bunResponseFromHtResponse(handled);
+    return webResponseFromHtResponse(handled);
   }
 }
 

@@ -6,22 +6,23 @@ import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
+import 'package:osrv/esm.dart';
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/vercel.dart';
-import 'package:osrv/src/runtime/vercel/stream_bridge.dart';
+import 'package:osrv/src/runtime/_internal/js/web_stream_bridge.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 
 void main() {
   tearDown(() {
-    globalContext.delete(defaultVercelFetchName.toJS);
+    globalContext.delete(defaultFetchEntryName.toJS);
     globalContext.delete('__custom_osrv_fetch__'.toJS);
     globalContext.delete(defaultVercelFunctionsOverrideName.toJS);
     resetVercelFunctionHelpersCache();
   });
 
-  test('defineVercelFetch bridges fetch into Server.fetch', () async {
-    defineVercelFetch(
+  test('defineFetchEntry bridges fetch into Server.fetch', () async {
+    defineFetchEntry(
       Server(
         fetch: (request, context) {
           final vercel = context.extension<
@@ -43,6 +44,7 @@ void main() {
           });
         },
       ),
+      runtime: const VercelFetchRuntime(),
     );
 
     _installFunctionsOverride();
@@ -70,17 +72,18 @@ void main() {
     );
   });
 
-  test('defineVercelFetch forwards waitUntil to helper bag', () async {
+  test('defineFetchEntry forwards waitUntil to helper bag', () async {
     final waitUntilCompleter = Completer<void>();
     final tracker = _TestWaitUntilTracker();
 
-    defineVercelFetch(
+    defineFetchEntry(
       Server(
         fetch: (request, context) {
           context.waitUntil(waitUntilCompleter.future);
           return Response.text('ok');
         },
       ),
+      runtime: const VercelFetchRuntime(),
     );
 
     _installFunctionsOverride(waitUntilTracker: tracker);
@@ -96,8 +99,8 @@ void main() {
     await Future.wait(tracker.tasks);
   });
 
-  test('defineVercelFetch uses onError to translate failures', () async {
-    defineVercelFetch(
+  test('defineFetchEntry uses onError to translate failures', () async {
+    defineFetchEntry(
       Server(
         fetch: (request, context) => throw StateError('boom'),
         onError: (error, stackTrace, context) {
@@ -107,6 +110,7 @@ void main() {
           );
         },
       ),
+      runtime: const VercelFetchRuntime(),
     );
 
     _installFunctionsOverride();
@@ -119,15 +123,16 @@ void main() {
     expect((await response.text().toDart).toDart, 'handled vercel');
   });
 
-  test('defineVercelFetch runs onStart only once', () async {
+  test('defineFetchEntry runs onStart only once', () async {
     var starts = 0;
-    defineVercelFetch(
+    defineFetchEntry(
       Server(
         onStart: (context) {
           starts++;
         },
         fetch: (request, context) => Response.text('ok'),
       ),
+      runtime: const VercelFetchRuntime(),
     );
 
     _installFunctionsOverride();
@@ -145,11 +150,12 @@ void main() {
     expect(starts, 1);
   });
 
-  test('defineVercelFetch returns default 500 without onError', () async {
-    defineVercelFetch(
+  test('defineFetchEntry returns default 500 without onError', () async {
+    defineFetchEntry(
       Server(
         fetch: (request, context) => throw StateError('boom'),
       ),
+      runtime: const VercelFetchRuntime(),
     );
 
     _installFunctionsOverride();
@@ -162,11 +168,12 @@ void main() {
     expect((await response.text().toDart).toDart, 'Internal Server Error');
   });
 
-  test('defineVercelFetch respects a custom export name', () async {
-    defineVercelFetch(
+  test('defineFetchEntry respects a custom export name', () async {
+    defineFetchEntry(
       Server(
         fetch: (request, context) => Response.text(request.url.path),
       ),
+      runtime: const VercelFetchRuntime(),
       name: '__custom_osrv_fetch__',
     );
 
@@ -180,17 +187,18 @@ void main() {
     expect((await response.text().toDart).toDart, '/custom');
   });
 
-  test('defineVercelFetch does not pre-read the request stream', () async {
+  test('defineFetchEntry does not pre-read the request stream', () async {
     final entered = Completer<void>();
     final body = StreamController<List<int>>();
 
-    defineVercelFetch(
+    defineFetchEntry(
       Server(
         fetch: (request, context) {
           entered.complete();
           return Response.text(request.method);
         },
       ),
+      runtime: const VercelFetchRuntime(),
     );
 
     _installFunctionsOverride();
@@ -216,10 +224,10 @@ void main() {
     expect((await response.text().toDart).toDart, 'POST');
   });
 
-  test('defineVercelFetch returns a streaming response immediately', () async {
+  test('defineFetchEntry returns a streaming response immediately', () async {
     final body = StreamController<List<int>>();
 
-    defineVercelFetch(
+    defineFetchEntry(
       Server(
         fetch: (request, context) {
           return Response(
@@ -228,6 +236,7 @@ void main() {
           );
         },
       ),
+      runtime: const VercelFetchRuntime(),
     );
 
     _installFunctionsOverride();
@@ -250,10 +259,10 @@ void main() {
     expect((await response.text().toDart).toDart, 'hello vercel');
   });
 
-  test('defineVercelFetch exposes cache and invalidation helpers', () async {
+  test('defineFetchEntry exposes cache and invalidation helpers', () async {
     final tracker = _TestWaitUntilTracker();
 
-    defineVercelFetch(
+    defineFetchEntry(
       Server(
         fetch: (request, context) async {
           final functions = context
@@ -293,6 +302,7 @@ void main() {
           });
         },
       ),
+      runtime: const VercelFetchRuntime(),
     );
 
     _installFunctionsOverride(waitUntilTracker: tracker);
@@ -513,7 +523,7 @@ void _installFunctionsOverride({
 }
 
 JSExportedDartFunction _currentFetchHandler() =>
-    _fetchHandlerFor(defaultVercelFetchName);
+    _fetchHandlerFor(defaultFetchEntryName);
 
 JSExportedDartFunction _fetchHandlerFor(String name) {
   return globalContext.getProperty<JSExportedDartFunction>(name.toJS);

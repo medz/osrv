@@ -8,14 +8,13 @@ import 'package:web/web.dart' as web;
 import '../../core/capabilities.dart';
 import '../../core/runtime.dart';
 import '../../core/server.dart';
-import '../_internal/js/fetch_entry.dart';
 import '../_internal/js/fetch_handler.dart';
+import '../_internal/js/web_request_bridge.dart';
+import '../_internal/js/web_response_bridge.dart';
 import 'extension.dart';
 import 'host.dart';
 import 'lifecycle_context.dart';
-import 'request_bridge.dart';
 import 'request_context.dart';
-import 'response_bridge.dart';
 
 const cloudflareRuntimeCapabilities = RuntimeCapabilities(
   streaming: true,
@@ -31,27 +30,7 @@ const cloudflareRuntimeInfo = RuntimeInfo(
   kind: 'entry',
 );
 
-const defaultCloudflareFetchName = defaultFetchEntryName;
-
-void defineCloudflareFetch(
-  Server server, {
-  String name = defaultCloudflareFetchName,
-}) {
-  if (name.trim().isEmpty) {
-    throw ArgumentError.value(
-      name,
-      'name',
-      'Cloudflare fetch export name must not be empty.',
-    );
-  }
-
-  defineFetchEntry(
-    _createCloudflareFetchExport(server),
-    name: name,
-  );
-}
-
-JSExportedDartFunction _createCloudflareFetchExport(
+JSExportedDartFunction createCloudflareFetchEntry(
   Server server,
 ) {
   final handler = JsEntryFetchHandler(server);
@@ -81,8 +60,8 @@ JSExportedDartFunction _createCloudflareFetchExport(
           request,
           lifecycleContext: lifecycleContext,
           requestContext: requestContext,
-          toHtRequest: cloudflareRequestToHtRequest,
-          fromHtResponse: cloudflareResponseFromHtResponse,
+          toHtRequest: htRequestFromWebRequest,
+          fromHtResponse: webResponseFromHtResponse,
         )
         .toJS;
   }

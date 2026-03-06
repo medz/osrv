@@ -7,9 +7,10 @@ import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 import 'dart:typed_data';
 
+import 'package:osrv/esm.dart';
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/cloudflare.dart';
-import 'package:osrv/src/runtime/cloudflare/stream_bridge.dart';
+import 'package:osrv/src/runtime/_internal/js/web_stream_bridge.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 
@@ -26,24 +27,25 @@ final class _TestExecutionContext {
 
 void main() {
   tearDown(() {
-    globalContext.delete(defaultCloudflareFetchName.toJS);
+    globalContext.delete(defaultFetchEntryName.toJS);
     globalContext.delete('__custom_osrv_fetch__'.toJS);
   });
 
-  test('defineCloudflareFetch validates the export name', () {
+  test('defineFetchEntry validates the export name', () {
     expect(
-      () => defineCloudflareFetch(
+      () => defineFetchEntry(
         Server(
           fetch: (request, context) => Response.text('ok'),
         ),
+        runtime: const CloudflareFetchRuntime(),
         name: ' ',
       ),
       throwsA(isA<ArgumentError>()),
     );
   });
 
-  test('defineCloudflareFetch bridges fetch into Server.fetch', () async {
-    defineCloudflareFetch(
+  test('defineFetchEntry bridges fetch into Server.fetch', () async {
+    defineFetchEntry(
       Server(
         fetch: (request, context) {
           final cf = context.extension<
@@ -63,6 +65,7 @@ void main() {
           });
         },
       ),
+      runtime: const CloudflareFetchRuntime(),
     );
 
     final env = JSObject()..setProperty('name'.toJS, 'worker'.toJS);
@@ -90,16 +93,17 @@ void main() {
     );
   });
 
-  test('defineCloudflareFetch forwards waitUntil to execution context', () async {
+  test('defineFetchEntry forwards waitUntil to execution context', () async {
     final waitUntilCompleter = Completer<void>();
     final ctxExport = _TestExecutionContext();
-    defineCloudflareFetch(
+    defineFetchEntry(
       Server(
         fetch: (request, context) {
           context.waitUntil(waitUntilCompleter.future);
           return Response.text('ok');
         },
       ),
+      runtime: const CloudflareFetchRuntime(),
     );
 
     final response = await _callWorkerFetch(
@@ -116,8 +120,8 @@ void main() {
     await Future.wait(ctxExport.tasks);
   });
 
-  test('defineCloudflareFetch uses onError to translate fetch failures', () async {
-    defineCloudflareFetch(
+  test('defineFetchEntry uses onError to translate fetch failures', () async {
+    defineFetchEntry(
       Server(
         fetch: (request, context) => throw StateError('boom'),
         onError: (error, stackTrace, context) {
@@ -127,6 +131,7 @@ void main() {
           );
         },
       ),
+      runtime: const CloudflareFetchRuntime(),
     );
 
     final response = await _callWorkerFetch(
@@ -140,15 +145,16 @@ void main() {
     expect((await response.text().toDart).toDart, 'handled cloudflare');
   });
 
-  test('defineCloudflareFetch runs onStart only once', () async {
+  test('defineFetchEntry runs onStart only once', () async {
     var starts = 0;
-    defineCloudflareFetch(
+    defineFetchEntry(
       Server(
         onStart: (context) {
           starts++;
         },
         fetch: (request, context) => Response.text('ok'),
       ),
+      runtime: const CloudflareFetchRuntime(),
     );
 
     final first = await _callWorkerFetch(
@@ -169,11 +175,12 @@ void main() {
     expect(starts, 1);
   });
 
-  test('defineCloudflareFetch returns default 500 without onError', () async {
-    defineCloudflareFetch(
+  test('defineFetchEntry returns default 500 without onError', () async {
+    defineFetchEntry(
       Server(
         fetch: (request, context) => throw StateError('boom'),
       ),
+      runtime: const CloudflareFetchRuntime(),
     );
 
     final response = await _callWorkerFetch(
@@ -190,11 +197,12 @@ void main() {
     );
   });
 
-  test('defineCloudflareFetch respects a custom export name', () async {
-    defineCloudflareFetch(
+  test('defineFetchEntry respects a custom export name', () async {
+    defineFetchEntry(
       Server(
         fetch: (request, context) => Response.text(request.url.path),
       ),
+      runtime: const CloudflareFetchRuntime(),
       name: '__custom_osrv_fetch__',
     );
 
@@ -209,17 +217,18 @@ void main() {
     expect((await response.text().toDart).toDart, '/custom');
   });
 
-  test('defineCloudflareFetch does not pre-read the request stream', () async {
+  test('defineFetchEntry does not pre-read the request stream', () async {
     final entered = Completer<void>();
     final body = StreamController<List<int>>();
 
-    defineCloudflareFetch(
+    defineFetchEntry(
       Server(
         fetch: (request, context) {
           entered.complete();
           return Response.text(request.method);
         },
       ),
+      runtime: const CloudflareFetchRuntime(),
     );
 
     final responseFuture = _callWorkerFetch(
@@ -246,10 +255,10 @@ void main() {
     expect((await response.text().toDart).toDart, 'POST');
   });
 
-  test('defineCloudflareFetch returns a streaming response immediately', () async {
+  test('defineFetchEntry returns a streaming response immediately', () async {
     final body = StreamController<List<int>>();
 
-    defineCloudflareFetch(
+    defineFetchEntry(
       Server(
         fetch: (request, context) {
           return Response(
@@ -258,6 +267,7 @@ void main() {
           );
         },
       ),
+      runtime: const CloudflareFetchRuntime(),
     );
 
     final responseFuture = _callWorkerFetch(
@@ -297,7 +307,7 @@ Future<web.Response> _callWorkerFetch(
 }
 
 JSFunction _currentFetchHandler() {
-  return _fetchHandlerFor(defaultCloudflareFetchName);
+  return _fetchHandlerFor(defaultFetchEntryName);
 }
 
 JSFunction _fetchHandlerFor(String name) {
