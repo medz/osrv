@@ -1,11 +1,11 @@
 ## Unreleased
 
+- Unified core API around `Server`, `RequestContext`, `Runtime`, and `serve(...)`.
+- Implemented serve-based runtimes for `dart`, `node`, and `bun`.
+- Implemented entry-export runtimes for `cloudflare` and `vercel` through `defineFetchEntry(...)`.
+- Added runtime capability model and typed runtime extensions.
+- Added runtime playground entries and finalized runtime/API documentation.
+
 ## 0.1.0
 
 - Initial public release.
-- Dart-first `Server` core with lifecycle, middleware, plugins, and error handling.
-- Unified runtime adapters for Dart native, Node, Bun, Deno, and edge providers.
-- Unified WebSocket API with `upgradeWebSocket()` and `toResponse()` behavior.
-- TLS and HTTP/2 support with runtime capability exposure.
-- CLI commands: `dart run osrv serve` and `dart run osrv build`.
-- Build artifacts for `dist/js/*`, `dist/edge/*`, and `dist/bin/*`.

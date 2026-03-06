@@ -1,5 +1,5 @@
 name: osrv
-description: Unified Dart-first server runtime across Dart native, JS runtimes, and edge adapters.
+description: Unified Dart server runtime for Dart, Node, Bun, Cloudflare, and Vercel.
 version: 0.1.0
 homepage: https://github.com/medz/osrv
 repository: https://github.com/medz/osrv

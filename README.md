@@ -1,17 +1,15 @@
 # osrv
 
-Dart-first server runtime with a single `Server(...)` API.
+A unified server runtime shape for Dart applications.
 
 ## Status
 
-- Core API: `Server`, middleware, plugins, lifecycle, error handling.
-- Runtime transports:
-  - `dart:io` (HTTP/1.1, HTTPS, HTTP/2).
-  - JS runtimes (Node/Bun/Deno/Edge) via Dart JS interop.
-- WebSocket:
-  - `dart:io`: supported.
-  - Bun/Deno/Cloudflare/Netlify edge: supported.
-  - Node/Vercel edge: currently returns `501` for upgrade attempts.
+Implemented runtime families:
+- `dart` via `serve(server, DartRuntimeConfig(...))`
+- `node` via `serve(server, NodeRuntimeConfig(...))`
+- `bun` via `serve(server, BunRuntimeConfig(...))`
+- `cloudflare` via `defineFetchEntry(server, runtime: FetchEntryRuntime.cloudflare)`
+- `vercel` via `defineFetchEntry(server, runtime: FetchEntryRuntime.vercel)`
 
 ## Install
 
@@ -19,75 +17,93 @@ Dart-first server runtime with a single `Server(...)` API.
 dart pub add osrv
 ```
 
-## Quick Start
+## Core Shape
+
+The core API is intentionally small:
+- `Server`
+- `serve(server, runtimeConfig)` for serve-based runtimes
+- `RequestContext`
+- `Runtime`
+- `RuntimeCapabilities`
+- `RuntimeExtension`
+
+## Quick Start: Dart Runtime
 
 ```dart
 import 'package:osrv/osrv.dart';
+import 'package:osrv/runtime/dart.dart';
 
 Future<void> main() async {
   final server = Server(
-    fetch: (request) => Response.json({'ok': true, 'path': request.url.path}),
+    fetch: (request, context) {
+      return Response.json({
+        'runtime': context.runtime.name,
+        'path': request.url.path,
+      });
+    },
   );
 
-  await server.serve();
+  final runtime = await serve(
+    server,
+    const DartRuntimeConfig(
+      host: '127.0.0.1',
+      port: 3000,
+    ),
+  );
+
+  print(runtime.url);
 }
 ```
 
-## CLI
-
-```bash
-dart run osrv serve
-dart run osrv build
-```
-
-`serve` and `build` default to `server.dart` (fallback: `bin/server.dart`).
-
-## Build API
+## Quick Start: Cloudflare / Vercel Entry Export
 
 ```dart
-import 'package:osrv/build.dart';
+import 'package:osrv/osrv.dart';
+import 'package:osrv/esm.dart';
 
-Future<void> main() async {
-  await build(const BuildOptions(entry: 'server.dart', outDir: 'dist'));
+void main() {
+  defineFetchEntry(
+    Server(
+      fetch: (request, context) => Response.text('Hello Osrv!'),
+    ),
+    runtime: FetchEntryRuntime.cloudflare,
+  );
 }
 ```
 
-Artifacts:
+Then use a thin JS shim:
 
-- `dist/app.js`
-- `dist/bin/server` (or `server.exe` on Windows)
-- `dist/js/node/index.mjs`
-- `dist/js/bun/index.mjs`
-- `dist/js/deno/index.mjs`
-- `dist/edge/cloudflare/index.mjs`
-- `dist/edge/vercel/index.mjs`
-- `dist/edge/netlify/index.mjs`
+```js
+import './cloudflare.dart.js';
 
-## Example
-
-```bash
-cd example
-dart pub get
-dart run osrv serve
-dart run osrv build
+export default { fetch: globalThis.__osrv_fetch__ };
 ```
 
-## Test
+## Capability Model
 
-Dart tests:
+`osrv` unifies server shape, not host power.
 
-```bash
-dart test
-```
+Check host truth through capabilities:
 
-JS runtime integration tests (Bun-managed project under `test/js`):
-
-```bash
-bun install --cwd test/js
-bun test --cwd test/js
+```dart
+if (!runtime.capabilities.websocket) {
+  // explicit fallback
+}
 ```
 
 ## Docs
 
-- [`docs/troubleshooting.md`](docs/troubleshooting.md)
-- [`docs/examples.md`](docs/examples.md)
+- [architecture](./doc/architecture.md)
+- [core API](./doc/api/core.md)
+- [runtime API](./doc/api/runtime.md)
+- [runtime docs](./doc/runtime/README.md)
+- [final usage examples](./doc/examples/final-usage.md)
+
+## Playground
+
+The [`playground`](./playground) directory contains minimal runtime entry samples for:
+- `dart`
+- `node`
+- `bun`
+- `cloudflare`
+- `vercel`
