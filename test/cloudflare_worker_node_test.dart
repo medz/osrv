@@ -34,10 +34,8 @@ void main() {
   test('defineFetchEntry validates the export name', () {
     expect(
       () => defineFetchEntry(
-        Server(
-          fetch: (request, context) => Response.text('ok'),
-        ),
-        runtime: const CloudflareFetchRuntime(),
+        Server(fetch: (request, context) => Response.text('ok')),
+        runtime: FetchEntryRuntime.cloudflare,
         name: ' ',
       ),
       throwsA(isA<ArgumentError>()),
@@ -48,8 +46,8 @@ void main() {
     defineFetchEntry(
       Server(
         fetch: (request, context) {
-          final cf = context.extension<
-              CloudflareRuntimeExtension<JSObject, web.Request>>();
+          final cf = context
+              .extension<CloudflareRuntimeExtension<JSObject, web.Request>>();
           final name = cf?.env?.getProperty<JSString?>('name'.toJS)?.toDart;
           final requestPath = cf?.request?.url ?? request.url.toString();
 
@@ -65,7 +63,7 @@ void main() {
           });
         },
       ),
-      runtime: const CloudflareFetchRuntime(),
+      runtime: FetchEntryRuntime.cloudflare,
     );
 
     final env = JSObject()..setProperty('name'.toJS, 'worker'.toJS);
@@ -78,19 +76,16 @@ void main() {
     );
 
     expect(response.status, 200);
-    expect(
-      jsonDecode((await response.text().toDart).toDart),
-      {
-        'runtime': 'cloudflare',
-        'path': '/hello',
-        'request': 'https://example.com/hello',
-        'name': 'worker',
-        'streaming': true,
-        'backgroundTask': true,
-        'nodeCompat': true,
-        'websocket': false,
-      },
-    );
+    expect(jsonDecode((await response.text().toDart).toDart), {
+      'runtime': 'cloudflare',
+      'path': '/hello',
+      'request': 'https://example.com/hello',
+      'name': 'worker',
+      'streaming': true,
+      'backgroundTask': true,
+      'nodeCompat': true,
+      'websocket': false,
+    });
   });
 
   test('defineFetchEntry forwards waitUntil to execution context', () async {
@@ -103,7 +98,7 @@ void main() {
           return Response.text('ok');
         },
       ),
-      runtime: const CloudflareFetchRuntime(),
+      runtime: FetchEntryRuntime.cloudflare,
     );
 
     final response = await _callWorkerFetch(
@@ -125,13 +120,10 @@ void main() {
       Server(
         fetch: (request, context) => throw StateError('boom'),
         onError: (error, stackTrace, context) {
-          return Response.text(
-            'handled ${context.runtime.name}',
-            status: 418,
-          );
+          return Response.text('handled ${context.runtime.name}', status: 418);
         },
       ),
-      runtime: const CloudflareFetchRuntime(),
+      runtime: FetchEntryRuntime.cloudflare,
     );
 
     final response = await _callWorkerFetch(
@@ -154,7 +146,7 @@ void main() {
         },
         fetch: (request, context) => Response.text('ok'),
       ),
-      runtime: const CloudflareFetchRuntime(),
+      runtime: FetchEntryRuntime.cloudflare,
     );
 
     final first = await _callWorkerFetch(
@@ -177,10 +169,8 @@ void main() {
 
   test('defineFetchEntry returns default 500 without onError', () async {
     defineFetchEntry(
-      Server(
-        fetch: (request, context) => throw StateError('boom'),
-      ),
-      runtime: const CloudflareFetchRuntime(),
+      Server(fetch: (request, context) => throw StateError('boom')),
+      runtime: FetchEntryRuntime.cloudflare,
     );
 
     final response = await _callWorkerFetch(
@@ -191,18 +181,13 @@ void main() {
     );
 
     expect(response.status, 500);
-    expect(
-      (await response.text().toDart).toDart,
-      'Internal Server Error',
-    );
+    expect((await response.text().toDart).toDart, 'Internal Server Error');
   });
 
   test('defineFetchEntry respects a custom export name', () async {
     defineFetchEntry(
-      Server(
-        fetch: (request, context) => Response.text(request.url.path),
-      ),
-      runtime: const CloudflareFetchRuntime(),
+      Server(fetch: (request, context) => Response.text(request.url.path)),
+      runtime: FetchEntryRuntime.cloudflare,
       name: '__custom_osrv_fetch__',
     );
 
@@ -228,7 +213,7 @@ void main() {
           return Response.text(request.method);
         },
       ),
-      runtime: const CloudflareFetchRuntime(),
+      runtime: FetchEntryRuntime.cloudflare,
     );
 
     final responseFuture = _callWorkerFetch(
@@ -267,7 +252,7 @@ void main() {
           );
         },
       ),
-      runtime: const CloudflareFetchRuntime(),
+      runtime: FetchEntryRuntime.cloudflare,
     );
 
     final responseFuture = _callWorkerFetch(
@@ -298,12 +283,12 @@ Future<web.Response> _callWorkerFetch(
   JSObject env,
   JSObject ctx,
 ) {
-  return fetch
-      .callMethodVarArgs<JSPromise<web.Response>>(
-        'call'.toJS,
-        [null, request, env, ctx],
-      )
-      .toDart;
+  return fetch.callMethodVarArgs<JSPromise<web.Response>>('call'.toJS, [
+    null,
+    request,
+    env,
+    ctx,
+  ]).toDart;
 }
 
 JSFunction _currentFetchHandler() {

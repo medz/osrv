@@ -23,8 +23,6 @@ NodeHostProbe probeNodeHost() {
     isJavaScriptHost: globalThis != null,
     hasNodeProcess: process != null,
     nodeVersion: process == null ? null : nodeProcessVersion(process),
-    extension: NodeRuntimeExtension(
-      process: process,
-    ),
+    extension: NodeRuntimeExtension(process: process),
   );
 }

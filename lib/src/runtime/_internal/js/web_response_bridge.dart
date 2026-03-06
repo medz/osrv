@@ -3,9 +3,7 @@ import 'package:web/web.dart' as web;
 
 import 'web_stream_bridge.dart';
 
-web.Response webResponseFromHtResponse(
-  Response source,
-) {
+web.Response webResponseFromHtResponse(Response source) {
   final headers = web.Headers();
   for (final name in source.headers.names()) {
     final values = source.headers.getAll(name);

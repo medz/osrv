@@ -1,5 +1,7 @@
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/bun.dart';
+import 'package:osrv/src/runtime/bun/preflight.dart';
+import 'package:osrv/src/runtime/bun/probe.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -25,10 +27,7 @@ void main() {
 
   test('bun runtime preflight is compile-safe on the current VM host', () {
     final preflight = preflightBunRuntime(
-      const BunRuntimeConfig(
-        host: '127.0.0.1',
-        port: 3000,
-      ),
+      const BunRuntimeConfig(host: '127.0.0.1', port: 3000),
     );
 
     expect(preflight.info.name, 'bun');
@@ -46,43 +45,37 @@ void main() {
     expect(preflight.canServe, isFalse);
     expect(preflight.blockReason, contains('not JavaScript'));
     expect(preflight.extension.bun, isNull);
-    expect(
-      preflight.toUnsupportedError().message,
-      contains('not JavaScript'),
-    );
+    expect(preflight.toUnsupportedError().message, contains('not JavaScript'));
   });
 
-  test('bun runtime preflight reports missing Bun.serve on a Bun-like host', () {
-    final preflight = preflightBunRuntime(
-      const BunRuntimeConfig(
-        host: '127.0.0.1',
-        port: 3000,
-      ),
-      probe: const BunHostProbe(
-        isJavaScriptHost: true,
-        hasBunGlobal: true,
-        hasServe: false,
-        version: '1.2.0',
-        extension: BunRuntimeExtension(),
-      ),
-    );
+  test(
+    'bun runtime preflight reports missing Bun.serve on a Bun-like host',
+    () {
+      final preflight = preflightBunRuntime(
+        const BunRuntimeConfig(host: '127.0.0.1', port: 3000),
+        probe: const BunHostProbe(
+          isJavaScriptHost: true,
+          hasBunGlobal: true,
+          hasServe: false,
+          version: '1.2.0',
+          extension: BunRuntimeExtension(),
+        ),
+      );
 
-    expect(preflight.isJavaScriptHost, isTrue);
-    expect(preflight.hasBunGlobal, isTrue);
-    expect(preflight.hasServe, isFalse);
-    expect(preflight.isBunHost, isTrue);
-    expect(preflight.bunVersion, '1.2.0');
-    expect(preflight.summary, 'bun-host-without-serve');
-    expect(preflight.canServe, isFalse);
-    expect(preflight.blockReason, contains('Bun.serve'));
-  });
+      expect(preflight.isJavaScriptHost, isTrue);
+      expect(preflight.hasBunGlobal, isTrue);
+      expect(preflight.hasServe, isFalse);
+      expect(preflight.isBunHost, isTrue);
+      expect(preflight.bunVersion, '1.2.0');
+      expect(preflight.summary, 'bun-host-without-serve');
+      expect(preflight.canServe, isFalse);
+      expect(preflight.blockReason, contains('Bun.serve'));
+    },
+  );
 
   test('bun runtime preflight reports a serve-ready Bun host', () {
     final preflight = preflightBunRuntime(
-      const BunRuntimeConfig(
-        host: '127.0.0.1',
-        port: 3000,
-      ),
+      const BunRuntimeConfig(host: '127.0.0.1', port: 3000),
       probe: const BunHostProbe(
         isJavaScriptHost: true,
         hasBunGlobal: true,
@@ -98,35 +91,20 @@ void main() {
   });
 
   test('serve rejects invalid bun runtime config', () async {
-    final server = Server(
-      fetch: (request, context) => Response.text('ok'),
-    );
+    final server = Server(fetch: (request, context) => Response.text('ok'));
 
     await expectLater(
-      () => serve(
-        server,
-        const BunRuntimeConfig(
-          host: '',
-          port: 3000,
-        ),
-      ),
+      () => serve(server, const BunRuntimeConfig(host: '', port: 3000)),
       throwsA(isA<RuntimeConfigurationError>()),
     );
   });
 
   test('serve reports when the current host is not Bun', () async {
-    final server = Server(
-      fetch: (request, context) => Response.text('ok'),
-    );
+    final server = Server(fetch: (request, context) => Response.text('ok'));
 
     await expectLater(
-      () => serve(
-        server,
-        const BunRuntimeConfig(
-          host: '127.0.0.1',
-          port: 3000,
-        ),
-      ),
+      () =>
+          serve(server, const BunRuntimeConfig(host: '127.0.0.1', port: 3000)),
       throwsA(
         isA<UnsupportedError>().having(
           (error) => error.message,

@@ -9,11 +9,9 @@ import '../_internal/server/error_handler.dart';
 import '../_internal/server/shutdown_coordinator.dart';
 import 'config.dart';
 import 'extension.dart';
-import 'lifecycle_context.dart';
 import 'request_bridge.dart';
-import 'request_context.dart';
 import 'response_bridge.dart';
-import 'runtime.dart';
+import '../_internal/server/runtime_handle.dart';
 
 const dartRuntimeCapabilities = RuntimeCapabilities(
   streaming: true,
@@ -32,12 +30,9 @@ Future<Runtime> serveDartRuntime(
 
   final httpServer = await _bindDartHttpServer(config);
 
-  final runtimeInfo = RuntimeInfo(
-    name: 'dart',
-    kind: 'server',
-  );
+  final runtimeInfo = RuntimeInfo(name: 'dart', kind: 'server');
   final lifecycleExtension = DartRuntimeExtension(server: httpServer);
-  final lifecycleContext = DartServerLifecycleContext(
+  final lifecycleContext = ServerLifecycleContext(
     runtime: runtimeInfo,
     capabilities: dartRuntimeCapabilities,
     extension: lifecycleExtension,
@@ -51,10 +46,7 @@ Future<Runtime> serveDartRuntime(
     }
   } catch (error) {
     await httpServer.close(force: true);
-    throw RuntimeStartupError(
-      'Failed to start dart runtime.',
-      error,
-    );
+    throw RuntimeStartupError('Failed to start dart runtime.', error);
   }
 
   unawaited(() async {
@@ -65,7 +57,7 @@ Future<Runtime> serveDartRuntime(
           request: request,
           response: request.response,
         );
-        final context = DartRequestContext(
+        final context = RequestContext(
           runtime: runtimeInfo,
           capabilities: dartRuntimeCapabilities,
           onWaitUntil: coordinator.trackTask,
@@ -99,14 +91,12 @@ Future<Runtime> serveDartRuntime(
     }
   }());
 
-  return DartRuntime(
-    server: httpServer,
+  return ServerRuntimeHandle(
     info: runtimeInfo,
     capabilities: dartRuntimeCapabilities,
     closed: coordinator.closed,
-    host: config.host,
-    port: httpServer.port,
-    onClose: () {
+    url: Uri(scheme: 'http', host: config.host, port: httpServer.port),
+    onClose: () async {
       unawaited(
         coordinator.stop(
           onStop: () async {
@@ -117,13 +107,13 @@ Future<Runtime> serveDartRuntime(
           waitForRequests: false,
         ),
       );
+      await httpServer.close();
+      await coordinator.closed;
     },
   );
 }
 
-Future<HttpServer> _bindDartHttpServer(
-  DartRuntimeConfig config,
-) async {
+Future<HttpServer> _bindDartHttpServer(DartRuntimeConfig config) async {
   try {
     return await HttpServer.bind(
       config.host,
@@ -142,9 +132,7 @@ Future<HttpServer> _bindDartHttpServer(
 
 void _validateDartRuntimeConfig(DartRuntimeConfig config) {
   if (config.host.trim().isEmpty) {
-    throw RuntimeConfigurationError(
-      'DartRuntimeConfig.host cannot be empty.',
-    );
+    throw RuntimeConfigurationError('DartRuntimeConfig.host cannot be empty.');
   }
 
   if (config.port < 0 || config.port > 65535) {

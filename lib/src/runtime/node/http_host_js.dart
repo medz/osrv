@@ -45,28 +45,23 @@ extension type NodeServerResponseHost._(JSObject _) implements JSObject {
 }
 
 final class NodeHttpBinding {
-  const NodeHttpBinding({
-    required this.host,
-    required this.port,
-  });
+  const NodeHttpBinding({required this.host, required this.port});
 
   final String host;
   final int port;
 }
 
-typedef NodeHostRequestListener = void Function(
-  NodeIncomingMessageHost request,
-  NodeServerResponseHost response,
-);
+typedef NodeHostRequestListener =
+    void Function(
+      NodeIncomingMessageHost request,
+      NodeServerResponseHost response,
+    );
 
 NodeHttpModuleHost? get nodeHttpModule {
   final process = nodeProcess;
   final getBuiltinModule = process?.getBuiltinModule;
   if (getBuiltinModule != null) {
-    final module = getBuiltinModule.callAsFunction(
-      process,
-      'node:http'.toJS,
-    );
+    final module = getBuiltinModule.callAsFunction(process, 'node:http'.toJS);
     if (module != null) {
       return NodeHttpModuleHost._(module as JSObject);
     }
@@ -77,10 +72,7 @@ NodeHttpModuleHost? get nodeHttpModule {
     return null;
   }
 
-  final module = require.callAsFunction(
-    null,
-    'node:http'.toJS,
-  );
+  final module = require.callAsFunction(null, 'node:http'.toJS);
   if (module == null) {
     return null;
   }
@@ -235,7 +227,11 @@ Future<NodeHttpBinding> listenNodeHttpServer(
         return;
       }
 
-      final resolved = _serverBindingFromAddress(server, fallbackHost: host, fallbackPort: port);
+      final resolved = _serverBindingFromAddress(
+        server,
+        fallbackHost: host,
+        fallbackPort: port,
+      );
       completer.complete(resolved);
     }).toJS,
   );
@@ -279,15 +275,11 @@ void nodeServerResponseSetHeader(
   String name,
   Object value,
 ) {
-  response.setHeader.callAsFunction(
-    response,
-    name.toJS,
-    switch (value) {
-      String() => value.toJS,
-      List<String>() => value.map((entry) => entry.toJS).toList().toJS,
-      _ => value.jsify(),
-    },
-  );
+  response.setHeader.callAsFunction(response, name.toJS, switch (value) {
+    String() => value.toJS,
+    List<String>() => value.map((entry) => entry.toJS).toList().toJS,
+    _ => value.jsify(),
+  });
 }
 
 Future<void> nodeServerResponseWrite(
@@ -351,18 +343,11 @@ Future<void> nodeServerResponseEnd(
   }).toJS;
 
   if (body == null) {
-    response.end.callAsFunction(
-      response,
-      callback,
-    );
+    response.end.callAsFunction(response, callback);
     return completer.future;
   }
 
-  response.end.callAsFunction(
-    response,
-    _jsBody(body),
-    callback,
-  );
+  response.end.callAsFunction(response, _jsBody(body), callback);
   return completer.future;
 }
 
@@ -373,19 +358,15 @@ NodeHttpBinding _serverBindingFromAddress(
 }) {
   final address = server.address.callAsFunction(server);
   if (address == null || address.isA<JSString>()) {
-    return NodeHttpBinding(
-      host: fallbackHost,
-      port: fallbackPort,
-    );
+    return NodeHttpBinding(host: fallbackHost, port: fallbackPort);
   }
 
   final object = address as JSObject;
-  final port = object.getProperty<JSNumber?>('port'.toJS)?.toDartInt ?? fallbackPort;
-  final host = object.getProperty<JSString?>('address'.toJS)?.toDart ?? fallbackHost;
-  return NodeHttpBinding(
-    host: host,
-    port: port,
-  );
+  final port =
+      object.getProperty<JSNumber?>('port'.toJS)?.toDartInt ?? fallbackPort;
+  final host =
+      object.getProperty<JSString?>('address'.toJS)?.toDart ?? fallbackHost;
+  return NodeHttpBinding(host: host, port: port);
 }
 
 Uint8List? _bytesFromNodeChunk(JSAny chunk) {
@@ -418,10 +399,10 @@ JSAny _jsBody(Object body) {
     List<int>() => Uint8List.fromList(body).toJS,
     String() => body.toJS,
     _ => throw ArgumentError.value(
-        body,
-        'body',
-        'Unsupported Node.js response body type.',
-      ),
+      body,
+      'body',
+      'Unsupported Node.js response body type.',
+    ),
   };
 }
 

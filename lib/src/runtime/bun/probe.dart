@@ -26,8 +26,6 @@ BunHostProbe probeBunHost() {
     hasBunGlobal: bun != null,
     hasServe: bun != null && bunHasServe(bun),
     version: bun == null ? null : bunVersion(bun),
-    extension: BunRuntimeExtension(
-      bun: bun,
-    ),
+    extension: BunRuntimeExtension(bun: bun),
   );
 }

@@ -13,8 +13,6 @@ import '../_internal/js/web_request_bridge.dart';
 import '../_internal/js/web_response_bridge.dart';
 import 'extension.dart';
 import 'host.dart';
-import 'lifecycle_context.dart';
-import 'request_context.dart';
 
 const cloudflareRuntimeCapabilities = RuntimeCapabilities(
   streaming: true,
@@ -25,14 +23,9 @@ const cloudflareRuntimeCapabilities = RuntimeCapabilities(
   nodeCompat: true,
 );
 
-const cloudflareRuntimeInfo = RuntimeInfo(
-  name: 'cloudflare',
-  kind: 'entry',
-);
+const cloudflareRuntimeInfo = RuntimeInfo(name: 'cloudflare', kind: 'entry');
 
-JSExportedDartFunction createCloudflareFetchEntry(
-  Server server,
-) {
+JSExportedDartFunction createCloudflareFetchEntry(Server server) {
   final handler = JsEntryFetchHandler(server);
   JSPromise<web.Response> fetch(
     web.Request request, [
@@ -44,14 +37,17 @@ JSExportedDartFunction createCloudflareFetchEntry(
       context: context,
       request: request,
     );
-    final lifecycleContext = CloudflareServerLifecycleContext(
+    final lifecycleContext = ServerLifecycleContext(
       runtime: cloudflareRuntimeInfo,
       capabilities: cloudflareRuntimeCapabilities,
       extension: extension,
     );
-    final requestContext = CloudflareRequestContext(
+    final requestContext = RequestContext(
       runtime: cloudflareRuntimeInfo,
       capabilities: cloudflareRuntimeCapabilities,
+      onWaitUntil: (task) {
+        cloudflareWaitUntil(context, task);
+      },
       extension: extension,
     );
 

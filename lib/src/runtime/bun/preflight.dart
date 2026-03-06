@@ -79,10 +79,7 @@ BunRuntimePreflight preflightBunRuntime(
   final resolvedProbe = probe ?? probeBunHost();
   return BunRuntimePreflight(
     config: config,
-    info: const RuntimeInfo(
-      name: 'bun',
-      kind: 'javascript-host',
-    ),
+    info: const RuntimeInfo(name: 'bun', kind: 'javascript-host'),
     capabilities: bunRuntimePreflightCapabilities,
     extension: resolvedProbe.extension,
     probe: resolvedProbe,
@@ -92,9 +89,7 @@ BunRuntimePreflight preflightBunRuntime(
 
 void _validateBunRuntimeConfig(BunRuntimeConfig config) {
   if (config.host.trim().isEmpty) {
-    throw RuntimeConfigurationError(
-      'BunRuntimeConfig.host cannot be empty.',
-    );
+    throw RuntimeConfigurationError('BunRuntimeConfig.host cannot be empty.');
   }
 
   if (config.port < 0 || config.port > 65535) {

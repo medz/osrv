@@ -13,9 +13,7 @@ extension type _IterableHeaders._(JSObject _) implements JSObject {
   external void forEach(JSFunction fn);
 }
 
-Request htRequestFromWebRequest(
-  web.Request request,
-) {
+Request htRequestFromWebRequest(web.Request request) {
   final headers = Headers();
   (request.headers as _IterableHeaders).forEach(
     ((String value, String name, [JSAny? _]) {

@@ -16,8 +16,5 @@ Future<Response> handleServerError({
     }
   }
 
-  return Response.text(
-    'Internal Server Error',
-    status: defaultStatus,
-  );
+  return Response.text('Internal Server Error', status: defaultStatus);
 }

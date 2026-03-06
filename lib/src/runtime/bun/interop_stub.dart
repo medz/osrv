@@ -3,10 +3,7 @@ final class BunHostObject {
 }
 
 final class BunGlobal {
-  const BunGlobal({
-    this.version,
-    this.serve,
-  });
+  const BunGlobal({this.version, this.serve});
 
   final String? version;
   final Object? serve;
@@ -21,9 +18,7 @@ String? bunVersion(BunGlobal bun) => bun.version;
 bool bunHasServe(BunGlobal bun) => bun.serve != null;
 
 final class BunServerHost {
-  const BunServerHost({
-    this.port,
-  });
+  const BunServerHost({this.port});
 
   final int? port;
 }
@@ -43,10 +38,7 @@ BunServerHost bunServe(
 
 int? bunServerPort(BunServerHost server) => server.port;
 
-Future<void> stopBunServer(
-  BunServerHost server, {
-  bool force = false,
-}) async {
+Future<void> stopBunServer(BunServerHost server, {bool force = false}) async {
   server;
   force;
 }

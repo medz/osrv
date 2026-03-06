@@ -11,16 +11,14 @@ import '../../core/errors.dart';
 import '../../core/runtime.dart';
 import '../../core/server.dart';
 import '../_internal/server/error_handler.dart';
+import '../_internal/server/runtime_handle.dart';
 import '../_internal/server/shutdown_coordinator.dart';
 import '../_internal/js/web_request_bridge.dart';
 import '../_internal/js/web_response_bridge.dart';
 import 'extension.dart';
 import 'interop.dart';
-import 'lifecycle_context.dart';
 import 'preflight.dart';
-import 'request_context.dart';
 import 'request_host.dart';
-import 'runtime.dart';
 
 Future<Runtime> serveBunRuntimeHost(
   Server server,
@@ -33,18 +31,12 @@ Future<Runtime> serveBunRuntimeHost(
 
   final coordinator = ShutdownCoordinator();
 
-  final runtimeInfo = const RuntimeInfo(
-    name: 'bun',
-    kind: 'server',
-  );
+  final runtimeInfo = const RuntimeInfo(name: 'bun', kind: 'server');
   late final BunServerHost hostServer;
   late final BunRuntimeExtension lifecycleExtension;
-  late final BunServerLifecycleContext lifecycleContext;
+  late final ServerLifecycleContext lifecycleContext;
 
-  JSPromise<web.Response> fetch(
-    web.Request request, [
-    JSAny? serverHost,
-  ]) {
+  JSPromise<web.Response> fetch(web.Request request, [JSAny? serverHost]) {
     serverHost;
     final requestHost = bunRequestHostFromWebRequest(request);
     final operation = _handleBunRequest(
@@ -76,11 +68,8 @@ Future<Runtime> serveBunRuntimeHost(
     );
   }
 
-  lifecycleExtension = BunRuntimeExtension(
-    bun: bun,
-    server: hostServer,
-  );
-  lifecycleContext = BunServerLifecycleContext(
+  lifecycleExtension = BunRuntimeExtension(bun: bun, server: hostServer);
+  lifecycleContext = ServerLifecycleContext(
     runtime: runtimeInfo,
     capabilities: preflight.capabilities,
     extension: lifecycleExtension,
@@ -92,10 +81,7 @@ Future<Runtime> serveBunRuntimeHost(
     }
   } catch (error) {
     await stopBunServer(hostServer, force: true);
-    throw RuntimeStartupError(
-      'Failed to start bun runtime.',
-      error,
-    );
+    throw RuntimeStartupError('Failed to start bun runtime.', error);
   }
 
   final runtimeUrl = Uri(
@@ -104,7 +90,7 @@ Future<Runtime> serveBunRuntimeHost(
     port: bunServerPort(hostServer) ?? preflight.config.port,
   );
 
-  return BunRuntime(
+  return ServerRuntimeHandle(
     info: runtimeInfo,
     capabilities: preflight.capabilities,
     closed: coordinator.closed,
@@ -135,14 +121,14 @@ Future<web.Response> _handleBunRequest({
   required web.Request request,
   required BunRequestHost? requestHost,
   required void Function(Future<void> task) onWaitUntil,
-  required BunServerLifecycleContext lifecycleContext,
+  required ServerLifecycleContext lifecycleContext,
 }) async {
   final extension = BunRuntimeExtension(
     bun: bun,
     server: hostServer,
     request: requestHost,
   );
-  final context = BunRequestContext(
+  final context = RequestContext(
     runtime: runtimeInfo,
     capabilities: capabilities,
     onWaitUntil: onWaitUntil,

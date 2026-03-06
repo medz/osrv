@@ -40,11 +40,9 @@ Future<void> vercelInvalidateByTag(
   VercelFunctionHelpersHost? helpers,
   Object tags,
 ) {
-  return _vercelInvokeVoid(
-    helpers,
-    'invalidateByTag',
-    [_toJsTagArgument(tags)],
-  );
+  return _vercelInvokeVoid(helpers, 'invalidateByTag', [
+    _toJsTagArgument(tags),
+  ]);
 }
 
 Future<void> vercelDangerouslyDeleteByTag(
@@ -55,30 +53,21 @@ Future<void> vercelDangerouslyDeleteByTag(
   final arguments = <JSAny?>[_toJsTagArgument(tags)];
   if (revalidationDeadlineSeconds != null) {
     arguments.add(
-      JSObject()
-        ..setProperty(
-          'revalidationDeadlineSeconds'.toJS,
-          revalidationDeadlineSeconds.toJS,
-        ),
+      JSObject()..setProperty(
+        'revalidationDeadlineSeconds'.toJS,
+        revalidationDeadlineSeconds.toJS,
+      ),
     );
   }
 
-  return _vercelInvokeVoid(
-    helpers,
-    'dangerouslyDeleteByTag',
-    arguments,
-  );
+  return _vercelInvokeVoid(helpers, 'dangerouslyDeleteByTag', arguments);
 }
 
 Future<void> vercelInvalidateBySrcImage(
   VercelFunctionHelpersHost? helpers,
   String srcImage,
 ) {
-  return _vercelInvokeVoid(
-    helpers,
-    'invalidateBySrcImage',
-    [srcImage.toJS],
-  );
+  return _vercelInvokeVoid(helpers, 'invalidateBySrcImage', [srcImage.toJS]);
 }
 
 Future<void> vercelDangerouslyDeleteBySrcImage(
@@ -89,30 +78,21 @@ Future<void> vercelDangerouslyDeleteBySrcImage(
   final arguments = <JSAny?>[srcImage.toJS];
   if (revalidationDeadlineSeconds != null) {
     arguments.add(
-      JSObject()
-        ..setProperty(
-          'revalidationDeadlineSeconds'.toJS,
-          revalidationDeadlineSeconds.toJS,
-        ),
+      JSObject()..setProperty(
+        'revalidationDeadlineSeconds'.toJS,
+        revalidationDeadlineSeconds.toJS,
+      ),
     );
   }
 
-  return _vercelInvokeVoid(
-    helpers,
-    'dangerouslyDeleteBySrcImage',
-    arguments,
-  );
+  return _vercelInvokeVoid(helpers, 'dangerouslyDeleteBySrcImage', arguments);
 }
 
 Future<void> vercelAddCacheTag(
   VercelFunctionHelpersHost? helpers,
   Object tags,
 ) {
-  return _vercelInvokeVoid(
-    helpers,
-    'addCacheTag',
-    [_toJsTagArgument(tags)],
-  );
+  return _vercelInvokeVoid(helpers, 'addCacheTag', [_toJsTagArgument(tags)]);
 }
 
 VercelRuntimeCacheHost? vercelGetCache(
@@ -191,10 +171,7 @@ Future<void> vercelRuntimeCacheSet(
     return;
   }
 
-  final args = <JSAny?>[
-    key.toJS,
-    value.jsify(),
-  ];
+  final args = <JSAny?>[key.toJS, value.jsify()];
 
   if (name != null || tags != null || ttl != null) {
     final options = JSObject();
@@ -210,10 +187,10 @@ Future<void> vercelRuntimeCacheSet(
     args.add(options);
   }
 
-  final result = setter.callMethodVarArgs<JSAny?>(
-    'call'.toJS,
-    [cache, ...args],
-  );
+  final result = setter.callMethodVarArgs<JSAny?>('call'.toJS, [
+    cache,
+    ...args,
+  ]);
   if (result != null) {
     await (result as JSPromise<JSAny?>).toDart;
   }
@@ -251,10 +228,7 @@ Future<void> vercelRuntimeCacheExpireTag(
     return;
   }
 
-  final result = expirer.callAsFunction(
-    cache,
-    _toJsTagArgument(tags),
-  );
+  final result = expirer.callAsFunction(cache, _toJsTagArgument(tags));
   if (result != null) {
     await (result as JSPromise<JSAny?>).toDart;
   }
@@ -272,10 +246,7 @@ void vercelAttachDatabasePool(
   attach.callAsFunction(helpers, dbPool.jsify());
 }
 
-void vercelWaitUntil(
-  VercelFunctionHelpersHost? helpers,
-  Future<void> task,
-) {
+void vercelWaitUntil(VercelFunctionHelpersHost? helpers, Future<void> task) {
   final waitUntil = helpers?.getProperty<JSFunction?>('waitUntil'.toJS);
   if (waitUntil == null) {
     unawaited(task);
@@ -294,10 +265,7 @@ Object? vercelGetEnv(VercelFunctionHelpersHost? helpers) {
   return getter.callAsFunction(helpers)?.dartify();
 }
 
-Object? vercelGeolocation(
-  VercelFunctionHelpersHost? helpers,
-  Object request,
-) {
+Object? vercelGeolocation(VercelFunctionHelpersHost? helpers, Object request) {
   final getter = helpers?.getProperty<JSFunction?>('geolocation'.toJS);
   if (getter == null) {
     return null;
@@ -306,10 +274,7 @@ Object? vercelGeolocation(
   return getter.callAsFunction(helpers, request as JSAny?)?.dartify();
 }
 
-String? vercelIpAddress(
-  VercelFunctionHelpersHost? helpers,
-  Object request,
-) {
+String? vercelIpAddress(VercelFunctionHelpersHost? helpers, Object request) {
   final getter = helpers?.getProperty<JSFunction?>('ipAddress'.toJS);
   if (getter == null) {
     return null;
@@ -333,10 +298,10 @@ Future<void> _vercelInvokeVoid(
     return;
   }
 
-  final result = method.callMethodVarArgs<JSAny?>(
-    'call'.toJS,
-    [helpers, ...arguments],
-  );
+  final result = method.callMethodVarArgs<JSAny?>('call'.toJS, [
+    helpers,
+    ...arguments,
+  ]);
   if (result != null) {
     await (result as JSPromise<JSAny?>).toDart;
   }

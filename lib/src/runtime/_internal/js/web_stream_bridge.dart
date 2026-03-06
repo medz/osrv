@@ -78,10 +78,6 @@ web.ReadableStream webReadableStreamFromDartByteStream(
   }
 
   return web.ReadableStream(
-    _UnderlyingSource(
-      type: 'bytes',
-      start: start.toJS,
-      cancel: cancel.toJS,
-    ),
+    _UnderlyingSource(type: 'bytes', start: start.toJS, cancel: cancel.toJS),
   );
 }

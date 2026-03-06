@@ -12,8 +12,10 @@ void defineFetchEntry(
   String name = defaultFetchEntryName,
 }) {
   final fetch = switch (runtime) {
-    CloudflareFetchRuntime() => cloudflare.createCloudflareFetchEntry(server),
-    VercelFetchRuntime() => vercel.createVercelFetchEntry(server),
+    FetchEntryRuntime.cloudflare => cloudflare.createCloudflareFetchEntry(
+      server,
+    ),
+    FetchEntryRuntime.vercel => vercel.createVercelFetchEntry(server),
   };
 
   internal.defineFetchEntry(fetch, name: name);

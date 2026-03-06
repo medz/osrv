@@ -3,10 +3,8 @@ import 'dart:async';
 import 'host.dart';
 
 final class VercelFunctions {
-  const VercelFunctions._(
-    this._helpers, {
-    Object? request,
-  }) : _request = request;
+  const VercelFunctions._(this._helpers, {Object? request})
+    : _request = request;
 
   final VercelFunctionHelpersHost? _helpers;
   final Object? _request;
@@ -122,10 +120,7 @@ final class VercelRuntimeCache {
 
   Future<void> delete(String key) => vercelRuntimeCacheDelete(_cache, key);
 
-  Future<void> expireTag(
-    String tag, [
-    List<String> additionalTags = const [],
-  ]) {
+  Future<void> expireTag(String tag, [List<String> additionalTags = const []]) {
     return vercelRuntimeCacheExpireTag(
       _cache,
       _mergeTagInput(tag, additionalTags),
@@ -137,10 +132,7 @@ VercelFunctions createVercelFunctions(
   VercelFunctionHelpersHost? helpers,
   Object? request,
 ) {
-  return VercelFunctions._(
-    helpers,
-    request: request,
-  );
+  return VercelFunctions._(helpers, request: request);
 }
 
 Object _mergeTagInput(String tag, List<String> additionalTags) {

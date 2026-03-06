@@ -4,7 +4,6 @@ import 'dart:js_interop';
 import 'package:ht/ht.dart' show Request, Response;
 import 'package:web/web.dart' as web;
 
-import '../../../core/request_context.dart';
 import '../../../core/server.dart';
 
 final class JsEntryFetchHandler {
@@ -13,9 +12,7 @@ final class JsEntryFetchHandler {
   final Server _server;
   Future<void>? _startOperation;
 
-  Future<void> ensureStarted(
-    ServerLifecycleContext context,
-  ) {
+  Future<void> ensureStarted(ServerLifecycleContext context) {
     final existing = _startOperation;
     if (existing != null) {
       return existing;
@@ -56,10 +53,7 @@ final class JsEntryFetchHandler {
 
       return web.Response(
         'Internal Server Error'.toJS,
-        web.ResponseInit(
-          status: 500,
-          statusText: 'Internal Server Error',
-        ),
+        web.ResponseInit(status: 500, statusText: 'Internal Server Error'),
       );
     }
   }

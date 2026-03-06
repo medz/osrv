@@ -18,7 +18,5 @@ void defineFetchEntry(
     );
   }
 
-  throw UnsupportedError(
-    'Fetch entry exports require a JavaScript host.',
-  );
+  throw UnsupportedError('Fetch entry exports require a JavaScript host.');
 }

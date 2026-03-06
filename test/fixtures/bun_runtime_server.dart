@@ -49,19 +49,13 @@ Future<void> main() async {
       }
     },
     onError: (error, stackTrace, context) {
-      return Response.text(
-        'handled ${context.runtime.name}',
-        status: 418,
-      );
+      return Response.text('handled ${context.runtime.name}', status: 418);
     },
   );
 
   runtime = await serve(
     server,
-    const BunRuntimeConfig(
-      host: '127.0.0.1',
-      port: 0,
-    ),
+    const BunRuntimeConfig(host: '127.0.0.1', port: 0),
   );
 
   print('URL:${runtime.url}');

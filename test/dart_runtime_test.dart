@@ -22,10 +22,7 @@ void main() {
 
     final runtime = await serve(
       server,
-      const DartRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
+      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
     );
 
     addTearDown(() async {
@@ -45,18 +42,10 @@ void main() {
   });
 
   test('serve rejects invalid dart runtime config', () async {
-    final server = Server(
-      fetch: (request, context) => Response.text('ok'),
-    );
+    final server = Server(fetch: (request, context) => Response.text('ok'));
 
     expect(
-      () => serve(
-        server,
-        const DartRuntimeConfig(
-          host: '',
-          port: 3000,
-        ),
-      ),
+      () => serve(server, const DartRuntimeConfig(host: '', port: 3000)),
       throwsA(isA<RuntimeConfigurationError>()),
     );
   });
@@ -70,13 +59,7 @@ void main() {
     );
 
     await expectLater(
-      () => serve(
-        server,
-        const DartRuntimeConfig(
-          host: '127.0.0.1',
-          port: 0,
-        ),
-      ),
+      () => serve(server, const DartRuntimeConfig(host: '127.0.0.1', port: 0)),
       throwsA(isA<RuntimeStartupError>()),
     );
   });
@@ -86,10 +69,7 @@ void main() {
       onError: (error, stackTrace, context) {
         expect(error, isA<StateError>());
         expect(context.runtime.name, 'dart');
-        return Response.text(
-          'handled',
-          status: 418,
-        );
+        return Response.text('handled', status: 418);
       },
       fetch: (request, context) {
         throw StateError('boom');
@@ -98,10 +78,7 @@ void main() {
 
     final runtime = await serve(
       server,
-      const DartRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
+      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
     );
 
     addTearDown(() async {
@@ -129,10 +106,7 @@ void main() {
 
     final runtime = await serve(
       server,
-      const DartRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
+      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
     );
 
     addTearDown(() async {
@@ -169,10 +143,7 @@ void main() {
 
     final runtime = await serve(
       server,
-      const DartRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
+      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
     );
 
     addTearDown(() async {
@@ -208,19 +179,14 @@ void main() {
           body: stream,
           status: HttpStatus.accepted,
           statusText: 'Accepted Custom',
-          headers: Headers.fromEntries([
-            const MapEntry('x-stream', 'yes'),
-          ]),
+          headers: Headers.fromEntries([const MapEntry('x-stream', 'yes')]),
         );
       },
     );
 
     final runtime = await serve(
       server,
-      const DartRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
+      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
     );
 
     addTearDown(() async {
@@ -247,19 +213,13 @@ void main() {
         final headers = Headers()
           ..append('set-cookie', 'a=1; Path=/')
           ..append('set-cookie', 'b=2; Path=/');
-        return Response.text(
-          'cookies',
-          headers: headers,
-        );
+        return Response.text('cookies', headers: headers);
       },
     );
 
     final runtime = await serve(
       server,
-      const DartRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
+      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
     );
 
     addTearDown(() async {
@@ -295,10 +255,7 @@ void main() {
 
     final runtime = await serve(
       server,
-      const DartRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
+      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
     );
 
     addTearDown(() async {
@@ -320,11 +277,14 @@ void main() {
 
     var closed = false;
     unawaited(
-      runtime.closed.then((_) {
-        closed = true;
-      }, onError: (_) {
-        closed = true;
-      }),
+      runtime.closed.then(
+        (_) {
+          closed = true;
+        },
+        onError: (_) {
+          closed = true;
+        },
+      ),
     );
 
     final closeFuture = runtime.close();
@@ -349,10 +309,7 @@ void main() {
 
     final runtime = await serve(
       server,
-      const DartRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
+      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
     );
 
     final client = HttpClient();
@@ -366,10 +323,7 @@ void main() {
       runtime.closed,
       throwsA(isA<StateError>()),
     );
-    await expectLater(
-      runtime.close,
-      throwsA(isA<StateError>()),
-    );
+    await expectLater(runtime.close, throwsA(isA<StateError>()));
     await closedExpectation;
   });
 }

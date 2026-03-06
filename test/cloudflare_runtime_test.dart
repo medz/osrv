@@ -4,15 +4,10 @@ import 'package:test/test.dart';
 
 void main() {
   test('defineFetchEntry is explicit about requiring a JavaScript host', () {
-    final server = Server(
-      fetch: (request, context) => Response.text('ok'),
-    );
+    final server = Server(fetch: (request, context) => Response.text('ok'));
 
     expect(
-      () => defineFetchEntry(
-        server,
-        runtime: const CloudflareFetchRuntime(),
-      ),
+      () => defineFetchEntry(server, runtime: FetchEntryRuntime.cloudflare),
       throwsA(
         isA<UnsupportedError>().having(
           (error) => error.message,
@@ -24,14 +19,12 @@ void main() {
   });
 
   test('defineFetchEntry rejects an empty export name', () {
-    final server = Server(
-      fetch: (request, context) => Response.text('ok'),
-    );
+    final server = Server(fetch: (request, context) => Response.text('ok'));
 
     expect(
       () => defineFetchEntry(
         server,
-        runtime: const CloudflareFetchRuntime(),
+        runtime: FetchEntryRuntime.cloudflare,
         name: '  ',
       ),
       throwsA(isA<ArgumentError>()),

@@ -6,20 +6,14 @@ final class NodeHttpModuleHost {
 }
 
 final class NodeHttpServerHost {
-  const NodeHttpServerHost({
-    this.port,
-    this.address,
-  });
+  const NodeHttpServerHost({this.port, this.address});
 
   final int? port;
   final String? address;
 }
 
 final class NodeHttpBinding {
-  const NodeHttpBinding({
-    required this.host,
-    required this.port,
-  });
+  const NodeHttpBinding({required this.host, required this.port});
 
   final String host;
   final int port;
@@ -58,10 +52,11 @@ final class NodeServerResponseHost {
   final Object? endError;
 }
 
-typedef NodeHostRequestListener = void Function(
-  NodeIncomingMessageHost request,
-  NodeServerResponseHost response,
-);
+typedef NodeHostRequestListener =
+    void Function(
+      NodeIncomingMessageHost request,
+      NodeServerResponseHost response,
+    );
 
 NodeHttpModuleHost? get nodeHttpModule => null;
 
@@ -169,9 +164,9 @@ List<int> _bytesFromBody(Object body) {
     List<int>() => body,
     String() => body.codeUnits,
     _ => throw ArgumentError.value(
-        body,
-        'body',
-        'Unsupported stub node response body type.',
-      ),
+      body,
+      'body',
+      'Unsupported stub node response body type.',
+    ),
   };
 }

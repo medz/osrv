@@ -10,10 +10,7 @@ abstract interface class Runtime {
 }
 
 final class RuntimeInfo {
-  const RuntimeInfo({
-    required this.name,
-    required this.kind,
-  });
+  const RuntimeInfo({required this.name, required this.kind});
 
   final String name;
   final String kind;

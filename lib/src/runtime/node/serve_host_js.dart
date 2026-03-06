@@ -4,15 +4,13 @@ import '../../core/errors.dart';
 import '../../core/runtime.dart';
 import '../../core/server.dart';
 import '../_internal/server/error_handler.dart';
+import '../_internal/server/runtime_handle.dart';
 import '../_internal/server/shutdown_coordinator.dart';
 import 'extension.dart';
 import 'http_host.dart';
-import 'lifecycle_context.dart';
 import 'preflight.dart';
 import 'request_bridge.dart';
-import 'request_context.dart';
 import 'response_bridge.dart';
-import 'runtime.dart';
 
 Future<Runtime> serveNodeRuntimeHost(
   Server server,
@@ -49,20 +47,13 @@ Future<Runtime> serveNodeRuntimeHost(
     host: preflight.config.host,
     port: preflight.config.port,
   );
-  final runtimeInfo = const RuntimeInfo(
-    name: 'node',
-    kind: 'server',
-  );
-  runtimeUrl = Uri(
-    scheme: 'http',
-    host: binding.host,
-    port: binding.port,
-  );
+  final runtimeInfo = const RuntimeInfo(name: 'node', kind: 'server');
+  runtimeUrl = Uri(scheme: 'http', host: binding.host, port: binding.port);
   final lifecycleExtension = NodeRuntimeExtension(
     process: preflight.extension.process,
     server: hostServer,
   );
-  final lifecycleContext = NodeServerLifecycleContext(
+  final lifecycleContext = ServerLifecycleContext(
     runtime: runtimeInfo,
     capabilities: preflight.capabilities,
     extension: lifecycleExtension,
@@ -74,13 +65,10 @@ Future<Runtime> serveNodeRuntimeHost(
     }
   } catch (error) {
     await closeNodeHttpServer(hostServer);
-    throw RuntimeStartupError(
-      'Failed to start node runtime.',
-      error,
-    );
+    throw RuntimeStartupError('Failed to start node runtime.', error);
   }
 
-  return NodeRuntime(
+  return ServerRuntimeHandle(
     info: runtimeInfo,
     capabilities: preflight.capabilities,
     closed: coordinator.closed,
@@ -117,16 +105,13 @@ Future<void> _handleNodeRequest({
     request: request,
     response: response,
   );
-  final context = NodeRequestContext(
-    runtime: const RuntimeInfo(
-      name: 'node',
-      kind: 'server',
-    ),
+  final context = RequestContext(
+    runtime: const RuntimeInfo(name: 'node', kind: 'server'),
     capabilities: preflight.capabilities,
     onWaitUntil: onWaitUntil,
     extension: extension,
   );
-  final lifecycleContext = NodeServerLifecycleContext(
+  final lifecycleContext = ServerLifecycleContext(
     runtime: context.runtime,
     capabilities: context.capabilities,
     extension: NodeRuntimeExtension(
@@ -136,10 +121,7 @@ Future<void> _handleNodeRequest({
   );
 
   try {
-    final htRequest = await nodeRequestFromHost(
-      request,
-      origin: origin,
-    );
+    final htRequest = await nodeRequestFromHost(request, origin: origin);
     final htResponse = await server.fetch(htRequest, context);
     await writeHtResponseToNodeServerResponse(htResponse, response);
   } catch (error, stackTrace) {

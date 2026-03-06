@@ -10,6 +10,7 @@ import 'package:osrv/esm.dart';
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/vercel.dart';
 import 'package:osrv/src/runtime/_internal/js/web_stream_bridge.dart';
+import 'package:osrv/src/runtime/vercel/host.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 
@@ -25,8 +26,8 @@ void main() {
     defineFetchEntry(
       Server(
         fetch: (request, context) {
-          final vercel = context.extension<
-              VercelRuntimeExtension<web.Request>>();
+          final vercel = context
+              .extension<VercelRuntimeExtension<web.Request>>();
           final functions = vercel?.functions;
 
           return Response.json({
@@ -44,7 +45,7 @@ void main() {
           });
         },
       ),
-      runtime: const VercelFetchRuntime(),
+      runtime: FetchEntryRuntime.vercel,
     );
 
     _installFunctionsOverride();
@@ -54,22 +55,19 @@ void main() {
     );
 
     expect(response.status, 200);
-    expect(
-      jsonDecode((await response.text().toDart).toDart),
-      {
-        'runtime': 'vercel',
-        'path': '/hello',
-        'request': 'https://example.com/hello',
-        'streaming': true,
-        'backgroundTask': true,
-        'nodeCompat': true,
-        'websocket': false,
-        'region': 'iad1',
-        'env': 'test',
-        'ip': '127.0.0.1',
-        'hasFunctions': true,
-      },
-    );
+    expect(jsonDecode((await response.text().toDart).toDart), {
+      'runtime': 'vercel',
+      'path': '/hello',
+      'request': 'https://example.com/hello',
+      'streaming': true,
+      'backgroundTask': true,
+      'nodeCompat': true,
+      'websocket': false,
+      'region': 'iad1',
+      'env': 'test',
+      'ip': '127.0.0.1',
+      'hasFunctions': true,
+    });
   });
 
   test('defineFetchEntry forwards waitUntil to helper bag', () async {
@@ -83,7 +81,7 @@ void main() {
           return Response.text('ok');
         },
       ),
-      runtime: const VercelFetchRuntime(),
+      runtime: FetchEntryRuntime.vercel,
     );
 
     _installFunctionsOverride(waitUntilTracker: tracker);
@@ -104,13 +102,10 @@ void main() {
       Server(
         fetch: (request, context) => throw StateError('boom'),
         onError: (error, stackTrace, context) {
-          return Response.text(
-            'handled ${context.runtime.name}',
-            status: 418,
-          );
+          return Response.text('handled ${context.runtime.name}', status: 418);
         },
       ),
-      runtime: const VercelFetchRuntime(),
+      runtime: FetchEntryRuntime.vercel,
     );
 
     _installFunctionsOverride();
@@ -132,7 +127,7 @@ void main() {
         },
         fetch: (request, context) => Response.text('ok'),
       ),
-      runtime: const VercelFetchRuntime(),
+      runtime: FetchEntryRuntime.vercel,
     );
 
     _installFunctionsOverride();
@@ -152,10 +147,8 @@ void main() {
 
   test('defineFetchEntry returns default 500 without onError', () async {
     defineFetchEntry(
-      Server(
-        fetch: (request, context) => throw StateError('boom'),
-      ),
-      runtime: const VercelFetchRuntime(),
+      Server(fetch: (request, context) => throw StateError('boom')),
+      runtime: FetchEntryRuntime.vercel,
     );
 
     _installFunctionsOverride();
@@ -170,10 +163,8 @@ void main() {
 
   test('defineFetchEntry respects a custom export name', () async {
     defineFetchEntry(
-      Server(
-        fetch: (request, context) => Response.text(request.url.path),
-      ),
-      runtime: const VercelFetchRuntime(),
+      Server(fetch: (request, context) => Response.text(request.url.path)),
+      runtime: FetchEntryRuntime.vercel,
       name: '__custom_osrv_fetch__',
     );
 
@@ -198,7 +189,7 @@ void main() {
           return Response.text(request.method);
         },
       ),
-      runtime: const VercelFetchRuntime(),
+      runtime: FetchEntryRuntime.vercel,
     );
 
     _installFunctionsOverride();
@@ -236,7 +227,7 @@ void main() {
           );
         },
       ),
-      runtime: const VercelFetchRuntime(),
+      runtime: FetchEntryRuntime.vercel,
     );
 
     _installFunctionsOverride();
@@ -297,12 +288,10 @@ void main() {
           await cache.expireTag('math');
           await cache.delete('answer');
 
-          return Response.json({
-            'cached': cached,
-          });
+          return Response.json({'cached': cached});
         },
       ),
-      runtime: const VercelFetchRuntime(),
+      runtime: FetchEntryRuntime.vercel,
     );
 
     _installFunctionsOverride(waitUntilTracker: tracker);
@@ -312,10 +301,7 @@ void main() {
     );
 
     expect(response.status, 200);
-    expect(
-      jsonDecode((await response.text().toDart).toDart),
-      {'cached': 42},
-    );
+    expect(jsonDecode((await response.text().toDart).toDart), {'cached': 42});
 
     final calls = _helperCalls();
     expect(calls['invalidateByTag'], [
@@ -329,20 +315,14 @@ void main() {
     ]);
     expect(calls['invalidateBySrcImage'], ['/avatar.png']);
     expect(calls['dangerouslyDeleteBySrcImage'], [
-      {
-        'srcImage': '/cover.png',
-        'revalidationDeadlineSeconds': 20,
-      },
+      {'srcImage': '/cover.png', 'revalidationDeadlineSeconds': 20},
     ]);
     expect(calls['addCacheTag'], [
       ['product-1', 'products'],
     ]);
     expect(calls['attachDatabasePool'], ['db']);
     expect(calls['getCache'], [
-      {
-        'namespace': 'demo',
-        'namespaceSeparator': null,
-      },
+      {'namespace': 'demo', 'namespaceSeparator': null},
     ]);
     expect(calls['cacheSet'], [
       {
@@ -364,9 +344,7 @@ final class _TestWaitUntilTracker {
   final List<Future<JSAny?>> tasks = <Future<JSAny?>>[];
 }
 
-void _installFunctionsOverride({
-  _TestWaitUntilTracker? waitUntilTracker,
-}) {
+void _installFunctionsOverride({_TestWaitUntilTracker? waitUntilTracker}) {
   final tracker = waitUntilTracker ?? _TestWaitUntilTracker();
   final env = JSObject()..setProperty('APP_ENV'.toJS, 'test'.toJS);
   final geo = JSObject()..setProperty('region'.toJS, 'iad1'.toJS);
@@ -392,10 +370,7 @@ void _installFunctionsOverride({
       tracker.tasks.add(task.toDart);
     }).toJS,
   );
-  helpers.setProperty(
-    'getEnv'.toJS,
-    (() => env).toJS,
-  );
+  helpers.setProperty('getEnv'.toJS, (() => env).toJS);
   helpers.setProperty(
     'geolocation'.toJS,
     ((web.Request request) {
@@ -476,9 +451,7 @@ void _installFunctionsOverride({
         'get'.toJS,
         ((JSString key) {
           _pushCall(calls, 'cacheGet', key.toDart);
-          return Future.value(
-            cacheStore.getProperty<JSAny?>(key),
-          ).toJS;
+          return Future.value(cacheStore.getProperty<JSAny?>(key)).toJS;
         }).toJS,
       );
       cache.setProperty(
@@ -516,10 +489,7 @@ void _installFunctionsOverride({
     }).toJS,
   );
   globalContext.setProperty('__osrv_vercel_helper_calls__'.toJS, calls);
-  globalContext.setProperty(
-    defaultVercelFunctionsOverrideName.toJS,
-    helpers,
-  );
+  globalContext.setProperty(defaultVercelFunctionsOverrideName.toJS, helpers);
 }
 
 JSExportedDartFunction _currentFetchHandler() =>
@@ -533,24 +503,21 @@ Future<web.Response> _callVercelFetch(
   JSExportedDartFunction fetch,
   web.Request request,
 ) {
-  return fetch
-      .callMethodVarArgs<JSPromise<web.Response>>(
-        'call'.toJS,
-        [null, request],
-      )
-      .toDart;
+  return fetch.callMethodVarArgs<JSPromise<web.Response>>('call'.toJS, [
+    null,
+    request,
+  ]).toDart;
 }
 
 Map<String, Object?> _helperCalls() {
-  return (globalContext.getProperty<JSAny?>('__osrv_vercel_helper_calls__'.toJS)
-          ?.dartify() as Map)
+  return (globalContext
+              .getProperty<JSAny?>('__osrv_vercel_helper_calls__'.toJS)
+              ?.dartify()
+          as Map)
       .cast<String, Object?>();
 }
 
 void _pushCall(JSObject calls, String name, Object? value) {
   final list = calls.getProperty<JSArray>(name.toJS);
-  list.callMethodVarArgs<JSAny?>(
-    'push'.toJS,
-    [value.jsify()],
-  );
+  list.callMethodVarArgs<JSAny?>('push'.toJS, [value.jsify()]);
 }

@@ -10,24 +10,18 @@ void main() {
     addTearDown(() => tempDir.delete(recursive: true));
 
     final compiledPath = '${tempDir.path}/bun_runtime_server.js';
-    final compile = await Process.run(
-      'dart',
-      [
-        'compile',
-        'js',
-        'test/fixtures/bun_runtime_server.dart',
-        '-o',
-        compiledPath,
-      ],
-      workingDirectory: _workspacePath,
-    );
+    final compile = await Process.run('dart', [
+      'compile',
+      'js',
+      'test/fixtures/bun_runtime_server.dart',
+      '-o',
+      compiledPath,
+    ], workingDirectory: _workspacePath);
     expect(compile.exitCode, 0, reason: '${compile.stdout}\n${compile.stderr}');
 
-    final process = await Process.start(
-      'bun',
-      [compiledPath],
-      workingDirectory: _workspacePath,
-    );
+    final process = await Process.start('bun', [
+      compiledPath,
+    ], workingDirectory: _workspacePath);
     addTearDown(() async {
       if (process.kill(ProcessSignal.sigterm)) {
         await process.exitCode.timeout(
@@ -62,17 +56,14 @@ void main() {
       headers: {'x-test': 'yes'},
     );
     expect(echo.statusCode, 200);
-    expect(
-      jsonDecode(await echo.transform(utf8.decoder).join()),
-      {
-        'method': 'POST',
-        'path': '/echo',
-        'query': 'full',
-        'header': 'yes',
-        'body': 'payload',
-        'hasBunRequest': true,
-      },
-    );
+    expect(jsonDecode(await echo.transform(utf8.decoder).join()), {
+      'method': 'POST',
+      'path': '/echo',
+      'query': 'full',
+      'header': 'yes',
+      'body': 'payload',
+      'hasBunRequest': true,
+    });
 
     final stream = await _send(uri.resolve('/stream'));
     expect(stream.statusCode, 200);
@@ -101,9 +92,7 @@ void main() {
 const _workspacePath = '/Users/seven/workspace/osrv';
 
 Future<Uri> _waitForRuntimeUrl(Stream<List<int>> stdout) async {
-  final lines = stdout
-      .transform(utf8.decoder)
-      .transform(const LineSplitter());
+  final lines = stdout.transform(utf8.decoder).transform(const LineSplitter());
 
   await for (final line in lines.timeout(const Duration(seconds: 10))) {
     if (line.startsWith('URL:')) {

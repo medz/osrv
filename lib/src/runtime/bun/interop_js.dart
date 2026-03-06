@@ -49,23 +49,14 @@ BunServerHost bunServe(
     ..setProperty('hostname'.toJS, host.toJS)
     ..setProperty('fetch'.toJS, fetch as JSAny);
 
-  final server = bun.callMethodVarArgs<JSObject>(
-    'serve'.toJS,
-    [options],
-  );
+  final server = bun.callMethodVarArgs<JSObject>('serve'.toJS, [options]);
   return BunServerHost._(server);
 }
 
 int? bunServerPort(BunServerHost server) => server.port?.toDartInt;
 
-Future<void> stopBunServer(
-  BunServerHost server, {
-  bool force = false,
-}) async {
-  final result = server.stop.callAsFunction(
-    server,
-    force.toJS,
-  );
+Future<void> stopBunServer(BunServerHost server, {bool force = false}) async {
+  final result = server.stop.callAsFunction(server, force.toJS);
   if (result != null) {
     await (result as JSPromise<JSAny?>).toDart;
   }

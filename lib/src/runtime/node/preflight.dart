@@ -84,10 +84,7 @@ NodeRuntimePreflight preflightNodeRuntime(
   final resolvedHttpModule = httpModule ?? nodeHttpModule;
   return NodeRuntimePreflight(
     config: config,
-    info: const RuntimeInfo(
-      name: 'node',
-      kind: 'javascript-host',
-    ),
+    info: const RuntimeInfo(name: 'node', kind: 'javascript-host'),
     capabilities: nodeRuntimePreflightCapabilities,
     extension: resolvedProbe.extension,
     probe: resolvedProbe,
@@ -101,9 +98,7 @@ NodeRuntimePreflight preflightNodeRuntime(
 
 void _validateNodeRuntimeConfig(NodeRuntimeConfig config) {
   if (config.host.trim().isEmpty) {
-    throw RuntimeConfigurationError(
-      'NodeRuntimeConfig.host cannot be empty.',
-    );
+    throw RuntimeConfigurationError('NodeRuntimeConfig.host cannot be empty.');
   }
 
   if (config.port < 0 || config.port > 65535) {

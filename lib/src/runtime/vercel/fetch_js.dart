@@ -13,8 +13,6 @@ import '../_internal/js/web_response_bridge.dart';
 import 'extension.dart';
 import 'functions.dart';
 import 'host.dart';
-import 'lifecycle_context.dart';
-import 'request_context.dart';
 
 const vercelRuntimeCapabilities = RuntimeCapabilities(
   streaming: true,
@@ -25,35 +23,28 @@ const vercelRuntimeCapabilities = RuntimeCapabilities(
   nodeCompat: true,
 );
 
-const vercelRuntimeInfo = RuntimeInfo(
-  name: 'vercel',
-  kind: 'entry',
-);
+const vercelRuntimeInfo = RuntimeInfo(name: 'vercel', kind: 'entry');
 
-JSExportedDartFunction createVercelFetchEntry(
-  Server server,
-) {
+JSExportedDartFunction createVercelFetchEntry(Server server) {
   final handler = JsEntryFetchHandler(server);
-  JSPromise<web.Response> fetch(
-    web.Request request,
-  ) {
+  JSPromise<web.Response> fetch(web.Request request) {
     final operation = () async {
       final resolvedHelpers = await loadVercelFunctionHelpers();
       final extension = VercelRuntimeExtension<web.Request>(
-        functions: createVercelFunctions(
-          resolvedHelpers,
-          request,
-        ),
+        functions: createVercelFunctions(resolvedHelpers, request),
         request: request,
       );
-      final lifecycleContext = VercelServerLifecycleContext(
+      final lifecycleContext = ServerLifecycleContext(
         runtime: vercelRuntimeInfo,
         capabilities: vercelRuntimeCapabilities,
         extension: extension,
       );
-      final requestContext = VercelRequestContext(
+      final requestContext = RequestContext(
         runtime: vercelRuntimeInfo,
         capabilities: vercelRuntimeCapabilities,
+        onWaitUntil: (task) {
+          extension.functions?.waitUntil(task);
+        },
         extension: extension,
       );
 

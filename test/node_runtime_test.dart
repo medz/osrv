@@ -1,5 +1,11 @@
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/node.dart';
+import 'package:osrv/src/runtime/node/http_host.dart';
+import 'package:osrv/src/runtime/node/listener.dart';
+import 'package:osrv/src/runtime/node/preflight.dart';
+import 'package:osrv/src/runtime/node/probe.dart';
+import 'package:osrv/src/runtime/node/request_bridge.dart';
+import 'package:osrv/src/runtime/node/response_bridge.dart';
 import 'package:test/test.dart';
 
 void main() {
@@ -20,23 +26,28 @@ void main() {
     expect(nodeHttpModule, isNull);
   });
 
-  test('node request listener callback is compile-safe with empty extension', () {
-    var invoked = false;
-    final callback = createNodeHostRequestCallback((request, response, extension) {
-      invoked = true;
-    });
+  test(
+    'node request listener callback is compile-safe with empty extension',
+    () {
+      var invoked = false;
+      final callback = createNodeHostRequestCallback((
+        request,
+        response,
+        extension,
+      ) {
+        invoked = true;
+      });
 
-    callback(const NodeRuntimeExtension());
-    expect(invoked, isFalse);
-  });
+      callback(const NodeRuntimeExtension());
+      expect(invoked, isFalse);
+    },
+  );
 
   test('node request bridge extracts request head from stub host', () {
     const request = NodeIncomingMessageHost(
       method: 'GET',
       url: '/hello?x=1',
-      headers: {
-        'x-test': 'yes',
-      },
+      headers: {'x-test': 'yes'},
       body: 'ignored-body',
     );
 
@@ -44,70 +55,76 @@ void main() {
     expect(snapshot.method, 'GET');
     expect(snapshot.url, '/hello?x=1');
     expect(snapshot.rawHeaders, isA<Map<String, Object?>>());
-    expect(
-      (snapshot.rawHeaders as Map<String, Object?>)['x-test'],
-      'yes',
-    );
+    expect((snapshot.rawHeaders as Map<String, Object?>)['x-test'], 'yes');
     expect(snapshot.rawBody, 'ignored-body');
   });
 
-  test('node request bridge converts request snapshot into ht.Request with string body', () async {
-    const request = NodeIncomingMessageHost(
-      method: 'POST',
-      url: '/hello?x=1',
-      headers: {
-        'x-test': 'yes',
-        'set-cookie': ['a=1', 'b=2'],
-        'ignored': 123,
-      },
-      body: 'payload',
-    );
+  test(
+    'node request bridge converts request snapshot into ht.Request with string body',
+    () async {
+      const request = NodeIncomingMessageHost(
+        method: 'POST',
+        url: '/hello?x=1',
+        headers: {
+          'x-test': 'yes',
+          'set-cookie': ['a=1', 'b=2'],
+          'ignored': 123,
+        },
+        body: 'payload',
+      );
 
-    final snapshot = nodeRequestHeadFromHost(request);
-    final bridged = nodeRequestFromHeadSnapshot(
-      snapshot,
-      origin: Uri.parse('http://127.0.0.1:3000'),
-    );
+      final snapshot = nodeRequestHeadFromHost(request);
+      final bridged = nodeRequestFromHeadSnapshot(
+        snapshot,
+        origin: Uri.parse('http://127.0.0.1:3000'),
+      );
 
-    expect(bridged.method, 'POST');
-    expect(bridged.url.toString(), 'http://127.0.0.1:3000/hello?x=1');
-    expect(bridged.headers.get('x-test'), 'yes');
-    expect(bridged.headers.getAll('set-cookie'), ['a=1', 'b=2']);
-    expect(bridged.headers.has('ignored'), isFalse);
-    expect(await bridged.text(), 'payload');
-  });
+      expect(bridged.method, 'POST');
+      expect(bridged.url.toString(), 'http://127.0.0.1:3000/hello?x=1');
+      expect(bridged.headers.get('x-test'), 'yes');
+      expect(bridged.headers.getAll('set-cookie'), ['a=1', 'b=2']);
+      expect(bridged.headers.has('ignored'), isFalse);
+      expect(await bridged.text(), 'payload');
+    },
+  );
 
-  test('node request bridge converts request snapshot into ht.Request with bytes body', () async {
-    const request = NodeIncomingMessageHost(
-      method: 'POST',
-      url: '/bytes',
-      body: [104, 105],
-    );
+  test(
+    'node request bridge converts request snapshot into ht.Request with bytes body',
+    () async {
+      const request = NodeIncomingMessageHost(
+        method: 'POST',
+        url: '/bytes',
+        body: [104, 105],
+      );
 
-    final snapshot = nodeRequestHeadFromHost(request);
-    final bridged = nodeRequestFromHeadSnapshot(
-      snapshot,
-      origin: Uri.parse('http://127.0.0.1:3000'),
-    );
+      final snapshot = nodeRequestHeadFromHost(request);
+      final bridged = nodeRequestFromHeadSnapshot(
+        snapshot,
+        origin: Uri.parse('http://127.0.0.1:3000'),
+      );
 
-    expect(await bridged.text(), 'hi');
-  });
+      expect(await bridged.text(), 'hi');
+    },
+  );
 
-  test('node request bridge drops unsupported materialized body values', () async {
-    const request = NodeIncomingMessageHost(
-      method: 'POST',
-      url: '/unsupported',
-      body: 123,
-    );
+  test(
+    'node request bridge drops unsupported materialized body values',
+    () async {
+      const request = NodeIncomingMessageHost(
+        method: 'POST',
+        url: '/unsupported',
+        body: 123,
+      );
 
-    final snapshot = nodeRequestHeadFromHost(request);
-    final bridged = nodeRequestFromHeadSnapshot(
-      snapshot,
-      origin: Uri.parse('http://127.0.0.1:3000'),
-    );
+      final snapshot = nodeRequestHeadFromHost(request);
+      final bridged = nodeRequestFromHeadSnapshot(
+        snapshot,
+        origin: Uri.parse('http://127.0.0.1:3000'),
+      );
 
-    expect(await bridged.text(), '');
-  });
+      expect(await bridged.text(), '');
+    },
+  );
 
   test('node request bridge preserves stream bodies from stub host', () async {
     final request = NodeIncomingMessageHost(
@@ -153,28 +170,31 @@ void main() {
     );
   });
 
-  test('node response bridge writes status, headers, and body to stub host', () async {
-    final response = Response.text(
-      'hello',
-      status: 201,
-      statusText: 'Created',
-      headers: Headers()
-        ..set('x-runtime', 'node')
-        ..append('set-cookie', 'a=1')
-        ..append('set-cookie', 'b=2'),
-    );
-    final target = NodeServerResponseHost();
+  test(
+    'node response bridge writes status, headers, and body to stub host',
+    () async {
+      final response = Response.text(
+        'hello',
+        status: 201,
+        statusText: 'Created',
+        headers: Headers()
+          ..set('x-runtime', 'node')
+          ..append('set-cookie', 'a=1')
+          ..append('set-cookie', 'b=2'),
+      );
+      final target = NodeServerResponseHost();
 
-    await writeHtResponseToNodeServerResponse(response, target);
+      await writeHtResponseToNodeServerResponse(response, target);
 
-    expect(target.statusCode, 201);
-    expect(target.statusMessage, 'Created');
-    expect(target.headers['x-runtime'], 'node');
-    expect(target.headers['set-cookie'], ['a=1', 'b=2']);
-    expect(target.ended, isTrue);
-    expect(target.chunks, hasLength(1));
-    expect(String.fromCharCodes(target.chunks.single), 'hello');
-  });
+      expect(target.statusCode, 201);
+      expect(target.statusMessage, 'Created');
+      expect(target.headers['x-runtime'], 'node');
+      expect(target.headers['set-cookie'], ['a=1', 'b=2']);
+      expect(target.ended, isTrue);
+      expect(target.chunks, hasLength(1));
+      expect(String.fromCharCodes(target.chunks.single), 'hello');
+    },
+  );
 
   test('node response bridge streams chunks to stub host', () async {
     final response = Response(
@@ -200,9 +220,7 @@ void main() {
         [104, 105],
       ]),
     );
-    final target = NodeServerResponseHost(
-      writeError: 'write failed',
-    );
+    final target = NodeServerResponseHost(writeError: 'write failed');
 
     await expectLater(
       () => writeHtResponseToNodeServerResponse(response, target),
@@ -218,9 +236,7 @@ void main() {
 
   test('node response bridge surfaces stub end failures', () async {
     final response = Response.text('ok');
-    final target = NodeServerResponseHost(
-      endError: 'end failed',
-    );
+    final target = NodeServerResponseHost(endError: 'end failed');
 
     await expectLater(
       () => writeHtResponseToNodeServerResponse(response, target),
@@ -245,10 +261,7 @@ void main() {
 
   test('node runtime preflight is compile-safe on the current VM host', () {
     final preflight = preflightNodeRuntime(
-      const NodeRuntimeConfig(
-        host: '127.0.0.1',
-        port: 3000,
-      ),
+      const NodeRuntimeConfig(host: '127.0.0.1', port: 3000),
     );
 
     expect(preflight.info.name, 'node');
@@ -264,67 +277,49 @@ void main() {
     expect(preflight.canServe, isFalse);
     expect(preflight.blockReason, contains('not JavaScript'));
     expect(preflight.extension.process, isNull);
-    expect(
-      preflight.toUnsupportedError().message,
-      contains('not JavaScript'),
-    );
+    expect(preflight.toUnsupportedError().message, contains('not JavaScript'));
   });
 
-  test('node runtime preflight reports missing node:http module on a Node-like host', () {
-    final preflight = preflightNodeRuntime(
-      const NodeRuntimeConfig(
-        host: '127.0.0.1',
-        port: 3000,
-      ),
-      probe: const NodeHostProbe(
-        isJavaScriptHost: true,
-        hasNodeProcess: true,
-        nodeVersion: 'v22.0.0',
-        extension: NodeRuntimeExtension(),
-      ),
-      httpModule: null,
-    );
+  test(
+    'node runtime preflight reports missing node:http module on a Node-like host',
+    () {
+      final preflight = preflightNodeRuntime(
+        const NodeRuntimeConfig(host: '127.0.0.1', port: 3000),
+        probe: const NodeHostProbe(
+          isJavaScriptHost: true,
+          hasNodeProcess: true,
+          nodeVersion: 'v22.0.0',
+          extension: NodeRuntimeExtension(),
+        ),
+        httpModule: null,
+      );
 
-    expect(preflight.isJavaScriptHost, isTrue);
-    expect(preflight.hasNodeProcess, isTrue);
-    expect(preflight.isNodeHost, isTrue);
-    expect(preflight.hasHttpModule, isFalse);
-    expect(preflight.nodeVersion, 'v22.0.0');
-    expect(preflight.summary, 'node-host-without-http-module');
-    expect(preflight.canServe, isFalse);
-    expect(preflight.blockReason, contains('node:http'));
-  });
+      expect(preflight.isJavaScriptHost, isTrue);
+      expect(preflight.hasNodeProcess, isTrue);
+      expect(preflight.isNodeHost, isTrue);
+      expect(preflight.hasHttpModule, isFalse);
+      expect(preflight.nodeVersion, 'v22.0.0');
+      expect(preflight.summary, 'node-host-without-http-module');
+      expect(preflight.canServe, isFalse);
+      expect(preflight.blockReason, contains('node:http'));
+    },
+  );
 
   test('serve rejects invalid node runtime config', () async {
-    final server = Server(
-      fetch: (request, context) => Response.text('ok'),
-    );
+    final server = Server(fetch: (request, context) => Response.text('ok'));
 
     await expectLater(
-      () => serve(
-        server,
-        const NodeRuntimeConfig(
-          host: '',
-          port: 3000,
-        ),
-      ),
+      () => serve(server, const NodeRuntimeConfig(host: '', port: 3000)),
       throwsA(isA<RuntimeConfigurationError>()),
     );
   });
 
   test('serve reports when the current host is not Node.js', () async {
-    final server = Server(
-      fetch: (request, context) => Response.text('ok'),
-    );
+    final server = Server(fetch: (request, context) => Response.text('ok'));
 
     await expectLater(
-      () => serve(
-        server,
-        const NodeRuntimeConfig(
-          host: '127.0.0.1',
-          port: 3000,
-        ),
-      ),
+      () =>
+          serve(server, const NodeRuntimeConfig(host: '127.0.0.1', port: 3000)),
       throwsA(
         isA<UnsupportedError>().having(
           (error) => error.message,

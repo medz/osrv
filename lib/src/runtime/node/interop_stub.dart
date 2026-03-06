@@ -15,9 +15,7 @@ final class NodeProcess {
 }
 
 final class NodeProcessVersions {
-  const NodeProcessVersions({
-    this.node,
-  });
+  const NodeProcessVersions({this.node});
 
   final String? node;
 }

@@ -11,10 +11,7 @@ import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 
 @JS('fetch')
-external JSPromise<web.Response> _fetch(
-  JSAny input, [
-  web.RequestInit init,
-]);
+external JSPromise<web.Response> _fetch(JSAny input, [web.RequestInit init]);
 
 void main() {
   test('node runtime serves requests over node:http', () async {
@@ -25,10 +22,7 @@ void main() {
           headers: Headers()..set('x-runtime', context.runtime.name),
         ),
       ),
-      const NodeRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
+      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
     );
 
     addTearDown(runtime.close);
@@ -43,73 +37,70 @@ void main() {
     expect(response.header('x-runtime'), 'node');
   });
 
-  test('node runtime bridges method, headers, and body into ht.Request', () async {
-    final runtime = await serve(
-      Server(
-        fetch: (request, context) async {
-          final extension = context.extension<NodeRuntimeExtension>();
-          return Response.json({
-            'method': request.method,
-            'path': request.url.path,
-            'query': request.url.queryParameters['mode'],
-            'header': request.headers.get('x-test'),
-            'body': await request.text(),
-            'hasNodeRequest': extension?.request != null,
-          });
-        },
-      ),
-      const NodeRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
-    );
+  test(
+    'node runtime bridges method, headers, and body into ht.Request',
+    () async {
+      final runtime = await serve(
+        Server(
+          fetch: (request, context) async {
+            final extension = context.extension<NodeRuntimeExtension>();
+            return Response.json({
+              'method': request.method,
+              'path': request.url.path,
+              'query': request.url.queryParameters['mode'],
+              'header': request.headers.get('x-test'),
+              'body': await request.text(),
+              'hasNodeRequest': extension?.request != null,
+            });
+          },
+        ),
+        const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+      );
 
-    addTearDown(runtime.close);
+      addTearDown(runtime.close);
 
-    final response = await _fetchText(
-      runtime.url!.resolve('/echo?mode=full'),
-      method: 'POST',
-      body: 'payload',
-      headers: {'x-test': 'yes'},
-    );
+      final response = await _fetchText(
+        runtime.url!.resolve('/echo?mode=full'),
+        method: 'POST',
+        body: 'payload',
+        headers: {'x-test': 'yes'},
+      );
 
-    expect(response.status, 200);
-    expect(
-      jsonDecode(response.text),
-      {
+      expect(response.status, 200);
+      expect(jsonDecode(response.text), {
         'method': 'POST',
         'path': '/echo',
         'query': 'full',
         'header': 'yes',
         'body': 'payload',
         'hasNodeRequest': true,
-      },
-    );
-  });
+      });
+    },
+  );
 
-  test('node runtime onError can translate failures into a custom response', () async {
-    final runtime = await serve(
-      Server(
-        fetch: (request, context) => throw StateError('boom'),
-        onError: (error, stackTrace, context) {
-          return Response.text(
-            'handled ${context.runtime.name}',
-            status: 418,
-          );
-        },
-      ),
-      const NodeRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
-    );
+  test(
+    'node runtime onError can translate failures into a custom response',
+    () async {
+      final runtime = await serve(
+        Server(
+          fetch: (request, context) => throw StateError('boom'),
+          onError: (error, stackTrace, context) {
+            return Response.text(
+              'handled ${context.runtime.name}',
+              status: 418,
+            );
+          },
+        ),
+        const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+      );
 
-    addTearDown(runtime.close);
+      addTearDown(runtime.close);
 
-    final response = await _fetchText(runtime.url!.resolve('/fails'));
-    expect(response.status, 418);
-    expect(response.text, 'handled node');
-  });
+      final response = await _fetchText(runtime.url!.resolve('/fails'));
+      expect(response.status, 418);
+      expect(response.text, 'handled node');
+    },
+  );
 
   test('node runtime streams response bodies over node:http', () async {
     final runtime = await serve(
@@ -124,10 +115,7 @@ void main() {
           );
         },
       ),
-      const NodeRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
+      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
     );
 
     addTearDown(runtime.close);
@@ -147,10 +135,7 @@ void main() {
           onStart: (context) => throw StateError('boom'),
           fetch: (request, context) => Response.text('ok'),
         ),
-        const NodeRuntimeConfig(
-          host: '127.0.0.1',
-          port: 0,
-        ),
+        const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
       ),
       throwsA(
         isA<RuntimeStartupError>().having(
@@ -178,10 +163,7 @@ void main() {
           await stopCompleter.future;
         },
       ),
-      const NodeRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
+      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
     );
 
     await _fetchText(runtime.url!.resolve('/close'));
@@ -210,10 +192,7 @@ void main() {
         fetch: (request, context) => Response.text('ok'),
         onStop: (context) => throw StateError('stop failed'),
       ),
-      const NodeRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
+      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
     );
 
     final closedExpectation = expectLater(
@@ -238,10 +217,7 @@ void main() {
       ),
     );
 
-    await Future.wait([
-      closedExpectation,
-      closeExpectation,
-    ]);
+    await Future.wait([closedExpectation, closeExpectation]);
   });
 
   test('node runtime.close waits for in-flight requests to finish', () async {
@@ -258,10 +234,7 @@ void main() {
           return Response.text('late');
         },
       ),
-      const NodeRuntimeConfig(
-        host: '127.0.0.1',
-        port: 0,
-      ),
+      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
     );
 
     final responseFuture = _fetchText(runtime.url!.resolve('/slow'));
@@ -293,10 +266,7 @@ Future<_FetchResult> _fetchText(
   Map<String, String>? headers,
 }) async {
   final init = headers == null
-      ? web.RequestInit(
-          method: method,
-          body: body?.toJS,
-        )
+      ? web.RequestInit(method: method, body: body?.toJS)
       : web.RequestInit(
           method: method,
           body: body?.toJS,
