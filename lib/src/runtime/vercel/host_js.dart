@@ -5,8 +5,6 @@ import 'dart:async';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
-import 'package:web/web.dart' as web;
-
 extension type VercelFunctionHelpersHost._(JSObject _) implements JSObject {}
 extension type VercelRuntimeCacheHost._(JSObject _) implements JSObject {}
 
@@ -298,7 +296,7 @@ Object? vercelGetEnv(VercelFunctionHelpersHost? helpers) {
 
 Object? vercelGeolocation(
   VercelFunctionHelpersHost? helpers,
-  web.Request request,
+  Object request,
 ) {
   final getter = helpers?.getProperty<JSFunction?>('geolocation'.toJS);
   if (getter == null) {
@@ -310,7 +308,7 @@ Object? vercelGeolocation(
 
 String? vercelIpAddress(
   VercelFunctionHelpersHost? helpers,
-  web.Request request,
+  Object request,
 ) {
   final getter = helpers?.getProperty<JSFunction?>('ipAddress'.toJS);
   if (getter == null) {

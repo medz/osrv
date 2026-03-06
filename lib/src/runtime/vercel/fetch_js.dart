@@ -90,14 +90,12 @@ final class _VercelFetchHandler {
     web.Request request,
   ) async {
     final resolvedHelpers = await loadVercelFunctionHelpers();
-    final extension = VercelRuntimeExtension<VercelFunctionHelpersHost,
-        web.Request>(
-      functions: createVercelFunctions(resolvedHelpers),
-      helpers: resolvedHelpers,
+    final extension = VercelRuntimeExtension<web.Request>(
+      functions: createVercelFunctions(
+        resolvedHelpers,
+        request,
+      ),
       request: request,
-      env: vercelGetEnv(resolvedHelpers),
-      geolocation: vercelGeolocation(resolvedHelpers, request),
-      ipAddress: vercelIpAddress(resolvedHelpers, request),
     );
     final lifecycleContext = VercelServerLifecycleContext(
       runtime: vercelRuntimeInfo,

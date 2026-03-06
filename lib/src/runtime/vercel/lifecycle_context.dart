@@ -8,14 +8,14 @@ final class VercelServerLifecycleContext implements ServerLifecycleContext {
   VercelServerLifecycleContext({
     required RuntimeInfo runtime,
     required RuntimeCapabilities capabilities,
-    required VercelRuntimeExtension<Object?, Object?> extension,
+    required VercelRuntimeExtension<Object?> extension,
   }) : _runtime = runtime,
        _capabilities = capabilities,
        _extension = extension;
 
   final RuntimeInfo _runtime;
   final RuntimeCapabilities _capabilities;
-  final VercelRuntimeExtension<Object?, Object?> _extension;
+  final VercelRuntimeExtension<Object?> _extension;
 
   @override
   RuntimeInfo get runtime => _runtime;

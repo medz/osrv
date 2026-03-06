@@ -3,9 +3,37 @@ import 'dart:async';
 import 'host.dart';
 
 final class VercelFunctions {
-  const VercelFunctions._(this._helpers);
+  const VercelFunctions._(
+    this._helpers, {
+    Object? request,
+  }) : _request = request;
 
   final VercelFunctionHelpersHost? _helpers;
+  final Object? _request;
+
+  void waitUntil(Future<void> task) {
+    vercelWaitUntil(_helpers, task);
+  }
+
+  Object? get env => vercelGetEnv(_helpers);
+
+  Object? get geolocation {
+    final request = _request;
+    if (request == null) {
+      return null;
+    }
+
+    return vercelGeolocation(_helpers, request);
+  }
+
+  String? get ipAddress {
+    final request = _request;
+    if (request == null) {
+      return null;
+    }
+
+    return vercelIpAddress(_helpers, request);
+  }
 
   Future<void> invalidateByTag(
     String tag, [
@@ -107,8 +135,12 @@ final class VercelRuntimeCache {
 
 VercelFunctions createVercelFunctions(
   VercelFunctionHelpersHost? helpers,
+  Object? request,
 ) {
-  return VercelFunctions._(helpers);
+  return VercelFunctions._(
+    helpers,
+    request: request,
+  );
 }
 
 Object _mergeTagInput(String tag, List<String> additionalTags) {

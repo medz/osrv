@@ -25,7 +25,7 @@ void main() {
       Server(
         fetch: (request, context) {
           final vercel = context.extension<
-              VercelRuntimeExtension<VercelFunctionHelpersHost, web.Request>>();
+              VercelRuntimeExtension<web.Request>>();
           final functions = vercel?.functions;
 
           return Response.json({
@@ -36,9 +36,9 @@ void main() {
             'backgroundTask': context.capabilities.backgroundTask,
             'nodeCompat': context.capabilities.nodeCompat,
             'websocket': context.capabilities.websocket,
-            'region': (vercel?.geolocation as Map?)?['region'],
-            'env': (vercel?.env as Map?)?['APP_ENV'],
-            'ip': vercel?.ipAddress,
+            'region': (functions?.geolocation as Map?)?['region'],
+            'env': (functions?.env as Map?)?['APP_ENV'],
+            'ip': functions?.ipAddress,
             'hasFunctions': functions != null,
           });
         },
@@ -257,8 +257,7 @@ void main() {
       Server(
         fetch: (request, context) async {
           final functions = context
-              .extension<VercelRuntimeExtension<VercelFunctionHelpersHost,
-                  web.Request>>()!
+              .extension<VercelRuntimeExtension<web.Request>>()!
               .functions!;
           final cache = functions.getCache(namespace: 'demo');
 
