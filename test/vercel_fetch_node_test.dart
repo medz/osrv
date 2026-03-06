@@ -26,6 +26,7 @@ void main() {
         fetch: (request, context) {
           final vercel = context.extension<
               VercelRuntimeExtension<VercelFunctionHelpersHost, web.Request>>();
+          final functions = vercel?.functions;
 
           return Response.json({
             'runtime': context.runtime.name,
@@ -38,6 +39,7 @@ void main() {
             'region': (vercel?.geolocation as Map?)?['region'],
             'env': (vercel?.env as Map?)?['APP_ENV'],
             'ip': vercel?.ipAddress,
+            'hasFunctions': functions != null,
           });
         },
       ),
@@ -63,6 +65,7 @@ void main() {
         'region': 'iad1',
         'env': 'test',
         'ip': '127.0.0.1',
+        'hasFunctions': true,
       },
     );
   });
@@ -246,6 +249,105 @@ void main() {
 
     expect((await response.text().toDart).toDart, 'hello vercel');
   });
+
+  test('defineVercelFetch exposes cache and invalidation helpers', () async {
+    final tracker = _TestWaitUntilTracker();
+
+    defineVercelFetch(
+      Server(
+        fetch: (request, context) async {
+          final functions = context
+              .extension<VercelRuntimeExtension<VercelFunctionHelpersHost,
+                  web.Request>>()!
+              .functions!;
+          final cache = functions.getCache(namespace: 'demo');
+
+          await functions.invalidateByTag('tag-a', ['tag-b']);
+          await functions.dangerouslyDeleteByTag(
+            'tag-c',
+            additionalTags: ['tag-d'],
+            revalidationDeadlineSeconds: 10,
+          );
+          await functions.invalidateBySrcImage('/avatar.png');
+          await functions.dangerouslyDeleteBySrcImage(
+            '/cover.png',
+            revalidationDeadlineSeconds: 20,
+          );
+          await functions.addCacheTag('product-1', ['products']);
+          functions.attachDatabasePool(
+            JSObject()..setProperty('id'.toJS, 'db'.toJS),
+          );
+
+          await cache.set(
+            'answer',
+            42,
+            name: 'the answer',
+            tags: ['math'],
+            ttl: 60,
+          );
+          final cached = await cache.get('answer');
+          await cache.expireTag('math');
+          await cache.delete('answer');
+
+          return Response.json({
+            'cached': cached,
+          });
+        },
+      ),
+    );
+
+    _installFunctionsOverride(waitUntilTracker: tracker);
+    final response = await _callVercelFetch(
+      _currentFetchHandler(),
+      web.Request('https://example.com/helpers'.toJS),
+    );
+
+    expect(response.status, 200);
+    expect(
+      jsonDecode((await response.text().toDart).toDart),
+      {'cached': 42},
+    );
+
+    final calls = _helperCalls();
+    expect(calls['invalidateByTag'], [
+      ['tag-a', 'tag-b'],
+    ]);
+    expect(calls['dangerouslyDeleteByTag'], [
+      {
+        'tags': ['tag-c', 'tag-d'],
+        'revalidationDeadlineSeconds': 10,
+      },
+    ]);
+    expect(calls['invalidateBySrcImage'], ['/avatar.png']);
+    expect(calls['dangerouslyDeleteBySrcImage'], [
+      {
+        'srcImage': '/cover.png',
+        'revalidationDeadlineSeconds': 20,
+      },
+    ]);
+    expect(calls['addCacheTag'], [
+      ['product-1', 'products'],
+    ]);
+    expect(calls['attachDatabasePool'], ['db']);
+    expect(calls['getCache'], [
+      {
+        'namespace': 'demo',
+        'namespaceSeparator': null,
+      },
+    ]);
+    expect(calls['cacheSet'], [
+      {
+        'key': 'answer',
+        'value': 42,
+        'name': 'the answer',
+        'tags': ['math'],
+        'ttl': 60,
+      },
+    ]);
+    expect(calls['cacheGet'], ['answer']);
+    expect(calls['cacheExpireTag'], ['math']);
+    expect(calls['cacheDelete'], ['answer']);
+  });
 }
 
 final class _TestWaitUntilTracker {
@@ -259,6 +361,19 @@ void _installFunctionsOverride({
   final tracker = waitUntilTracker ?? _TestWaitUntilTracker();
   final env = JSObject()..setProperty('APP_ENV'.toJS, 'test'.toJS);
   final geo = JSObject()..setProperty('region'.toJS, 'iad1'.toJS);
+  final calls = JSObject()
+    ..setProperty('invalidateByTag'.toJS, <Object?>[].jsify()!)
+    ..setProperty('dangerouslyDeleteByTag'.toJS, <Object?>[].jsify()!)
+    ..setProperty('invalidateBySrcImage'.toJS, <Object?>[].jsify()!)
+    ..setProperty('dangerouslyDeleteBySrcImage'.toJS, <Object?>[].jsify()!)
+    ..setProperty('addCacheTag'.toJS, <Object?>[].jsify()!)
+    ..setProperty('attachDatabasePool'.toJS, <Object?>[].jsify()!)
+    ..setProperty('getCache'.toJS, <Object?>[].jsify()!)
+    ..setProperty('cacheGet'.toJS, <Object?>[].jsify()!)
+    ..setProperty('cacheSet'.toJS, <Object?>[].jsify()!)
+    ..setProperty('cacheDelete'.toJS, <Object?>[].jsify()!)
+    ..setProperty('cacheExpireTag'.toJS, <Object?>[].jsify()!);
+  final cacheStore = JSObject();
 
   final helpers = JSObject();
   helpers.setProperty(
@@ -286,6 +401,112 @@ void _installFunctionsOverride({
       return '127.0.0.1';
     }).toJS,
   );
+  helpers.setProperty(
+    'invalidateByTag'.toJS,
+    ((JSAny tags) {
+      _pushCall(calls, 'invalidateByTag', tags.dartify());
+      return Future<void>.value().toJS;
+    }).toJS,
+  );
+  helpers.setProperty(
+    'dangerouslyDeleteByTag'.toJS,
+    ((JSAny tags, [JSAny? options]) {
+      final record = <String, Object?>{
+        'tags': tags.dartify(),
+        'revalidationDeadlineSeconds':
+            (options?.dartify() as Map?)?['revalidationDeadlineSeconds'],
+      };
+      _pushCall(calls, 'dangerouslyDeleteByTag', record);
+      return Future<void>.value().toJS;
+    }).toJS,
+  );
+  helpers.setProperty(
+    'invalidateBySrcImage'.toJS,
+    ((JSString srcImage) {
+      _pushCall(calls, 'invalidateBySrcImage', srcImage.toDart);
+      return Future<void>.value().toJS;
+    }).toJS,
+  );
+  helpers.setProperty(
+    'dangerouslyDeleteBySrcImage'.toJS,
+    ((JSString srcImage, [JSAny? options]) {
+      final record = <String, Object?>{
+        'srcImage': srcImage.toDart,
+        'revalidationDeadlineSeconds':
+            (options?.dartify() as Map?)?['revalidationDeadlineSeconds'],
+      };
+      _pushCall(calls, 'dangerouslyDeleteBySrcImage', record);
+      return Future<void>.value().toJS;
+    }).toJS,
+  );
+  helpers.setProperty(
+    'addCacheTag'.toJS,
+    ((JSAny tags) {
+      _pushCall(calls, 'addCacheTag', tags.dartify());
+      return Future<void>.value().toJS;
+    }).toJS,
+  );
+  helpers.setProperty(
+    'attachDatabasePool'.toJS,
+    ((JSAny dbPool) {
+      final record = (dbPool.dartify() as Map?)?['id'];
+      _pushCall(calls, 'attachDatabasePool', record);
+    }).toJS,
+  );
+  helpers.setProperty(
+    'getCache'.toJS,
+    (([JSAny? options]) {
+      final values = (options?.dartify() as Map?) ?? const {};
+      _pushCall(calls, 'getCache', {
+        'namespace': values['namespace'],
+        'namespaceSeparator': values['namespaceSeparator'],
+      });
+
+      final cache = JSObject();
+      cache.setProperty(
+        'get'.toJS,
+        ((JSString key) {
+          _pushCall(calls, 'cacheGet', key.toDart);
+          return Future.value(
+            cacheStore.getProperty<JSAny?>(key),
+          ).toJS;
+        }).toJS,
+      );
+      cache.setProperty(
+        'set'.toJS,
+        ((JSString key, JSAny value, [JSAny? options]) {
+          final dartValue = value.dartify();
+          cacheStore.setProperty(key, value);
+          final record = <String, Object?>{
+            'key': key.toDart,
+            'value': dartValue,
+            'name': (options?.dartify() as Map?)?['name'],
+            'tags': (options?.dartify() as Map?)?['tags'],
+            'ttl': (options?.dartify() as Map?)?['ttl'],
+          };
+          _pushCall(calls, 'cacheSet', record);
+          return Future<void>.value().toJS;
+        }).toJS,
+      );
+      cache.setProperty(
+        'delete'.toJS,
+        ((JSString key) {
+          cacheStore.delete(key);
+          _pushCall(calls, 'cacheDelete', key.toDart);
+          return Future<void>.value().toJS;
+        }).toJS,
+      );
+      cache.setProperty(
+        'expireTag'.toJS,
+        ((JSAny tags) {
+          _pushCall(calls, 'cacheExpireTag', tags.dartify());
+          return Future<void>.value().toJS;
+        }).toJS,
+      );
+      return cache;
+    }).toJS,
+  );
+  globalContext.setProperty('__osrv_vercel_helper_calls__'.toJS, calls);
   globalContext.setProperty(
     defaultVercelFunctionsOverrideName.toJS,
     helpers,
@@ -309,4 +530,18 @@ Future<web.Response> _callVercelFetch(
         [null, request],
       )
       .toDart;
+}
+
+Map<String, Object?> _helperCalls() {
+  return (globalContext.getProperty<JSAny?>('__osrv_vercel_helper_calls__'.toJS)
+          ?.dartify() as Map)
+      .cast<String, Object?>();
+}
+
+void _pushCall(JSObject calls, String name, Object? value) {
+  final list = calls.getProperty<JSArray>(name.toJS);
+  list.callMethodVarArgs<JSAny?>(
+    'push'.toJS,
+    [value.jsify()],
+  );
 }

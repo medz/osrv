@@ -11,6 +11,7 @@ import '../../core/capabilities.dart';
 import '../../core/runtime.dart';
 import '../../core/server.dart';
 import 'extension.dart';
+import 'functions.dart';
 import 'host.dart';
 import 'lifecycle_context.dart';
 import 'request_bridge.dart';
@@ -91,6 +92,7 @@ final class _VercelFetchHandler {
     final resolvedHelpers = await loadVercelFunctionHelpers();
     final extension = VercelRuntimeExtension<VercelFunctionHelpersHost,
         web.Request>(
+      functions: createVercelFunctions(resolvedHelpers),
       helpers: resolvedHelpers,
       request: request,
       env: vercelGetEnv(resolvedHelpers),
