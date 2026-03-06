@@ -1,5 +1,0 @@
-.wrangler
-
-bun.lock
-cloudflare.dart.js*
-node_modules
