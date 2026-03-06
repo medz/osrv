@@ -56,7 +56,7 @@ final class BunRuntimePreflight {
       return 'bun-host-without-serve';
     }
 
-    return 'bun-host-not-implemented($bunVersion)';
+    return 'bun-host($bunVersion)';
   }
 
   UnsupportedError toUnsupportedError() {
@@ -117,5 +117,5 @@ String? _buildBunBlockReason(BunHostProbe probe) {
     return 'Bun runtime requires Bun.serve, but it is not available on the current host.';
   }
 
-  return 'Bun runtime host detected (${probe.version ?? 'unknown'}), but serving is not implemented yet.';
+  return null;
 }

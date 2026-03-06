@@ -77,7 +77,7 @@ void main() {
     expect(preflight.blockReason, contains('Bun.serve'));
   });
 
-  test('bun runtime preflight reports not-implemented on a Bun host', () {
+  test('bun runtime preflight reports a serve-ready Bun host', () {
     final preflight = preflightBunRuntime(
       const BunRuntimeConfig(
         host: '127.0.0.1',
@@ -92,9 +92,9 @@ void main() {
       ),
     );
 
-    expect(preflight.summary, 'bun-host-not-implemented(1.2.0)');
-    expect(preflight.canServe, isFalse);
-    expect(preflight.blockReason, contains('not implemented'));
+    expect(preflight.summary, 'bun-host(1.2.0)');
+    expect(preflight.canServe, isTrue);
+    expect(preflight.blockReason, isNull);
   });
 
   test('serve rejects invalid bun runtime config', () async {
