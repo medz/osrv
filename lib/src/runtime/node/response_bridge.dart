@@ -31,6 +31,9 @@ Future<void> writeHtResponseToNodeServerResponse(
     return;
   }
 
+  Object? streamError;
+  StackTrace? streamStackTrace;
+
   try {
     await for (final chunk in body) {
       if (chunk.isEmpty) {
@@ -39,7 +42,20 @@ Future<void> writeHtResponseToNodeServerResponse(
 
       await nodeServerResponseWrite(target, chunk);
     }
-  } finally {
+  } catch (error, stackTrace) {
+    streamError = error;
+    streamStackTrace = stackTrace;
+  }
+
+  try {
     await nodeServerResponseEnd(target);
+  } catch (error, stackTrace) {
+    if (streamError == null) {
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+
+  if (streamError != null) {
+    Error.throwWithStackTrace(streamError, streamStackTrace!);
   }
 }

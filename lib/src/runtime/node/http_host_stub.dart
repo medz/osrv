@@ -81,7 +81,7 @@ Future<Object?> readNodeIncomingMessageBody(
   NodeIncomingMessageHost request,
 ) async {
   if (request.bodyError != null) {
-    return Stream<List<int>>.error(request.bodyError!);
+    return Future<Object?>.error(request.bodyError!);
   }
 
   return request.body;
@@ -148,12 +148,14 @@ Future<void> nodeServerResponseEnd(
     throw StateError(response.endError.toString());
   }
 
-  response.ended = true;
   if (body == null) {
+    response.ended = true;
     return;
   }
 
-  response.chunks.add(_bytesFromBody(body));
+  final bytes = _bytesFromBody(body);
+  response.chunks.add(bytes);
+  response.ended = true;
 }
 
 List<int> _bytesFromBody(Object body) {

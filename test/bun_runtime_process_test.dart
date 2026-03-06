@@ -9,6 +9,10 @@ import 'package:test/test.dart';
 
 void main() {
   test('bun runtime serves requests and shuts down cleanly', () async {
+    if (!await _hasBun()) {
+      markTestSkipped('bun is not available in the current environment');
+    }
+
     final tempDir = await Directory.systemTemp.createTemp('osrv_bun_test_');
     addTearDown(() => tempDir.delete(recursive: true));
 
@@ -93,6 +97,15 @@ void main() {
 }
 
 final _workspacePath = Directory.current.path;
+
+Future<bool> _hasBun() async {
+  try {
+    final result = await Process.run('bun', ['--version']);
+    return result.exitCode == 0;
+  } on ProcessException {
+    return false;
+  }
+}
 
 Future<Uri> _waitForRuntimeUrl(Stream<List<int>> stdout) async {
   final lines = stdout.transform(utf8.decoder).transform(const LineSplitter());

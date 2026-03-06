@@ -153,13 +153,11 @@ void main() {
       bodyError: 'request failed',
     );
 
-    final bridged = await nodeRequestFromHost(
-      request,
-      origin: Uri.parse('http://127.0.0.1:3000'),
-    );
-
     await expectLater(
-      bridged.text(),
+      nodeRequestFromHost(
+        request,
+        origin: Uri.parse('http://127.0.0.1:3000'),
+      ),
       throwsA(
         isA<Object>().having(
           (error) => error.toString(),

@@ -31,22 +31,41 @@ final class ShutdownCoordinator {
     }
 
     _stopTriggered = true;
+    Object? firstError;
+    StackTrace? firstStackTrace;
+
     try {
       await onStop();
-
-      if (waitForRequests) {
-        await _waitUntilDrained(_pendingRequests);
-      }
-
-      await _waitUntilDrained(_pendingTasks);
-
-      if (!_closedCompleter.isCompleted) {
-        _closedCompleter.complete();
-      }
     } catch (error, stackTrace) {
-      if (!_closedCompleter.isCompleted) {
-        _closedCompleter.completeError(error, stackTrace);
+      firstError = error;
+      firstStackTrace = stackTrace;
+    }
+
+    if (waitForRequests) {
+      try {
+        await _waitUntilDrained(_pendingRequests);
+      } catch (error, stackTrace) {
+        firstError ??= error;
+        firstStackTrace ??= stackTrace;
       }
+    }
+
+    try {
+      await _waitUntilDrained(_pendingTasks);
+    } catch (error, stackTrace) {
+      firstError ??= error;
+      firstStackTrace ??= stackTrace;
+    }
+
+    if (firstError != null) {
+      if (!_closedCompleter.isCompleted) {
+        _closedCompleter.completeError(firstError, firstStackTrace);
+      }
+      return;
+    }
+
+    if (!_closedCompleter.isCompleted) {
+      _closedCompleter.complete();
     }
   }
 
