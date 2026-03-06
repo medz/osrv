@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:ht/ht.dart' show Response;
-
 import '../../core/capabilities.dart';
 import '../../core/errors.dart';
 import '../../core/runtime.dart';
 import '../../core/server.dart';
+import '../_internal/server/error_handler.dart';
+import '../_internal/server/shutdown_coordinator.dart';
 import 'config.dart';
 import 'extension.dart';
 import 'lifecycle_context.dart';
@@ -43,41 +43,7 @@ Future<Runtime> serveDartRuntime(
     extension: lifecycleExtension,
   );
 
-  final pendingTasks = <Future<void>>{};
-  final closedCompleter = Completer<void>();
-  var stopHookTriggered = false;
-
-  void trackTask(Future<void> task) {
-    pendingTasks.add(task);
-    task.whenComplete(() {
-      pendingTasks.remove(task);
-    });
-  }
-
-  Future<void> handleStop() async {
-    if (stopHookTriggered) {
-      return;
-    }
-
-    stopHookTriggered = true;
-    try {
-      if (server.onStop != null) {
-        await server.onStop!(lifecycleContext);
-      }
-
-      if (pendingTasks.isNotEmpty) {
-        await Future.wait(pendingTasks);
-      }
-
-      if (!closedCompleter.isCompleted) {
-        closedCompleter.complete();
-      }
-    } catch (error, stackTrace) {
-      if (!closedCompleter.isCompleted) {
-        closedCompleter.completeError(error, stackTrace);
-      }
-    }
-  }
+  final coordinator = ShutdownCoordinator();
 
   try {
     if (server.onStart != null) {
@@ -102,7 +68,7 @@ Future<Runtime> serveDartRuntime(
         final context = DartRequestContext(
           runtime: runtimeInfo,
           capabilities: dartRuntimeCapabilities,
-          onWaitUntil: trackTask,
+          onWaitUntil: coordinator.trackTask,
           extension: requestExtension,
         );
 
@@ -111,17 +77,25 @@ Future<Runtime> serveDartRuntime(
           final response = await server.fetch(htRequest, context);
           await writeHtResponseToDartHttpResponse(response, request.response);
         } catch (error, stackTrace) {
-          final handled = await _handleRequestError(
+          final handled = await handleServerError(
             server: server,
             error: error,
             stackTrace: stackTrace,
             context: lifecycleContext,
+            defaultStatus: HttpStatus.internalServerError,
           );
           await writeHtResponseToDartHttpResponse(handled, request.response);
         }
       }
     } finally {
-      await handleStop();
+      await coordinator.stop(
+        onStop: () async {
+          if (server.onStop != null) {
+            await server.onStop!(lifecycleContext);
+          }
+        },
+        waitForRequests: false,
+      );
     }
   }());
 
@@ -129,11 +103,20 @@ Future<Runtime> serveDartRuntime(
     server: httpServer,
     info: runtimeInfo,
     capabilities: dartRuntimeCapabilities,
-    closed: closedCompleter.future,
+    closed: coordinator.closed,
     host: config.host,
     port: httpServer.port,
     onClose: () {
-      unawaited(handleStop());
+      unawaited(
+        coordinator.stop(
+          onStop: () async {
+            if (server.onStop != null) {
+              await server.onStop!(lifecycleContext);
+            }
+          },
+          waitForRequests: false,
+        ),
+      );
     },
   );
 }
@@ -175,23 +158,4 @@ void _validateDartRuntimeConfig(DartRuntimeConfig config) {
       'DartRuntimeConfig.backlog cannot be negative.',
     );
   }
-}
-
-Future<Response> _handleRequestError({
-  required Server server,
-  required Object error,
-  required StackTrace stackTrace,
-  required DartServerLifecycleContext context,
-}) async {
-  if (server.onError != null) {
-    final response = await server.onError!(error, stackTrace, context);
-    if (response != null) {
-      return response;
-    }
-  }
-
-  return Response.text(
-    'Internal Server Error',
-    status: HttpStatus.internalServerError,
-  );
 }

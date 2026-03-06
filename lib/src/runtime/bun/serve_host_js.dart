@@ -5,12 +5,13 @@ import 'dart:async';
 import 'dart:js_interop';
 
 import '../../core/capabilities.dart';
-import 'package:ht/ht.dart' show Response;
 import 'package:web/web.dart' as web;
 
 import '../../core/errors.dart';
 import '../../core/runtime.dart';
 import '../../core/server.dart';
+import '../_internal/server/error_handler.dart';
+import '../_internal/server/shutdown_coordinator.dart';
 import '../_internal/js/web_request_bridge.dart';
 import '../_internal/js/web_response_bridge.dart';
 import 'extension.dart';
@@ -30,24 +31,7 @@ Future<Runtime> serveBunRuntimeHost(
     throw preflight.toUnsupportedError();
   }
 
-  final pendingTasks = <Future<void>>{};
-  final pendingRequests = <Future<void>>{};
-  final closedCompleter = Completer<void>();
-  var stopHookTriggered = false;
-
-  void trackTask(Future<void> task) {
-    pendingTasks.add(task);
-    task.whenComplete(() {
-      pendingTasks.remove(task);
-    });
-  }
-
-  void trackRequest(Future<void> request) {
-    pendingRequests.add(request);
-    request.whenComplete(() {
-      pendingRequests.remove(request);
-    });
-  }
+  final coordinator = ShutdownCoordinator();
 
   final runtimeInfo = const RuntimeInfo(
     name: 'bun',
@@ -71,10 +55,10 @@ Future<Runtime> serveBunRuntimeHost(
       hostServer: hostServer,
       request: request,
       requestHost: requestHost,
-      onWaitUntil: trackTask,
+      onWaitUntil: coordinator.trackTask,
       lifecycleContext: lifecycleContext,
     );
-    trackRequest(operation);
+    coordinator.trackRequest(operation);
     return operation.toJS;
   }
 
@@ -102,35 +86,6 @@ Future<Runtime> serveBunRuntimeHost(
     extension: lifecycleExtension,
   );
 
-  Future<void> handleStop() async {
-    if (stopHookTriggered) {
-      return;
-    }
-
-    stopHookTriggered = true;
-    try {
-      if (server.onStop != null) {
-        await server.onStop!(lifecycleContext);
-      }
-
-      if (pendingRequests.isNotEmpty) {
-        await Future.wait(pendingRequests);
-      }
-
-      if (pendingTasks.isNotEmpty) {
-        await Future.wait(pendingTasks);
-      }
-
-      if (!closedCompleter.isCompleted) {
-        closedCompleter.complete();
-      }
-    } catch (error, stackTrace) {
-      if (!closedCompleter.isCompleted) {
-        closedCompleter.completeError(error, stackTrace);
-      }
-    }
-  }
-
   try {
     if (server.onStart != null) {
       await server.onStart!(lifecycleContext);
@@ -152,15 +107,21 @@ Future<Runtime> serveBunRuntimeHost(
   return BunRuntime(
     info: runtimeInfo,
     capabilities: preflight.capabilities,
-    closed: closedCompleter.future,
+    closed: coordinator.closed,
     url: runtimeUrl,
     onClose: () async {
       try {
         await stopBunServer(hostServer);
       } finally {
-        await handleStop();
+        await coordinator.stop(
+          onStop: () async {
+            if (server.onStop != null) {
+              await server.onStop!(lifecycleContext);
+            }
+          },
+        );
       }
-      await closedCompleter.future;
+      await coordinator.closed;
     },
   );
 }
@@ -193,7 +154,7 @@ Future<web.Response> _handleBunRequest({
     final htResponse = await server.fetch(htRequest, context);
     return webResponseFromHtResponse(htResponse);
   } catch (error, stackTrace) {
-    final handled = await _handleRequestError(
+    final handled = await handleServerError(
       server: server,
       error: error,
       stackTrace: stackTrace,
@@ -201,23 +162,4 @@ Future<web.Response> _handleBunRequest({
     );
     return webResponseFromHtResponse(handled);
   }
-}
-
-Future<Response> _handleRequestError({
-  required Server server,
-  required Object error,
-  required StackTrace stackTrace,
-  required BunServerLifecycleContext context,
-}) async {
-  if (server.onError != null) {
-    final response = await server.onError!(error, stackTrace, context);
-    if (response != null) {
-      return response;
-    }
-  }
-
-  return Response.text(
-    'Internal Server Error',
-    status: 500,
-  );
 }

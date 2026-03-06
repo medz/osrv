@@ -1,36 +1,11 @@
-import 'dart:async';
+import '../_internal/server/runtime_handle.dart';
 
-import '../../core/capabilities.dart';
-import '../../core/runtime.dart';
-
-final class BunRuntime implements Runtime {
+final class BunRuntime extends ServerRuntimeHandle {
   BunRuntime({
-    required this.info,
-    required this.capabilities,
-    required Future<void> closed,
-    required Uri? url,
-    required Future<void> Function() onClose,
-  }) : _closed = closed,
-       _url = url,
-       _onClose = onClose;
-
-  final Future<void> _closed;
-  final Uri? _url;
-  final Future<void> Function() _onClose;
-  Future<void>? _closeOperation;
-
-  @override
-  final RuntimeInfo info;
-
-  @override
-  final RuntimeCapabilities capabilities;
-
-  @override
-  Uri? get url => _url;
-
-  @override
-  Future<void> close() => _closeOperation ??= _onClose();
-
-  @override
-  Future<void> get closed => _closed;
+    required super.info,
+    required super.capabilities,
+    required super.closed,
+    required super.url,
+    required super.onClose,
+  });
 }
