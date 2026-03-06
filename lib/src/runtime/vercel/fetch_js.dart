@@ -1,15 +1,14 @@
 @JS()
 library;
 
-import 'dart:async';
 import 'dart:js_interop';
-import 'dart:js_interop_unsafe';
-
 import 'package:web/web.dart' as web;
 
 import '../../core/capabilities.dart';
 import '../../core/runtime.dart';
 import '../../core/server.dart';
+import '../_internal/js/fetch_entry.dart';
+import '../_internal/js/fetch_handler.dart';
 import 'extension.dart';
 import 'functions.dart';
 import 'host.dart';
@@ -32,7 +31,7 @@ const vercelRuntimeInfo = RuntimeInfo(
   kind: 'entry',
 );
 
-const defaultVercelFetchName = '__osrv_fetch__';
+const defaultVercelFetchName = defaultFetchEntryName;
 
 void defineVercelFetch(
   Server server, {
@@ -46,92 +45,50 @@ void defineVercelFetch(
     );
   }
 
-  globalContext.setProperty(
-    name.toJS,
+  defineFetchEntry(
     _createVercelFetchExport(server),
+    name: name,
   );
 }
 
 JSExportedDartFunction _createVercelFetchExport(
   Server server,
 ) {
-  final handler = _VercelFetchHandler(server);
+  final handler = JsEntryFetchHandler(server);
   JSPromise<web.Response> fetch(
     web.Request request,
-  ) => handler.handle(request).toJS;
+  ) {
+    final operation = () async {
+      final resolvedHelpers = await loadVercelFunctionHelpers();
+      final extension = VercelRuntimeExtension<web.Request>(
+        functions: createVercelFunctions(
+          resolvedHelpers,
+          request,
+        ),
+        request: request,
+      );
+      final lifecycleContext = VercelServerLifecycleContext(
+        runtime: vercelRuntimeInfo,
+        capabilities: vercelRuntimeCapabilities,
+        extension: extension,
+      );
+      final requestContext = VercelRequestContext(
+        runtime: vercelRuntimeInfo,
+        capabilities: vercelRuntimeCapabilities,
+        extension: extension,
+      );
+
+      return handler.handle(
+        request,
+        lifecycleContext: lifecycleContext,
+        requestContext: requestContext,
+        toHtRequest: vercelRequestToHtRequest,
+        fromHtResponse: vercelResponseFromHtResponse,
+      );
+    }();
+
+    return operation.toJS;
+  }
 
   return fetch.toJS;
-}
-
-final class _VercelFetchHandler {
-  _VercelFetchHandler(this._server);
-
-  final Server _server;
-  Future<void>? _startOperation;
-
-  Future<void> _ensureStarted(
-    VercelServerLifecycleContext context,
-  ) {
-    final existing = _startOperation;
-    if (existing != null) {
-      return existing;
-    }
-
-    final operation = () async {
-      if (_server.onStart != null) {
-        await _server.onStart!(context);
-      }
-    }();
-    _startOperation = operation;
-    return operation;
-  }
-
-  Future<web.Response> handle(
-    web.Request request,
-  ) async {
-    final resolvedHelpers = await loadVercelFunctionHelpers();
-    final extension = VercelRuntimeExtension<web.Request>(
-      functions: createVercelFunctions(
-        resolvedHelpers,
-        request,
-      ),
-      request: request,
-    );
-    final lifecycleContext = VercelServerLifecycleContext(
-      runtime: vercelRuntimeInfo,
-      capabilities: vercelRuntimeCapabilities,
-      extension: extension,
-    );
-    final requestContext = VercelRequestContext(
-      runtime: vercelRuntimeInfo,
-      capabilities: vercelRuntimeCapabilities,
-      extension: extension,
-    );
-
-    try {
-      await _ensureStarted(lifecycleContext);
-      final htRequest = vercelRequestToHtRequest(request);
-      final response = await _server.fetch(htRequest, requestContext);
-      return vercelResponseFromHtResponse(response);
-    } catch (error, stackTrace) {
-      if (_server.onError != null) {
-        final handled = await _server.onError!(
-          error,
-          stackTrace,
-          lifecycleContext,
-        );
-        if (handled != null) {
-          return vercelResponseFromHtResponse(handled);
-        }
-      }
-
-      return web.Response(
-        'Internal Server Error'.toJS,
-        web.ResponseInit(
-          status: 500,
-          statusText: 'Internal Server Error',
-        ),
-      );
-    }
-  }
 }
