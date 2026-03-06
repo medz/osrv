@@ -1,5 +1,7 @@
 ## Unreleased
 
+## 0.2.0
+
 - Unified core API around `Server`, `RequestContext`, `Runtime`, and `serve(...)`.
 - Implemented serve-based runtimes for `dart`, `node`, and `bun`.
 - Implemented entry-export runtimes for `cloudflare` and `vercel` through `defineFetchEntry(...)`.
