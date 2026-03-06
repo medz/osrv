@@ -5,9 +5,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
+import 'dart:typed_data';
 
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/cloudflare.dart';
+import 'package:osrv/src/runtime/cloudflare/stream_bridge.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 
@@ -205,6 +207,78 @@ void main() {
 
     expect(response.status, 200);
     expect((await response.text().toDart).toDart, '/custom');
+  });
+
+  test('defineCloudflareFetch does not pre-read the request stream', () async {
+    final entered = Completer<void>();
+    final body = StreamController<List<int>>();
+
+    defineCloudflareFetch(
+      Server(
+        fetch: (request, context) {
+          entered.complete();
+          return Response.text(request.method);
+        },
+      ),
+    );
+
+    final responseFuture = _callWorkerFetch(
+      _currentFetchHandler(),
+      web.Request(
+        'https://example.com/stream-request'.toJS,
+        web.RequestInit(
+          method: 'POST',
+          body: webReadableStreamFromDartByteStream(body.stream),
+          duplex: 'half',
+        ),
+      ),
+      JSObject(),
+      createJSInteropWrapper(_TestExecutionContext()),
+    );
+
+    await entered.future.timeout(const Duration(milliseconds: 250));
+
+    body.add(utf8.encode('chunk'));
+    await body.close();
+
+    final response = await responseFuture;
+    expect(response.status, 200);
+    expect((await response.text().toDart).toDart, 'POST');
+  });
+
+  test('defineCloudflareFetch returns a streaming response immediately', () async {
+    final body = StreamController<List<int>>();
+
+    defineCloudflareFetch(
+      Server(
+        fetch: (request, context) {
+          return Response(
+            body: body.stream,
+            headers: Headers()..set('content-type', 'text/plain'),
+          );
+        },
+      ),
+    );
+
+    final responseFuture = _callWorkerFetch(
+      _currentFetchHandler(),
+      web.Request('https://example.com/stream-response'.toJS),
+      JSObject(),
+      createJSInteropWrapper(_TestExecutionContext()),
+    );
+
+    final response = await responseFuture.timeout(
+      const Duration(milliseconds: 250),
+    );
+
+    expect(response.status, 200);
+    expect(response.body, isNotNull);
+
+    body.add(Uint8List.fromList(utf8.encode('Hello ')));
+    body.add(Uint8List.fromList(utf8.encode('Osrv!')));
+    await body.close();
+
+    expect((await response.text().toDart).toDart, 'Hello Osrv!');
   });
 }
 

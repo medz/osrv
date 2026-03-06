@@ -110,7 +110,7 @@ final class _CloudflareFetchHandler {
 
     try {
       await _ensureStarted(lifecycleContext);
-      final htRequest = await cloudflareRequestToHtRequest(request);
+      final htRequest = cloudflareRequestToHtRequest(request);
       final response = await _server.fetch(htRequest, requestContext);
       return cloudflareResponseFromHtResponse(response);
     } catch (error, stackTrace) {

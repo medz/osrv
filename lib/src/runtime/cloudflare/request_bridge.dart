@@ -3,14 +3,16 @@ import 'dart:js_interop';
 import 'package:ht/ht.dart' show Headers, Request;
 import 'package:web/web.dart' as web;
 
+import 'stream_bridge.dart';
+
 @JS()
 extension type _IterableHeaders._(JSObject _) implements JSObject {
   external void forEach(JSFunction fn);
 }
 
-Future<Request> cloudflareRequestToHtRequest(
+Request cloudflareRequestToHtRequest(
   web.Request request,
-) async {
+) {
   final headers = Headers();
   (request.headers as _IterableHeaders).forEach(
     ((String value, String name, [JSAny? _]) {
@@ -18,13 +20,12 @@ Future<Request> cloudflareRequestToHtRequest(
     }).toJS,
   );
 
-  final body =
-      request.body == null ? null : (await request.bytes().toDart).toDart;
-
   return Request(
     Uri.parse(request.url),
     method: request.method,
     headers: headers,
-    body: body == null || body.isEmpty ? null : body,
+    body: request.body == null
+        ? null
+        : dartByteStreamFromWebReadableStream(request.body!),
   );
 }
