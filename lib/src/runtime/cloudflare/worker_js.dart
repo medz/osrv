@@ -18,12 +18,12 @@ import 'request_context.dart';
 import 'response_bridge.dart';
 
 const cloudflareRuntimeCapabilities = RuntimeCapabilities(
-  streaming: false,
+  streaming: true,
   websocket: false,
   fileSystem: false,
   backgroundTask: true,
   rawTcp: false,
-  nodeCompat: false,
+  nodeCompat: true,
 );
 
 const cloudflareRuntimeInfo = RuntimeInfo(

@@ -1,0 +1,12 @@
+{
+  "name": "@osrv/playground",
+  "private": true,
+  "scripts": {
+    "build": "dart compile js cloudflare.dart -o cloudflare.dart.js",
+    "dev": "npm run build && wrangler dev",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4.71.0"
+  }
+}

@@ -54,6 +54,10 @@ void main() {
             'path': request.url.path,
             'request': requestPath,
             'name': name,
+            'streaming': context.capabilities.streaming,
+            'backgroundTask': context.capabilities.backgroundTask,
+            'nodeCompat': context.capabilities.nodeCompat,
+            'websocket': context.capabilities.websocket,
           });
         },
       ),
@@ -76,6 +80,10 @@ void main() {
         'path': '/hello',
         'request': 'https://example.com/hello',
         'name': 'worker',
+        'streaming': true,
+        'backgroundTask': true,
+        'nodeCompat': true,
+        'websocket': false,
       },
     );
   });
