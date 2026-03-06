@@ -8,14 +8,14 @@ final class CloudflareServerLifecycleContext implements ServerLifecycleContext {
   CloudflareServerLifecycleContext({
     required RuntimeInfo runtime,
     required RuntimeCapabilities capabilities,
-    required CloudflareRuntimeExtension extension,
+    required CloudflareRuntimeExtension<Object?, Object?> extension,
   }) : _runtime = runtime,
        _capabilities = capabilities,
        _extension = extension;
 
   final RuntimeInfo _runtime;
   final RuntimeCapabilities _capabilities;
-  final CloudflareRuntimeExtension _extension;
+  final CloudflareRuntimeExtension<Object?, Object?> _extension;
 
   @override
   RuntimeInfo get runtime => _runtime;

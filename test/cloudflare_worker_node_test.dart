@@ -44,13 +44,15 @@ void main() {
     defineCloudflareFetch(
       Server(
         fetch: (request, context) {
-          final cf = context.extension<CloudflareRuntimeExtension>();
-          final env = cf?.env as JSObject?;
-          final name = env?.getProperty<JSString?>('name'.toJS)?.toDart;
+          final cf = context.extension<
+              CloudflareRuntimeExtension<JSObject, web.Request>>();
+          final name = cf?.env?.getProperty<JSString?>('name'.toJS)?.toDart;
+          final requestPath = cf?.request?.url ?? request.url.toString();
 
           return Response.json({
             'runtime': context.runtime.name,
             'path': request.url.path,
+            'request': requestPath,
             'name': name,
           });
         },
@@ -72,6 +74,7 @@ void main() {
       {
         'runtime': 'cloudflare',
         'path': '/hello',
+        'request': 'https://example.com/hello',
         'name': 'worker',
       },
     );

@@ -92,7 +92,7 @@ final class _CloudflareFetchHandler {
     JSObject? env,
     CloudflareExecutionContext? context,
   ]) async {
-    final extension = CloudflareRuntimeExtension(
+    final extension = CloudflareRuntimeExtension<JSObject, web.Request>(
       env: env,
       context: context,
       request: request,
