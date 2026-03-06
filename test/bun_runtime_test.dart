@@ -1,3 +1,6 @@
+@TestOn('vm')
+library;
+
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/bun.dart';
 import 'package:osrv/src/runtime/bun/preflight.dart';

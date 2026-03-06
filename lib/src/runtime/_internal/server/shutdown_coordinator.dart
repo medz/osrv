@@ -34,13 +34,11 @@ final class ShutdownCoordinator {
     try {
       await onStop();
 
-      if (waitForRequests && _pendingRequests.isNotEmpty) {
-        await Future.wait(_pendingRequests);
+      if (waitForRequests) {
+        await _waitUntilDrained(_pendingRequests);
       }
 
-      if (_pendingTasks.isNotEmpty) {
-        await Future.wait(_pendingTasks);
-      }
+      await _waitUntilDrained(_pendingTasks);
 
       if (!_closedCompleter.isCompleted) {
         _closedCompleter.complete();
@@ -49,6 +47,12 @@ final class ShutdownCoordinator {
       if (!_closedCompleter.isCompleted) {
         _closedCompleter.completeError(error, stackTrace);
       }
+    }
+  }
+
+  static Future<void> _waitUntilDrained(Set<Future<void>> pending) async {
+    while (pending.isNotEmpty) {
+      await Future.wait(List<Future<void>>.of(pending));
     }
   }
 }

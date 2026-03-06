@@ -14,7 +14,7 @@ void cloudflareWaitUntil(
   Future<void> task,
 ) {
   if (context == null) {
-    unawaited(task);
+    unawaited(task.catchError((Object _, StackTrace stackTrace) {}));
     return;
   }
 

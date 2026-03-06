@@ -1,3 +1,6 @@
+@TestOn('vm')
+library;
+
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -89,7 +92,7 @@ void main() {
   });
 }
 
-const _workspacePath = '/Users/seven/workspace/osrv';
+final _workspacePath = Directory.current.path;
 
 Future<Uri> _waitForRuntimeUrl(Stream<List<int>> stdout) async {
   final lines = stdout.transform(utf8.decoder).transform(const LineSplitter());

@@ -1,23 +1,26 @@
+import 'dart:async';
+
 import 'extension.dart';
 import 'http_host.dart';
 
-typedef NodeHostRequestCallback = void Function(NodeRuntimeExtension extension);
+typedef NodeHostRequestCallback =
+    FutureOr<void> Function(NodeRuntimeExtension extension);
 
 NodeHostRequestCallback createNodeHostRequestCallback(
-  void Function(
+  FutureOr<void> Function(
     NodeIncomingMessageHost request,
     NodeServerResponseHost response,
     NodeRuntimeExtension extension,
   )
   onRequest,
 ) {
-  return (extension) {
+  return (extension) async {
     final request = extension.request;
     final response = extension.response;
     if (request == null || response == null) {
       return;
     }
 
-    onRequest(request, response, extension);
+    await onRequest(request, response, extension);
   };
 }

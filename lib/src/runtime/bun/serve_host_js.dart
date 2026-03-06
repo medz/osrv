@@ -30,6 +30,8 @@ Future<Runtime> serveBunRuntimeHost(
   }
 
   final coordinator = ShutdownCoordinator();
+  final startup = Completer<void>();
+  unawaited(startup.future.catchError((Object _, StackTrace stackTrace) {}));
 
   final runtimeInfo = const RuntimeInfo(name: 'bun', kind: 'server');
   late final BunServerHost hostServer;
@@ -39,17 +41,20 @@ Future<Runtime> serveBunRuntimeHost(
   JSPromise<web.Response> fetch(web.Request request, [JSAny? serverHost]) {
     serverHost;
     final requestHost = bunRequestHostFromWebRequest(request);
-    final operation = _handleBunRequest(
-      server: server,
-      runtimeInfo: runtimeInfo,
-      capabilities: preflight.capabilities,
-      bun: bun,
-      hostServer: hostServer,
-      request: request,
-      requestHost: requestHost,
-      onWaitUntil: coordinator.trackTask,
-      lifecycleContext: lifecycleContext,
-    );
+    final operation = () async {
+      await startup.future;
+      return _handleBunRequest(
+        server: server,
+        runtimeInfo: runtimeInfo,
+        capabilities: preflight.capabilities,
+        bun: bun,
+        hostServer: hostServer,
+        request: request,
+        requestHost: requestHost,
+        onWaitUntil: coordinator.trackTask,
+        lifecycleContext: lifecycleContext,
+      );
+    }();
     coordinator.trackRequest(operation);
     return operation.toJS;
   }
@@ -79,7 +84,11 @@ Future<Runtime> serveBunRuntimeHost(
     if (server.onStart != null) {
       await server.onStart!(lifecycleContext);
     }
+    startup.complete();
   } catch (error) {
+    if (!startup.isCompleted) {
+      startup.completeError(error);
+    }
     await stopBunServer(hostServer, force: true);
     throw RuntimeStartupError('Failed to start bun runtime.', error);
   }

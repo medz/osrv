@@ -39,6 +39,9 @@ extension type NodeServerResponseHost._(JSObject _) implements JSObject {
   @JS('setHeader')
   external JSFunction get setHeader;
 
+  @JS('removeListener')
+  external JSFunction get removeListener;
+
   external JSFunction get once;
   external JSFunction get write;
   external JSFunction get end;
@@ -288,28 +291,30 @@ Future<void> nodeServerResponseWrite(
 ) async {
   final completer = Completer<void>();
   var settled = false;
+  late final JSExportedDartFunction onError;
 
-  response.once.callAsFunction(
-    response,
-    'error'.toJS,
-    ((JSAny? error) {
-      if (settled) {
-        return;
-      }
+  onError = ((JSAny? error) {
+    if (settled) {
+      return;
+    }
 
-      settled = true;
-      completer.completeError(StateError(_describeJsError(error)));
-    }).toJS,
-  );
+    settled = true;
+    completer.completeError(StateError(_describeJsError(error)));
+  }).toJS;
+
+  response.once.callAsFunction(response, 'error'.toJS, onError);
 
   response.write.callAsFunction(
     response,
     _jsBody(body),
     (() {
-      if (!settled && !completer.isCompleted) {
-        settled = true;
-        completer.complete();
+      response.removeListener.callAsFunction(response, 'error'.toJS, onError);
+      if (settled || completer.isCompleted) {
+        return;
       }
+
+      settled = true;
+      completer.complete();
     }).toJS,
   );
   return completer.future;
@@ -321,25 +326,27 @@ Future<void> nodeServerResponseEnd(
 ]) async {
   final completer = Completer<void>();
   var settled = false;
+  late final JSExportedDartFunction onError;
 
-  response.once.callAsFunction(
-    response,
-    'error'.toJS,
-    ((JSAny? error) {
-      if (settled) {
-        return;
-      }
+  onError = ((JSAny? error) {
+    if (settled) {
+      return;
+    }
 
-      settled = true;
-      completer.completeError(StateError(_describeJsError(error)));
-    }).toJS,
-  );
+    settled = true;
+    completer.completeError(StateError(_describeJsError(error)));
+  }).toJS;
+
+  response.once.callAsFunction(response, 'error'.toJS, onError);
 
   final callback = (() {
-    if (!settled && !completer.isCompleted) {
-      settled = true;
-      completer.complete();
+    response.removeListener.callAsFunction(response, 'error'.toJS, onError);
+    if (settled || completer.isCompleted) {
+      return;
     }
+
+    settled = true;
+    completer.complete();
   }).toJS;
 
   if (body == null) {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 final class NodeHttpModuleHost {
@@ -83,10 +84,7 @@ Future<Object?> readNodeIncomingMessageBody(
     return Stream<List<int>>.error(request.bodyError!);
   }
 
-  return switch (request.body) {
-    Stream<List<int>>() => request.body,
-    _ => request.body,
-  };
+  return request.body;
 }
 
 NodeHttpServerHost createNodeHttpServer(
@@ -162,7 +160,7 @@ List<int> _bytesFromBody(Object body) {
   return switch (body) {
     Uint8List() => body,
     List<int>() => body,
-    String() => body.codeUnits,
+    String() => utf8.encode(body),
     _ => throw ArgumentError.value(
       body,
       'body',

@@ -29,7 +29,7 @@ base class ServerRuntimeHandle implements Runtime {
   Uri? get url => _url;
 
   @override
-  Future<void> close() => _closeOperation ??= _onClose();
+  Future<void> close() => _closeOperation ??= Future.sync(_onClose);
 
   @override
   Future<void> get closed => _closed;

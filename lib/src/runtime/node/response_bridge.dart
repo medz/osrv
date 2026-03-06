@@ -31,13 +31,15 @@ Future<void> writeHtResponseToNodeServerResponse(
     return;
   }
 
-  await for (final chunk in body) {
-    if (chunk.isEmpty) {
-      continue;
+  try {
+    await for (final chunk in body) {
+      if (chunk.isEmpty) {
+        continue;
+      }
+
+      await nodeServerResponseWrite(target, chunk);
     }
-
-    await nodeServerResponseWrite(target, chunk);
+  } finally {
+    await nodeServerResponseEnd(target);
   }
-
-  await nodeServerResponseEnd(target);
 }
