@@ -90,3 +90,20 @@ if (!runtime.capabilities.websocket) {
   // explicit fallback
 }
 ```
+
+## Docs
+
+- [architecture](./doc/architecture.md)
+- [core API](./doc/api/core.md)
+- [runtime API](./doc/api/runtime.md)
+- [runtime docs](./doc/runtime/README.md)
+- [final usage examples](./doc/examples/final-usage.md)
+
+## Playground
+
+The [`playground`](./playground) directory contains minimal runtime entry samples for:
+- `dart`
+- `node`
+- `bun`
+- `cloudflare`
+- `vercel`
