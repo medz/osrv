@@ -1,6 +1,6 @@
 import '../../core/server.dart';
 
-const defaultVercelFetchName = '__osrv_vercel_fetch__';
+const defaultVercelFetchName = '__osrv_fetch__';
 
 void defineVercelFetch(
   Server server, {

@@ -4,6 +4,14 @@ final class VercelFunctionHelpersHost {
   const VercelFunctionHelpersHost();
 }
 
+const defaultVercelFunctionsOverrideName = '__osrv_vercel_functions__';
+
+Future<VercelFunctionHelpersHost?> loadVercelFunctionHelpers() async {
+  return null;
+}
+
+void resetVercelFunctionHelpersCache() {}
+
 void vercelWaitUntil(
   VercelFunctionHelpersHost? helpers,
   Future<void> task,

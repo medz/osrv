@@ -31,7 +31,7 @@ const vercelRuntimeInfo = RuntimeInfo(
   kind: 'entry',
 );
 
-const defaultVercelFetchName = '__osrv_vercel_fetch__';
+const defaultVercelFetchName = '__osrv_fetch__';
 
 void defineVercelFetch(
   Server server, {
@@ -56,9 +56,8 @@ JSExportedDartFunction _createVercelFetchExport(
 ) {
   final handler = _VercelFetchHandler(server);
   JSPromise<web.Response> fetch(
-    web.Request request, [
-    VercelFunctionHelpersHost? helpers,
-  ]) => handler.handle(request, helpers).toJS;
+    web.Request request,
+  ) => handler.handle(request).toJS;
 
   return fetch.toJS;
 }
@@ -87,16 +86,16 @@ final class _VercelFetchHandler {
   }
 
   Future<web.Response> handle(
-    web.Request request, [
-    VercelFunctionHelpersHost? helpers,
-  ]) async {
+    web.Request request,
+  ) async {
+    final resolvedHelpers = await loadVercelFunctionHelpers();
     final extension = VercelRuntimeExtension<VercelFunctionHelpersHost,
         web.Request>(
-      helpers: helpers,
+      helpers: resolvedHelpers,
       request: request,
-      env: vercelGetEnv(helpers),
-      geolocation: vercelGeolocation(helpers, request),
-      ipAddress: vercelIpAddress(helpers, request),
+      env: vercelGetEnv(resolvedHelpers),
+      geolocation: vercelGeolocation(resolvedHelpers, request),
+      ipAddress: vercelIpAddress(resolvedHelpers, request),
     );
     final lifecycleContext = VercelServerLifecycleContext(
       runtime: vercelRuntimeInfo,

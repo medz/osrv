@@ -15,7 +15,9 @@ import 'package:web/web.dart' as web;
 void main() {
   tearDown(() {
     globalContext.delete(defaultVercelFetchName.toJS);
-    globalContext.delete('__custom_osrv_vercel_fetch__'.toJS);
+    globalContext.delete('__custom_osrv_fetch__'.toJS);
+    globalContext.delete(defaultVercelFunctionsOverrideName.toJS);
+    resetVercelFunctionHelpersCache();
   });
 
   test('defineVercelFetch bridges fetch into Server.fetch', () async {
@@ -41,10 +43,10 @@ void main() {
       ),
     );
 
+    _installFunctionsOverride();
     final response = await _callVercelFetch(
       _currentFetchHandler(),
       web.Request('https://example.com/hello'.toJS),
-      _createHelpers(),
     );
 
     expect(response.status, 200);
@@ -78,10 +80,10 @@ void main() {
       ),
     );
 
+    _installFunctionsOverride(waitUntilTracker: tracker);
     final response = await _callVercelFetch(
       _currentFetchHandler(),
       web.Request('https://example.com/wait'.toJS),
-      _createHelpers(waitUntilTracker: tracker),
     );
 
     expect(response.status, 200);
@@ -104,10 +106,10 @@ void main() {
       ),
     );
 
+    _installFunctionsOverride();
     final response = await _callVercelFetch(
       _currentFetchHandler(),
       web.Request('https://example.com/error'.toJS),
-      _createHelpers(),
     );
 
     expect(response.status, 418);
@@ -125,15 +127,14 @@ void main() {
       ),
     );
 
+    _installFunctionsOverride();
     final first = await _callVercelFetch(
       _currentFetchHandler(),
       web.Request('https://example.com/one'.toJS),
-      _createHelpers(),
     );
     final second = await _callVercelFetch(
       _currentFetchHandler(),
       web.Request('https://example.com/two'.toJS),
-      _createHelpers(),
     );
 
     expect(first.status, 200);
@@ -148,10 +149,10 @@ void main() {
       ),
     );
 
+    _installFunctionsOverride();
     final response = await _callVercelFetch(
       _currentFetchHandler(),
       web.Request('https://example.com/unhandled'.toJS),
-      _createHelpers(),
     );
 
     expect(response.status, 500);
@@ -163,13 +164,13 @@ void main() {
       Server(
         fetch: (request, context) => Response.text(request.url.path),
       ),
-      name: '__custom_osrv_vercel_fetch__',
+      name: '__custom_osrv_fetch__',
     );
 
+    _installFunctionsOverride();
     final response = await _callVercelFetch(
-      _fetchHandlerFor('__custom_osrv_vercel_fetch__'),
+      _fetchHandlerFor('__custom_osrv_fetch__'),
       web.Request('https://example.com/custom'.toJS),
-      _createHelpers(),
     );
 
     expect(response.status, 200);
@@ -189,6 +190,7 @@ void main() {
       ),
     );
 
+    _installFunctionsOverride();
     final responseFuture = _callVercelFetch(
       _currentFetchHandler(),
       web.Request(
@@ -199,7 +201,6 @@ void main() {
           duplex: 'half',
         ),
       ),
-      _createHelpers(),
     );
 
     await entered.future.timeout(const Duration(milliseconds: 250));
@@ -226,10 +227,10 @@ void main() {
       ),
     );
 
+    _installFunctionsOverride();
     final responseFuture = _callVercelFetch(
       _currentFetchHandler(),
       web.Request('https://example.com/stream-response'.toJS),
-      _createHelpers(),
     );
 
     final response = await responseFuture.timeout(
@@ -252,7 +253,7 @@ final class _TestWaitUntilTracker {
   final List<Future<JSAny?>> tasks = <Future<JSAny?>>[];
 }
 
-JSObject _createHelpers({
+void _installFunctionsOverride({
   _TestWaitUntilTracker? waitUntilTracker,
 }) {
   final tracker = waitUntilTracker ?? _TestWaitUntilTracker();
@@ -285,7 +286,10 @@ JSObject _createHelpers({
       return '127.0.0.1';
     }).toJS,
   );
-  return helpers;
+  globalContext.setProperty(
+    defaultVercelFunctionsOverrideName.toJS,
+    helpers,
+  );
 }
 
 JSExportedDartFunction _currentFetchHandler() =>
@@ -298,12 +302,11 @@ JSExportedDartFunction _fetchHandlerFor(String name) {
 Future<web.Response> _callVercelFetch(
   JSExportedDartFunction fetch,
   web.Request request,
-  JSObject helpers,
 ) {
   return fetch
       .callMethodVarArgs<JSPromise<web.Response>>(
         'call'.toJS,
-        [null, request, helpers],
+        [null, request],
       )
       .toDart;
 }

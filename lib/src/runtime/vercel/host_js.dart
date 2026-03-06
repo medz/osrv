@@ -9,6 +9,34 @@ import 'package:web/web.dart' as web;
 
 extension type VercelFunctionHelpersHost._(JSObject _) implements JSObject {}
 
+const defaultVercelFunctionsOverrideName = '__osrv_vercel_functions__';
+Future<VercelFunctionHelpersHost?>? _helpersOperation;
+
+Future<VercelFunctionHelpersHost?> loadVercelFunctionHelpers() {
+  final override = globalContext.getProperty<JSObject?>(
+    defaultVercelFunctionsOverrideName.toJS,
+  );
+  if (override != null) {
+    return Future.value(VercelFunctionHelpersHost._(override));
+  }
+
+  final existing = _helpersOperation;
+  if (existing != null) {
+    return existing;
+  }
+
+  final operation = () async {
+    final module = await importModule('@vercel/functions'.toJS).toDart;
+    return VercelFunctionHelpersHost._(module);
+  }();
+  _helpersOperation = operation;
+  return operation;
+}
+
+void resetVercelFunctionHelpersCache() {
+  _helpersOperation = null;
+}
+
 void vercelWaitUntil(
   VercelFunctionHelpersHost? helpers,
   Future<void> task,
