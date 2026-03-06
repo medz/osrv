@@ -23,26 +23,25 @@ final class _TestExecutionContext {
 }
 
 void main() {
-  test('cloudflare worker validates config before exporting', () {
+  tearDown(() {
+    globalContext.delete(defaultCloudflareFetchName.toJS);
+    globalContext.delete('__custom_osrv_fetch__'.toJS);
+  });
+
+  test('defineCloudflareFetch validates the export name', () {
     expect(
-      () => cloudflareWorker(
+      () => defineCloudflareFetch(
         Server(
           fetch: (request, context) => Response.text('ok'),
         ),
-        const CloudflareRuntimeConfig(enableFetch: false),
+        name: ' ',
       ),
-      throwsA(
-        isA<RuntimeConfigurationError>().having(
-          (error) => error.message,
-          'message',
-          contains('enableFetch must be true'),
-        ),
-      ),
+      throwsA(isA<ArgumentError>()),
     );
   });
 
-  test('cloudflare worker bridges fetch into Server.fetch', () async {
-    final worker = cloudflareWorker(
+  test('defineCloudflareFetch bridges fetch into Server.fetch', () async {
+    defineCloudflareFetch(
       Server(
         fetch: (request, context) {
           final cf = context.extension<CloudflareRuntimeExtension>();
@@ -56,13 +55,12 @@ void main() {
           });
         },
       ),
-      const CloudflareRuntimeConfig(),
-    ) as JSObject;
+    );
 
     final env = JSObject()..setProperty('name'.toJS, 'worker'.toJS);
     final ctx = createJSInteropWrapper(_TestExecutionContext());
     final response = await _callWorkerFetch(
-      worker,
+      _currentFetchHandler(),
       web.Request('https://example.com/hello'.toJS),
       env,
       ctx,
@@ -79,21 +77,20 @@ void main() {
     );
   });
 
-  test('cloudflare worker forwards waitUntil to execution context', () async {
+  test('defineCloudflareFetch forwards waitUntil to execution context', () async {
     final waitUntilCompleter = Completer<void>();
     final ctxExport = _TestExecutionContext();
-    final worker = cloudflareWorker(
+    defineCloudflareFetch(
       Server(
         fetch: (request, context) {
           context.waitUntil(waitUntilCompleter.future);
           return Response.text('ok');
         },
       ),
-      const CloudflareRuntimeConfig(),
-    ) as JSObject;
+    );
 
     final response = await _callWorkerFetch(
-      worker,
+      _currentFetchHandler(),
       web.Request('https://example.com/wait'.toJS),
       JSObject(),
       createJSInteropWrapper(ctxExport),
@@ -106,8 +103,8 @@ void main() {
     await Future.wait(ctxExport.tasks);
   });
 
-  test('cloudflare worker uses onError to translate fetch failures', () async {
-    final worker = cloudflareWorker(
+  test('defineCloudflareFetch uses onError to translate fetch failures', () async {
+    defineCloudflareFetch(
       Server(
         fetch: (request, context) => throw StateError('boom'),
         onError: (error, stackTrace, context) {
@@ -117,11 +114,10 @@ void main() {
           );
         },
       ),
-      const CloudflareRuntimeConfig(),
-    ) as JSObject;
+    );
 
     final response = await _callWorkerFetch(
-      worker,
+      _currentFetchHandler(),
       web.Request('https://example.com/error'.toJS),
       JSObject(),
       createJSInteropWrapper(_TestExecutionContext()),
@@ -131,26 +127,25 @@ void main() {
     expect((await response.text().toDart).toDart, 'handled cloudflare');
   });
 
-  test('cloudflare worker runs onStart only once', () async {
+  test('defineCloudflareFetch runs onStart only once', () async {
     var starts = 0;
-    final worker = cloudflareWorker(
+    defineCloudflareFetch(
       Server(
         onStart: (context) {
           starts++;
         },
         fetch: (request, context) => Response.text('ok'),
       ),
-      const CloudflareRuntimeConfig(),
-    ) as JSObject;
+    );
 
     final first = await _callWorkerFetch(
-      worker,
+      _currentFetchHandler(),
       web.Request('https://example.com/one'.toJS),
       JSObject(),
       createJSInteropWrapper(_TestExecutionContext()),
     );
     final second = await _callWorkerFetch(
-      worker,
+      _currentFetchHandler(),
       web.Request('https://example.com/two'.toJS),
       JSObject(),
       createJSInteropWrapper(_TestExecutionContext()),
@@ -161,16 +156,15 @@ void main() {
     expect(starts, 1);
   });
 
-  test('cloudflare worker returns default 500 without onError', () async {
-    final worker = cloudflareWorker(
+  test('defineCloudflareFetch returns default 500 without onError', () async {
+    defineCloudflareFetch(
       Server(
         fetch: (request, context) => throw StateError('boom'),
       ),
-      const CloudflareRuntimeConfig(),
-    ) as JSObject;
+    );
 
     final response = await _callWorkerFetch(
-      worker,
+      _currentFetchHandler(),
       web.Request('https://example.com/unhandled'.toJS),
       JSObject(),
       createJSInteropWrapper(_TestExecutionContext()),
@@ -182,18 +176,45 @@ void main() {
       'Internal Server Error',
     );
   });
+
+  test('defineCloudflareFetch respects a custom export name', () async {
+    defineCloudflareFetch(
+      Server(
+        fetch: (request, context) => Response.text(request.url.path),
+      ),
+      name: '__custom_osrv_fetch__',
+    );
+
+    final response = await _callWorkerFetch(
+      _fetchHandlerFor('__custom_osrv_fetch__'),
+      web.Request('https://example.com/custom'.toJS),
+      JSObject(),
+      createJSInteropWrapper(_TestExecutionContext()),
+    );
+
+    expect(response.status, 200);
+    expect((await response.text().toDart).toDart, '/custom');
+  });
 }
 
 Future<web.Response> _callWorkerFetch(
-  JSObject worker,
+  JSFunction fetch,
   web.Request request,
   JSObject env,
   JSObject ctx,
 ) {
-  return worker
+  return fetch
       .callMethodVarArgs<JSPromise<web.Response>>(
-        'fetch'.toJS,
-        [request, env, ctx],
+        'call'.toJS,
+        [null, request, env, ctx],
       )
       .toDart;
+}
+
+JSFunction _currentFetchHandler() {
+  return _fetchHandlerFor(defaultCloudflareFetchName);
+}
+
+JSFunction _fetchHandlerFor(String name) {
+  return globalContext.getProperty<JSFunction?>(name.toJS)!;
 }

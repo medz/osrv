@@ -3,14 +3,13 @@ library;
 
 import 'dart:async';
 import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 
 import 'package:web/web.dart' as web;
 
 import '../../core/capabilities.dart';
-import '../../core/errors.dart';
 import '../../core/runtime.dart';
 import '../../core/server.dart';
-import 'config.dart';
 import 'extension.dart';
 import 'host.dart';
 import 'lifecycle_context.dart';
@@ -32,27 +31,43 @@ const cloudflareRuntimeInfo = RuntimeInfo(
   kind: 'entry',
 );
 
-Object cloudflareWorker(
-  Server server, [
-  CloudflareRuntimeConfig config = const CloudflareRuntimeConfig(),
-]) {
-  if (!config.enableFetch) {
-    throw RuntimeConfigurationError(
-      'CloudflareRuntimeConfig.enableFetch must be true in the current first cut.',
+const defaultCloudflareFetchName = '__osrv_fetch__';
+
+void defineCloudflareFetch(
+  Server server, {
+  String name = defaultCloudflareFetchName,
+}) {
+  if (name.trim().isEmpty) {
+    throw ArgumentError.value(
+      name,
+      'name',
+      'Cloudflare fetch export name must not be empty.',
     );
   }
 
-  return createJSInteropWrapper(
-    _CloudflareWorkerExport(server, config),
+  globalContext.setProperty(
+    name.toJS,
+    _createCloudflareFetchExport(server),
   );
 }
 
-@JSExport()
-final class _CloudflareWorkerExport {
-  _CloudflareWorkerExport(this._server, this._config);
+JSExportedDartFunction _createCloudflareFetchExport(
+  Server server,
+) {
+  final handler = _CloudflareFetchHandler(server);
+  JSPromise<web.Response> fetch(
+    web.Request request, [
+    JSObject? env,
+    CloudflareExecutionContext? context,
+  ]) => handler.handle(request, env, context).toJS;
+
+  return fetch.toJS;
+}
+
+final class _CloudflareFetchHandler {
+  _CloudflareFetchHandler(this._server);
 
   final Server _server;
-  final CloudflareRuntimeConfig _config;
   Future<void>? _startOperation;
 
   Future<void> _ensureStarted(
@@ -72,54 +87,51 @@ final class _CloudflareWorkerExport {
     return operation;
   }
 
-  JSPromise<web.Response> fetch(
+  Future<web.Response> handle(
     web.Request request, [
     JSObject? env,
     CloudflareExecutionContext? context,
-  ]) {
-    return (() async {
-      _config;
-      final extension = CloudflareRuntimeExtension(
-        env: env,
-        context: context,
-        request: request,
-      );
-      final lifecycleContext = CloudflareServerLifecycleContext(
-        runtime: cloudflareRuntimeInfo,
-        capabilities: cloudflareRuntimeCapabilities,
-        extension: extension,
-      );
-      final requestContext = CloudflareRequestContext(
-        runtime: cloudflareRuntimeInfo,
-        capabilities: cloudflareRuntimeCapabilities,
-        extension: extension,
-      );
+  ]) async {
+    final extension = CloudflareRuntimeExtension(
+      env: env,
+      context: context,
+      request: request,
+    );
+    final lifecycleContext = CloudflareServerLifecycleContext(
+      runtime: cloudflareRuntimeInfo,
+      capabilities: cloudflareRuntimeCapabilities,
+      extension: extension,
+    );
+    final requestContext = CloudflareRequestContext(
+      runtime: cloudflareRuntimeInfo,
+      capabilities: cloudflareRuntimeCapabilities,
+      extension: extension,
+    );
 
-      try {
-        await _ensureStarted(lifecycleContext);
-        final htRequest = await cloudflareRequestToHtRequest(request);
-        final response = await _server.fetch(htRequest, requestContext);
-        return cloudflareResponseFromHtResponse(response);
-      } catch (error, stackTrace) {
-        if (_server.onError != null) {
-          final handled = await _server.onError!(
-            error,
-            stackTrace,
-            lifecycleContext,
-          );
-          if (handled != null) {
-            return cloudflareResponseFromHtResponse(handled);
-          }
-        }
-
-        return web.Response(
-          'Internal Server Error'.toJS,
-          web.ResponseInit(
-            status: 500,
-            statusText: 'Internal Server Error',
-          ),
+    try {
+      await _ensureStarted(lifecycleContext);
+      final htRequest = await cloudflareRequestToHtRequest(request);
+      final response = await _server.fetch(htRequest, requestContext);
+      return cloudflareResponseFromHtResponse(response);
+    } catch (error, stackTrace) {
+      if (_server.onError != null) {
+        final handled = await _server.onError!(
+          error,
+          stackTrace,
+          lifecycleContext,
         );
+        if (handled != null) {
+          return cloudflareResponseFromHtResponse(handled);
+        }
       }
-    })().toJS;
+
+      return web.Response(
+        'Internal Server Error'.toJS,
+        web.ResponseInit(
+          status: 500,
+          statusText: 'Internal Server Error',
+        ),
+      );
+    }
   }
 }
