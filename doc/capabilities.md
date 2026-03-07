@@ -1,26 +1,13 @@
 # osrv Capabilities
 
-## Goal
+`RuntimeCapabilities` tells you what the selected runtime actually supports.
 
-This document freezes the capability model for `osrv`.
+Use it for feature branching.
+Do not assume every host behaves like `dart` or `node`.
 
-`osrv` unifies server shape, not host power.
-Capabilities exist so runtime differences stay visible and usable.
+## Capability Fields
 
-## Core Rule
-
-Capabilities describe real runtime support.
-
-They do not describe:
-- aspirational support
-- polyfilled maybe-support
-- marketing equivalence across runtimes
-
-If a runtime cannot support something honestly, that capability must be false.
-
-## Capability Surface
-
-The initial capability surface should stay small.
+`osrv` currently exposes these booleans:
 
 ```dart
 final class RuntimeCapabilities {
@@ -32,197 +19,96 @@ final class RuntimeCapabilities {
     required this.rawTcp,
     required this.nodeCompat,
   });
-
-  final bool streaming;
-  final bool websocket;
-  final bool fileSystem;
-  final bool backgroundTask;
-  final bool rawTcp;
-  final bool nodeCompat;
 }
 ```
 
-This list can evolve, but only when new fields capture real distinctions needed by more than one runtime family.
+## Current Support Matrix
 
-## Semantics
+| Runtime | Entry model | streaming | websocket | fileSystem | backgroundTask | rawTcp | nodeCompat |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `dart` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `false` |
+| `node` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `true` |
+| `bun` | `serve(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
+| `cloudflare` | `defineFetchEntry(...)` | `true` | `false` | `false` | `true` | `false` | `true` |
+| `vercel` | `defineFetchEntry(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
 
-### streaming
+## What Each Field Means
 
-Meaning:
-- the runtime can stream response bodies in a real, supported way
+### `streaming`
 
-Does not mean:
-- buffering everything and pretending it is streaming
+The runtime can stream response bodies without forcing everything through one buffered payload.
 
-### websocket
+### `websocket`
 
-Meaning:
-- the runtime can support websocket handling in its official serving model
+The runtime supports websocket handling through the current `osrv` surface.
 
-Does not mean:
-- partial or unofficial hacks that only work in narrow cases
+Current status:
+- `false` for every runtime family
 
-### fileSystem
+### `fileSystem`
 
-Meaning:
-- the runtime can access a meaningful writable or readable host filesystem in its normal model
+The runtime has meaningful filesystem access in its normal execution model.
 
-Does not mean:
-- build-time assets only
-- fake in-memory fallbacks presented as host filesystem
+### `backgroundTask`
 
-### backgroundTask
+The runtime supports request-scoped background work through `RequestContext.waitUntil(...)` or an equivalent host integration.
 
-Meaning:
-- the runtime can register work that survives beyond immediate response completion in its supported lifecycle model
+### `rawTcp`
 
-Does not mean:
-- “maybe the task finishes if the process survives”
+The runtime has meaningful low-level socket support available in its host model.
 
-### rawTcp
+### `nodeCompat`
 
-Meaning:
-- the runtime can work with raw TCP or equivalent low-level socket control in a meaningful supported way
+The runtime exposes meaningful Node-compatible behavior or APIs.
 
-Does not mean:
-- only HTTP-level networking
+## Where You Read Capabilities
 
-### nodeCompat
+For serve-based runtimes:
+- `runtime.capabilities`
+- `context.capabilities`
 
-Meaning:
-- the runtime has meaningful Node compatibility semantics
+For entry-export runtimes:
+- `context.capabilities`
 
-Does not mean:
-- partial shims that fail under normal Node expectations
-
-## Where Capabilities Live
-
-Capabilities should be visible in two places:
-- on the running `Runtime`
-- on `RequestContext`
-
-This lets upper layers branch:
-- once globally after startup
-- per request when needed
-
-## Example
+Example:
 
 ```dart
 final runtime = await serve(
   server,
-  const NodeRuntimeConfig(
-    port: 3000,
-  ),
+  const NodeRuntimeConfig(port: 3000),
 );
 
-if (!runtime.capabilities.backgroundTask) {
-  // disable feature globally
+if (!runtime.capabilities.websocket) {
+  // fallback path
 }
 ```
 
 ```dart
 final server = Server(
-  fetch: (request, context) async {
-    if (!context.capabilities.websocket) {
-      return Response.json(
-        {'error': 'websocket unsupported'},
-        status: 501,
-      );
+  fetch: (request, context) {
+    if (!context.capabilities.backgroundTask) {
+      return Response.text('background work unavailable', status: 501);
     }
 
+    context.waitUntil(Future<void>.value());
     return Response.text('ok');
   },
 );
 ```
 
-## Missing Capability Behavior
-
-When a capability is false:
-- the runtime should not fake support
-- documentation must say so clearly
-- the API should fail explicitly where needed
-
-Possible failure forms:
-- validation error
-- startup failure
-- request-time error
-- explicit feature disablement by the caller
-
-The correct failure mode depends on when support is required.
-
-## Capability vs Extension
+## Capabilities vs Extensions
 
 Use capabilities to answer:
-- is this class of feature supported?
+- can this runtime support a feature at all?
 
 Use runtime extensions to answer:
-- what runtime-specific power is available once support exists?
+- what host-specific objects or helpers are available?
 
-Example:
-- `websocket == true` answers whether websocket is supported at all
-- `DartRuntimeExtension` or `CloudflareRuntimeExtension<Env, Request>` answers what host-specific controls exist
+Examples:
+- `context.capabilities.backgroundTask`
+- `context.extension<VercelRuntimeExtension<web.Request>>()`
 
-Capabilities should stay boolean and coarse.
-Extensions can be typed and detailed.
+## Important Limitation
 
-## Design Rules
-
-### Capabilities Must Be Honest
-
-Do not mark a capability as supported unless normal usage can rely on it.
-
-### Capabilities Must Stay Small
-
-Do not turn capabilities into a giant compatibility matrix.
-
-If a distinction matters only inside one runtime family, prefer a runtime extension or runtime-specific docs.
-
-### Capabilities Must Not Replace Documentation
-
-Capabilities are quick truth signals.
-They do not remove the need for runtime-specific docs about limits and edge cases.
-
-## Rejected Directions
-
-### Soft Truth
-
-Rejected:
-
-```dart
-const RuntimeCapabilities(
-  websocket: maybeSupportedInSomeModes,
-);
-```
-
-Reason:
-- callers need reliable branching signals
-
-### Capability Inflation
-
-Rejected:
-
-```dart
-const RuntimeCapabilities(
-  websocketVersion13: true,
-  websocketCompression: false,
-  websocketProxySafe: true,
-  // ...
-);
-```
-
-Reason:
-- detailed host nuance belongs in docs or extensions, not in the core boolean surface
-
-### Fake Uniformity
-
-Rejected:
-- reporting `fileSystem: true` for edge runtimes by inventing synthetic storage semantics
-- reporting `backgroundTask: true` for runtimes that only maybe complete post-response work
-
-## Success Criteria
-
-The capability model is correct when:
-- upper layers can branch safely
-- runtime truth stays visible
-- new runtime families can declare support without distorting core
-- unsupported features fail honestly instead of silently degrading
+Capabilities are intentionally coarse.
+They do not replace runtime-specific docs for lifecycle details, host objects, or platform restrictions.

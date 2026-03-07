@@ -1,230 +1,122 @@
-# osrv Config Model
+# osrv Config
 
-## Goal
+Runtime selection in `osrv` is always explicit.
 
-This document freezes the runtime config model for `osrv`.
+There are two ways to select a runtime:
+- pass a `RuntimeConfig` into `serve(...)`
+- choose a `FetchEntryRuntime` in `defineFetchEntry(...)`
 
-The config model must satisfy two goals:
-- runtime selection is explicit
-- each runtime family owns its own config shape
+## Serve-Based Runtimes
 
-## Core Rule
+These runtimes use `serve(server, runtimeConfig)`:
+- `dart`
+- `node`
+- `bun`
 
-The serve entry takes exactly one runtime config input.
+### `DartRuntimeConfig`
 
-Conceptually:
+Import:
+
+```dart
+import 'package:osrv/runtime/dart.dart';
+```
+
+Fields:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `host` | `'127.0.0.1'` | Host interface passed to `HttpServer.bind` |
+| `port` | `3000` | Port passed to `HttpServer.bind` |
+| `backlog` | `0` | Backlog passed to `HttpServer.bind` |
+| `shared` | `false` | Whether the socket can be shared |
+| `v6Only` | `false` | Whether IPv6 sockets reject IPv4-mapped connections |
+
+Validation:
+- `host` must not be empty
+- `port` must be between `0` and `65535`
+- `backlog` must not be negative
+
+### `NodeRuntimeConfig`
+
+Import:
+
+```dart
+import 'package:osrv/runtime/node.dart';
+```
+
+Fields:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `host` | `'127.0.0.1'` | Host interface passed to the Node HTTP server |
+| `port` | `3000` | Listener port |
+
+Validation:
+- `host` must not be empty
+- `port` must be between `0` and `65535`
+
+### `BunRuntimeConfig`
+
+Import:
+
+```dart
+import 'package:osrv/runtime/bun.dart';
+```
+
+Fields:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `host` | `'127.0.0.1'` | Host interface passed to `Bun.serve` |
+| `port` | `3000` | Listener port |
+
+Validation:
+- `host` must not be empty
+- `port` must be between `0` and `65535`
+
+## Entry-Export Runtimes
+
+These runtimes do not use `RuntimeConfig` today:
+- `cloudflare`
+- `vercel`
+
+Use:
+
+```dart
+defineFetchEntry(
+  server,
+  runtime: FetchEntryRuntime.cloudflare,
+);
+```
+
+Optional entry name override:
+
+```dart
+defineFetchEntry(
+  server,
+  runtime: FetchEntryRuntime.vercel,
+  name: '__custom_fetch__',
+);
+```
+
+Validation:
+- `name` must not be empty or whitespace-only
+
+Default:
+- `defaultFetchEntryName == '__osrv_fetch__'`
+
+## Selection Examples
+
+Serve-based:
 
 ```dart
 final runtime = await serve(
   server,
-  DartRuntimeConfig(...),
+  const NodeRuntimeConfig(host: '0.0.0.0', port: 3000),
 );
 ```
 
-This means:
-- config is not ambient
-- config is not registry-resolved
-- config is not multi-runtime
-
-## Allowed Shape
-
-Allowed direction:
-
-```dart
-final runtime = await serve(
-  server,
-  NodeRuntimeConfig(
-    host: '0.0.0.0',
-    port: 3000,
-  ),
-);
-```
-
-The important property is not the concrete syntax.
-The important property is that one runtime family is selected by one config object.
-
-## Rejected Shape
-
-Rejected direction:
-
-```dart
-final config = OsrvConfig(
-  node: NodeRuntimeConfig(port: 3000),
-  bun: BunRuntimeConfig(port: 3001),
-  cloudflareFetchName: '__osrv_fetch__',
-);
-```
-
-Reasons:
-- one deployment picks one runtime family
-- different runtime families have different truths
-- a shared mega-object weakens validation and naming
-
-## Runtime Config Families
-
-Each supported host runtime owns one config family.
-
-Expected serve-based families:
-- `DartRuntimeConfig`
-- `BunRuntimeConfig`
-- `NodeRuntimeConfig`
-
-Each family should:
-- validate its own fields
-- own its own defaults
-- document its own constraints
-
-## Design Rules
-
-### One Family Per Config
-
-A config object should select one runtime family only.
-
-Good:
-- `DartRuntimeConfig`
-- `NodeRuntimeConfig`
-
-Bad:
-- `UniversalRuntimeConfig`
-- `PlatformConfig`
-- `ServerRuntimeOptions` that mixes multiple families
-
-### Config Owns Runtime-Specific Options
-
-Runtime-specific fields belong in runtime-specific config.
-
-Examples:
-- `port` and `host` belong in `DartRuntimeConfig`
-- `port` and `host` belong in `NodeRuntimeConfig`
-- export names belong in `defineFetchEntry(..., name: ...)`
-
-Do not pull such fields upward prematurely.
-
-### Shared Fields Must Earn Promotion
-
-If multiple runtime families later need the same field name and meaning, a shared helper type may be introduced.
-
-But promotion must satisfy both:
-- the meaning is genuinely stable
-- the field does not erase platform difference
-
-Shared helpers are allowed.
-Shared mega-configs are not.
-
-## Validation Rules
-
-Validation should happen as close to the runtime family as possible.
-
-Examples:
-- invalid port range for `DartRuntimeConfig`
-- invalid port range for `NodeRuntimeConfig`
-- invalid export names for `defineFetchEntry(..., name: ...)`
-
-The core should not try to understand every runtime family's validation logic.
-
-## Defaulting Rules
-
-Defaults should remain runtime-family-specific unless they are truly universal.
-
-Examples:
-- a default host and port may exist for `dart`
-- a default host and port may exist for `node`
-- a default export name may exist for `vercel`
-
-Do not invent cross-runtime defaults just for symmetry.
-
-## Config Lifecycle
-
-The config lifecycle is:
-
-```text
-user creates RuntimeConfig
-  -> serve(server, runtimeConfig)
-  -> runtime family validates config
-  -> runtime starts
-  -> running Runtime is returned
-```
-
-This separation matters:
-- config means intent
-- runtime means active state
-
-## Minimum Examples
-
-### Dart
-
-```dart
-final runtime = await serve(
-  server,
-  DartRuntimeConfig(
-    host: '0.0.0.0',
-    port: 3000,
-    shared: true,
-  ),
-);
-```
-
-### Vercel
-
-```dart
-void main() {
-  defineFetchEntry(
-    server,
-    runtime: FetchEntryRuntime.vercel,
-  );
-}
-```
-
-## Rejected Directions
-
-### Runtime Detection
-
-Rejected:
-
-```dart
-final runtime = await serve(server, detectRuntimeConfig());
-```
-
-Reason:
-- runtime choice must be explicit, not ambient
-
-### Runtime As Config Input
-
-Rejected:
-
-```dart
-final runtime = DartRuntime(...);
-await serve(server, runtime);
-```
-
-Reason:
-- pre-start config and post-start runtime should not share the same meaning
-
-### Mega Config
-
-Rejected:
-
-```dart
-final runtime = await serve(server, AllRuntimeConfig(...));
-```
-
-Reason:
-- one deployment chooses one runtime family
-- each family owns its own truth
-
-## Success Criteria
-
-The config model is correct when:
-- runtime choice is obvious at the call site
-- each runtime family can validate independently
-- the config type name tells the reader this is input, not output
-- adding a new runtime family does not require inventing a universal config layer
-
-## Entry-Export Hosts
-
-Some hosts may not use `serve(...)` at all.
-
-Current example:
+Entry-export:
 
 ```dart
 void main() {
@@ -235,5 +127,11 @@ void main() {
 }
 ```
 
-This does not make `cloudflare` a `RuntimeConfig` family.
-It means `cloudflare` currently uses an explicit export-entry shape instead of a running listener handle.
+## Import Rule
+
+Use runtime-family entrypoints:
+- `package:osrv/runtime/dart.dart`
+- `package:osrv/runtime/node.dart`
+- `package:osrv/runtime/bun.dart`
+
+Do not import `package:osrv/src/runtime/...` config files directly.

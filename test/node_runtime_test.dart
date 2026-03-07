@@ -28,7 +28,7 @@ void main() {
 
   test(
     'node request listener callback is compile-safe with empty extension',
-    () {
+    () async {
       var invoked = false;
       final callback = createNodeHostRequestCallback((
         request,
@@ -38,7 +38,10 @@ void main() {
         invoked = true;
       });
 
-      callback(const NodeRuntimeExtension());
+      await expectLater(
+        callback(const NodeRuntimeExtension()),
+        throwsA(isA<StateError>()),
+      );
       expect(invoked, isFalse);
     },
   );

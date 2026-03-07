@@ -1,10 +1,16 @@
 export 'package:ht/ht.dart' show Headers, Request, Response;
 
-export 'src/core/capabilities.dart';
-export 'src/core/errors.dart';
-export 'src/core/extension.dart';
-export 'src/core/request_context.dart';
-export 'src/core/runtime.dart';
-export 'src/core/runtime_config.dart';
-export 'src/core/serve.dart';
-export 'src/core/server.dart';
+export 'src/core/capabilities.dart' show RuntimeCapabilities;
+export 'src/core/errors.dart'
+    show
+        RuntimeConfigurationError,
+        RuntimeStartupError,
+        UnsupportedRuntimeCapabilityError;
+export 'src/core/extension.dart' show RuntimeExtension;
+export 'src/core/request_context.dart'
+    show RequestContext, ServerLifecycleContext;
+export 'src/core/runtime.dart' show Runtime, RuntimeInfo;
+export 'src/core/runtime_config.dart' show RuntimeConfig;
+export 'src/core/serve.dart' show serve;
+export 'src/core/server.dart'
+    show Server, ServerErrorHook, ServerFetch, ServerHook;

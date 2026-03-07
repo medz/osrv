@@ -1,3 +1,5 @@
+// ignore_for_file: public_member_api_docs
+
 import 'dart:async';
 
 import 'extension.dart';
@@ -18,7 +20,10 @@ NodeHostRequestCallback createNodeHostRequestCallback(
     final request = extension.request;
     final response = extension.response;
     if (request == null || response == null) {
-      return;
+      throw StateError(
+        'Node host request callback requires a request-scoped '
+        'NodeRuntimeExtension.',
+      );
     }
 
     await onRequest(request, response, extension);

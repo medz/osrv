@@ -8,6 +8,7 @@ import '../runtime/dart/serve.dart';
 import '../runtime/node/config.dart';
 import '../runtime/node/serve.dart';
 
+/// Starts [server] with the concrete runtime selected by [runtime].
 Future<Runtime> serve(Server server, RuntimeConfig runtime) async {
   return switch (runtime) {
     BunRuntimeConfig() => serveBunRuntime(server, runtime),

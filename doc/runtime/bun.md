@@ -1,63 +1,98 @@
 # Bun Runtime
 
-## Status
+Use the `bun` runtime when your app is compiled for a Bun JavaScript host and should listen through `Bun.serve(...)`.
 
-`bun` is implemented as a serve-based JavaScript-host runtime.
+## Import
 
-## Current Model
+```dart
+import 'package:osrv/osrv.dart';
+import 'package:osrv/runtime/bun.dart';
+```
 
-Current entry:
+## Start a Server
 
 ```dart
 final runtime = await serve(
   server,
-  const BunRuntimeConfig(
-    host: '127.0.0.1',
-    port: 3000,
-  ),
+  const BunRuntimeConfig(host: '127.0.0.1', port: 3000),
 );
 ```
 
-Current support:
-- `BunRuntimeConfig`
-- `BunRuntimeExtension`
-- `Bun.serve(...)` integration
-- streaming request bodies
-- streaming response bodies
-- `onStart`, `onStop`, and `onError`
-- request-scoped `waitUntil(...)`
-- graceful shutdown that waits for in-flight requests and tracked background work
+## Host Requirements
 
-Current non-support:
-- websocket support
-- Bun-specific higher-level helpers beyond `BunRuntimeExtension`
-- production deployment guidance
+The `bun` runtime requires:
+- a JavaScript host
+- the global `Bun` object
+- `Bun.serve`
+
+If any of these are missing, startup fails with `UnsupportedError`.
+
+## Config
+
+```dart
+const BunRuntimeConfig({
+  this.host = '127.0.0.1',
+  this.port = 3000,
+});
+```
+
+Validation:
+- `host` must not be empty
+- `port` must be between `0` and `65535`
 
 ## Capabilities
 
-Current capability shape:
-
-```dart
-runtime.capabilities.streaming == true
-runtime.capabilities.websocket == false
-runtime.capabilities.fileSystem == true
-runtime.capabilities.backgroundTask == true
-runtime.capabilities.rawTcp == true
-runtime.capabilities.nodeCompat == true
-```
+| Capability | Value |
+| --- | --- |
+| `streaming` | `true` |
+| `websocket` | `false` |
+| `fileSystem` | `true` |
+| `backgroundTask` | `true` |
+| `rawTcp` | `false` |
+| `nodeCompat` | `true` |
 
 ## Runtime Handle
 
-The returned runtime exposes:
-- `runtime.info`
-- `runtime.capabilities`
-- `runtime.url`
-- `runtime.close()`
-- `runtime.closed`
+The returned `Runtime` exposes:
+- `info.name == 'bun'`
+- `info.kind == 'server'`
+- `capabilities`
+- `url`
+- `close()`
+- `closed`
 
-## Extensions
+## `BunRuntimeExtension`
 
-`BunRuntimeExtension` currently provides:
+Use `context.extension<BunRuntimeExtension>()` when you need Bun-specific host access.
+
+It can expose:
 - `bun`
 - `server`
-- `request` on request-scoped contexts
+- `request`
+
+Example:
+
+```dart
+final server = Server(
+  fetch: (request, context) {
+    final bun = context.extension<BunRuntimeExtension>();
+    return Response.json({
+      'runtime': context.runtime.name,
+      'hasBun': bun?.bun != null,
+    });
+  },
+);
+```
+
+## Lifecycle and Errors
+
+Current behavior:
+- config validation happens before startup
+- unsupported-host startup fails explicitly
+- `onStart`, `onStop`, and `onError` are supported
+- `waitUntil(...)` is tracked during shutdown
+
+## Current Limitations
+
+- websocket support is not implemented in the `osrv` surface
+- the runtime requires Bun host APIs and is not available on the Dart VM

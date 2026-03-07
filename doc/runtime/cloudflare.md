@@ -1,16 +1,18 @@
 # Cloudflare Runtime
 
-## Status
+Use the `cloudflare` runtime when you want to export a fetch handler for a Cloudflare Worker.
 
-`cloudflare` is implemented as an explicit fetch-export host.
-
-It is not part of the `serve(...) -> Runtime` family.
-
-## Entry Shape
+## Imports
 
 ```dart
+import 'package:osrv/osrv.dart';
 import 'package:osrv/esm.dart';
+import 'package:osrv/runtime/cloudflare.dart';
+```
 
+## Define the Entry
+
+```dart
 void main() {
   defineFetchEntry(
     server,
@@ -19,14 +21,21 @@ void main() {
 }
 ```
 
-This publishes a fetch handler to `globalThis`.
+Optional custom export name:
 
-The default name is:
-- `__osrv_fetch__`
+```dart
+defineFetchEntry(
+  server,
+  runtime: FetchEntryRuntime.cloudflare,
+  name: '__custom_fetch__',
+);
+```
 
-## JS Shim
+The default export name is `__osrv_fetch__`.
 
-The intended deploy shim is intentionally thin:
+## JavaScript Shim
+
+Compile the Dart entry to JavaScript, then re-export the generated fetch handler:
 
 ```js
 import './cloudflare.dart.js';
@@ -34,49 +43,70 @@ import './cloudflare.dart.js';
 export default { fetch: globalThis.__osrv_fetch__ };
 ```
 
-## Request Context
+If you pass `name: '__custom_fetch__'` to `defineFetchEntry(...)`, re-export
+`globalThis.__custom_fetch__` instead.
 
-`cloudflare` request handling still enters the normal `Server.fetch(...)` contract.
+## Runtime Model
 
-Runtime-specific data is available through:
+Cloudflare currently uses the entry-export model.
+
+That means:
+- use `defineFetchEntry(...)`
+- there is no `RuntimeConfig`
+- there is no running `Runtime` handle returned from `main()`
+
+## Capabilities
+
+| Capability | Value |
+| --- | --- |
+| `streaming` | `true` |
+| `websocket` | `false` |
+| `fileSystem` | `false` |
+| `backgroundTask` | `true` |
+| `rawTcp` | `false` |
+| `nodeCompat` | `true` |
+
+## `CloudflareRuntimeExtension`
+
+Use:
 
 ```dart
-import 'package:osrv/runtime/cloudflare.dart';
-import 'package:web/web.dart' as web;
-
-final cf = context.extension<
-    CloudflareRuntimeExtension<Env, web.Request>>();
+final cf =
+    context.extension<CloudflareRuntimeExtension<Object?, web.Request>>();
 ```
 
-The extension currently carries:
+The extension can expose:
 - `env`
 - `context`
 - `request`
 
-## waitUntil
+`context` is a `CloudflareExecutionContext`.
 
-In `cloudflare`, `context.waitUntil(...)` is a direct mapping to the host-native Worker execution context.
+Example:
 
-It is not a simulated queue owned by `osrv`.
+```dart
+import 'package:web/web.dart' as web;
 
-That means:
-- `backgroundTask` is a real runtime capability
-- request-scoped background work uses native Worker semantics
+final server = Server(
+  fetch: (request, context) {
+    final cf =
+        context.extension<CloudflareRuntimeExtension<Object?, web.Request>>();
+    return Response.json({
+      'runtime': context.runtime.name,
+      'hasEnv': cf?.env != null,
+    });
+  },
+);
+```
 
-## Current Scope
+## Background Work
 
-Current support:
-- `fetch`
-- typed runtime extension access
-- native `waitUntil(...)` forwarding
-- streaming request bodies
-- streaming response bodies
-- `onStart`
-- `onError`
+Use `context.waitUntil(...)` normally.
 
-Current non-support:
-- `scheduled`
-- `queue`
-- `email`
-- `tail`
-- a `Runtime` handle from `serve(...)`
+On Cloudflare, `osrv` forwards it to the worker execution context when available.
+
+## Current Limitations
+
+- websocket support is not implemented
+- `defineFetchEntry(...)` requires a JavaScript host
+- there is no listener-style `serve(...)` API for Cloudflare

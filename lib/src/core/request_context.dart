@@ -4,17 +4,23 @@ import 'capabilities.dart';
 import 'extension.dart';
 import 'runtime.dart';
 
+/// Carries runtime metadata shared by lifecycle hooks and request handling.
 base class ServerLifecycleContext {
+  /// Creates a lifecycle context for a concrete runtime invocation.
   ServerLifecycleContext({
     required this.runtime,
     required this.capabilities,
     RuntimeExtension? extension,
   }) : _extension = extension;
 
+  /// Identifies the runtime that is invoking the server.
   final RuntimeInfo runtime;
+
+  /// Declares which runtime capabilities are available for this invocation.
   final RuntimeCapabilities capabilities;
   final RuntimeExtension? _extension;
 
+  /// Returns the runtime-specific extension when it matches [T].
   T? extension<T extends RuntimeExtension>() {
     final extension = _extension;
     if (extension is T) {
@@ -25,7 +31,9 @@ base class ServerLifecycleContext {
   }
 }
 
+/// Adds per-request controls on top of the shared lifecycle context.
 base class RequestContext extends ServerLifecycleContext {
+  /// Creates a request context for a single incoming request.
   RequestContext({
     required super.runtime,
     required super.capabilities,
@@ -35,6 +43,7 @@ base class RequestContext extends ServerLifecycleContext {
 
   final void Function(Future<void> task) _onWaitUntil;
 
+  /// Registers a task that should outlive the immediate response.
   void waitUntil(Future<void> task) {
     _onWaitUntil(task);
   }
