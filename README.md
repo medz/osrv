@@ -1,7 +1,9 @@
 # osrv
 
+[![pub package](https://img.shields.io/pub/v/osrv.svg)](https://pub.dev/packages/osrv)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Dart SDK](https://img.shields.io/badge/dart-%5E3.10.0-0175C2?logo=dart)](https://dart.dev/)
+[![CI](https://github.com/medz/osrv/actions/workflows/ci.yml/badge.svg)](https://github.com/medz/osrv/actions/workflows/ci.yml)
 [![GitHub stars](https://img.shields.io/github/stars/medz/osrv?style=social)](https://github.com/medz/osrv)
 
 `osrv` is a unified server runtime for Dart applications.
