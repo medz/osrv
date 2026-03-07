@@ -102,9 +102,9 @@ if (!runtime.capabilities.websocket) {
 - [terms](./doc/terms.md)
 - [final usage examples](./doc/examples/final-usage.md)
 
-## Playground
+## Example
 
-The [`playground`](./playground) directory contains minimal runtime entry samples for:
+The [`example`](./example) directory contains minimal runtime entry samples for:
 - `dart`
 - `node`
 - `bun`

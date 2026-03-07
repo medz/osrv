@@ -1,5 +1,5 @@
 {
-  "name": "@osrv/playground",
+  "name": "@osrv/example",
   "private": true,
   "scripts": {
     "build:cloudflare": "dart compile js cloudflare.dart -o cloudflare.dart.js",
