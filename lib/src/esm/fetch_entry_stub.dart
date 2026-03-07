@@ -1,8 +1,10 @@
 import '../core/server.dart';
 import 'fetch_runtime.dart';
 
+/// Default global export name used for generated fetch entrypoints.
 const defaultFetchEntryName = '__osrv_fetch__';
 
+/// Defines a JavaScript fetch entrypoint for the selected runtime family.
 void defineFetchEntry(
   Server server, {
   required FetchEntryRuntime runtime,

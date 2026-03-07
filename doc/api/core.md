@@ -1,140 +1,93 @@
 # osrv Core API
 
-## Goal
+This page documents the stable core API exported by `package:osrv/osrv.dart`.
 
-This document defines the minimum user-facing core API for `osrv`.
+See [public surface](./public-surface.md) for the full export list.
 
-It is intentionally small.
-The purpose is to freeze the runtime-facing contract before any implementation detail expands it.
-
-## Design Rules
-
-- center the API on `Server`
-- keep input/output aligned with Web `Request` and `Response`
-- require explicit host selection
-- return one running `Runtime`
-- expose runtime truth through `RequestContext`
-- avoid framework-shaped APIs such as routing DSLs or middleware stacks
-
-## Minimum Public API
-
-The minimum core API should look conceptually like this:
+## Import
 
 ```dart
-typedef ServerFetch = FutureOr<Response> Function(
-  Request request,
-  RequestContext context,
-);
+import 'package:osrv/osrv.dart';
+```
 
+## Core Request Types
+
+`osrv` re-exports these request primitives from `package:ht/ht.dart`:
+- `Headers`
+- `Request`
+- `Response`
+
+`Server.fetch(...)` always works with these types, regardless of the selected runtime.
+
+## `Server`
+
+`Server` is the main application-facing contract.
+
+```dart
+final server = Server(
+  fetch: (request, context) async {
+    return Response.text('ok');
+  },
+);
+```
+
+### `Server.fetch`
+
+```dart
+typedef ServerFetch =
+    FutureOr<Response> Function(Request request, RequestContext context);
+```
+
+Use `fetch` to handle a request and return a response.
+
+### `Server.onStart`
+
+```dart
 typedef ServerHook = FutureOr<void> Function(ServerLifecycleContext context);
+```
 
-final class Server {
-  const Server({
-    required this.fetch,
-    this.onStart,
-    this.onStop,
-    this.onError,
-  });
+Runs after a serve-based runtime starts successfully.
 
-  final ServerFetch fetch;
-  final ServerHook? onStart;
-  final ServerHook? onStop;
-  final ServerErrorHook? onError;
-}
+### `Server.onStop`
 
-Future<Runtime> serve(
-  Server server,
-  RuntimeConfig runtime,
+Also a `ServerHook`.
+
+Runs during runtime shutdown.
+
+### `Server.onError`
+
+```dart
+typedef ServerErrorHook = FutureOr<Response?> Function(
+  Object error,
+  StackTrace stackTrace,
+  ServerLifecycleContext context,
 );
 ```
 
-Some hosts may expose a separate explicit entry API instead of `serve(...)`.
+Use `onError` to translate request-time failures into a response.
 
-Current examples:
+If `onError` returns `null`, the runtime writes a default internal-server-error response.
 
-```dart
-void main() {
-  defineFetchEntry(
-    server,
-    runtime: FetchEntryRuntime.cloudflare,
-  );
-}
-```
-
-## Server
-
-`Server` is the only required application-facing object in core.
-
-Responsibilities:
-- accept requests
-- return responses
-- participate in lifecycle hooks
-
-Non-responsibilities:
-- listening on a socket
-- choosing a runtime
-- carrying runtime-specific config
-- choosing whether a host is serve-based or export-based
-
-## serve
-
-The core serve entry should be explicit and minimal.
+## `serve`
 
 ```dart
-Future<Runtime> serve(
-  Server server,
-  RuntimeConfig runtime,
-);
+Future<Runtime> serve(Server server, RuntimeConfig runtime)
 ```
 
-Rules:
-- `runtime` is required
-- `runtime` is a one-of runtime config input
-- `serve(...)` returns one running `Runtime`
+Use `serve(...)` for:
+- `DartRuntimeConfig`
+- `NodeRuntimeConfig`
+- `BunRuntimeConfig`
 
-Rejected shapes:
+Do not use `serve(...)` for:
+- `cloudflare`
+- `vercel`
 
-```dart
-Future<Runtime> serve(Server server);
-Future<Runtime> serve(Server server, {String? runtime});
-Future<Runtime> serve(Server server, {bool detectRuntime = true});
-Future<Runtime> serve(Server server, Runtime runtime);
-```
+Those runtimes use `defineFetchEntry(...)` from `package:osrv/esm.dart`.
 
-Why `RuntimeConfig` instead of `Runtime` as input:
-- input should describe desired host selection
-- output should describe active running state
-- the same name should not mean both pre-start and post-start concepts
+## `Runtime`
 
-This rule applies only to serve-based hosts.
-
-Entry-export hosts should use a dedicated explicit entry API instead of pretending to return a running runtime.
-
-## RuntimeConfig
-
-The input runtime type should be config-shaped.
-
-Examples:
-
-```dart
-final runtime = DartRuntimeConfig(
-  host: '0.0.0.0',
-  port: 3000,
-);
-
-final running = await serve(server, runtime);
-```
-
-Rules:
-- every runtime family owns its own config type
-- config is explicit and one-of
-- config must not collapse all platforms into one mega object
-
-Entry-export hosts are outside this specific config model.
-
-## Runtime
-
-`serve(...)` returns the running runtime handle.
+Serve-based runtimes return:
 
 ```dart
 abstract interface class Runtime {
@@ -146,189 +99,92 @@ abstract interface class Runtime {
 }
 ```
 
-Rules:
-- `Runtime` is output, not input
-- the interface must stay meaningful across all official runtimes
-- `url` may be `null` when the host does not expose one
-- `close()` must remain defined even if some runtimes treat it as a no-op or conceptual shutdown
+Meaning:
+- `info`: runtime identity such as `dart` or `node`
+- `capabilities`: real support flags for the active runtime
+- `url`: listener URL when one exists
+- `close()`: stop the runtime
+- `closed`: completes when shutdown finishes
 
-## RequestContext
+## `RuntimeInfo`
 
-The request context should stay small and runtime-oriented.
+`RuntimeInfo` identifies the active runtime.
 
-```dart
-base class RequestContext extends ServerLifecycleContext {
-  void waitUntil(Future<void> task);
-  T? extension<T extends RuntimeExtension>();
-}
-```
+Current values used by official runtimes include:
+- `name == 'dart'`
+- `name == 'node'`
+- `name == 'bun'`
+- `name == 'cloudflare'`
+- `name == 'vercel'`
+- `kind == 'server'` for listener runtimes
+- `kind == 'entry'` for fetch-export runtimes
 
-The context may later include stable request-scoped helpers, but v1 should resist expansion.
+## `RequestContext`
 
-Allowed responsibilities:
-- expose active runtime identity
-- expose runtime capabilities
-- expose runtime-specific extensions
-- expose background task registration where supported
+`RequestContext` is passed to every `fetch` call.
 
-Forbidden responsibilities:
-- store arbitrary mutable app state as product policy
-- expose raw host objects directly on the root context
-- become a catch-all event object
+It provides:
+- `runtime`
+- `capabilities`
+- `waitUntil(Future<void> task)`
+- `extension<T extends RuntimeExtension>()`
 
-## RuntimeInfo
-
-The request context and runtime handle need a stable runtime identity object.
+Example:
 
 ```dart
-final class RuntimeInfo {
-  const RuntimeInfo({
-    required this.name,
-    required this.kind,
-  });
-
-  final String name;
-  final String kind;
-}
+final server = Server(
+  fetch: (request, context) {
+    context.waitUntil(Future<void>.value());
+    return Response.text(context.runtime.name);
+  },
+);
 ```
+
+## `ServerLifecycleContext`
+
+`ServerLifecycleContext` is the base context used by:
+- `onStart`
+- `onStop`
+- `onError`
+
+It gives you:
+- `runtime`
+- `capabilities`
+- `extension<T>()`
+
+## `RuntimeCapabilities`
+
+`RuntimeCapabilities` exposes:
+- `streaming`
+- `websocket`
+- `fileSystem`
+- `backgroundTask`
+- `rawTcp`
+- `nodeCompat`
+
+See [capabilities](../capabilities.md) for the current matrix.
+
+## `RuntimeExtension`
+
+`RuntimeExtension` is the marker interface used for runtime-specific extensions.
+
+Use `context.extension<T>()` to retrieve one.
 
 Examples:
-- `name = "dart"`
-- `name = "cloudflare"`
-- `kind = "server"`
-- `kind = "entry"`
+- `DartRuntimeExtension`
+- `NodeRuntimeExtension`
+- `BunRuntimeExtension`
+- `CloudflareRuntimeExtension<Env, Request>`
+- `VercelRuntimeExtension<Request>`
 
-## RuntimeCapabilities
+## Errors
 
-Capabilities expose runtime truth to upper layers.
+Core errors exported by `osrv.dart`:
+- `RuntimeConfigurationError`
+- `RuntimeStartupError`
+- `UnsupportedRuntimeCapabilityError`
 
-```dart
-final class RuntimeCapabilities {
-  const RuntimeCapabilities({
-    required this.streaming,
-    required this.websocket,
-    required this.fileSystem,
-    required this.backgroundTask,
-    required this.rawTcp,
-    required this.nodeCompat,
-  });
-
-  final bool streaming;
-  final bool websocket;
-  final bool fileSystem;
-  final bool backgroundTask;
-  final bool rawTcp;
-  final bool nodeCompat;
-}
-```
-
-Rules:
-- each field must mean real support
-- absence means unsupported, not “maybe through polyfill”
-- new fields should be added only when at least two runtimes need the distinction
-
-## RuntimeExtension
-
-Runtime-specific features should be exposed through typed extensions.
-
-```dart
-abstract interface class RuntimeExtension {
-  const RuntimeExtension();
-}
-```
-
-Access shape:
-
-```dart
-final cf = context.extension<
-    CloudflareRuntimeExtension<JSObject, web.Request>>();
-```
-
-Rules:
-- extensions are runtime-specific
-- extensions do not belong on root core objects
-- missing extension access should return `null` or a typed failure, not fake objects
-
-## Lifecycle Hooks
-
-The minimum lifecycle surface should stay narrow.
-
-```dart
-typedef ServerErrorHook = FutureOr<Response?> Function(
-  Object error,
-  StackTrace stackTrace,
-  ServerLifecycleContext context,
-);
-
-abstract interface class ServerLifecycleContext {
-  RuntimeInfo get runtime;
-  RuntimeCapabilities get capabilities;
-  T? extension<T extends RuntimeExtension>();
-}
-```
-
-Lifecycle hooks should support:
-- start
-- stop
-- error interception
-
-Do not add broad hook matrices until real runtimes force the need.
-
-## Error Model
-
-The core should define only a minimal runtime-facing error model.
-
-Initial categories:
-- invalid runtime configuration
-- unsupported capability usage
-- runtime startup failure
-- request handling failure
-
-The core should not invent a huge error taxonomy before actual runtimes validate it.
-
-## Anti-Patterns
-
-The following API directions are rejected:
-
-### Router-Centered Core
-
-Rejected:
-
-```dart
-final app = App();
-app.get('/users', handler);
-await app.listen();
-```
-
-Reason:
-- this makes the product center an application framework, not a server runtime
-
-### Adapter-Centered Core
-
-Rejected:
-
-```dart
-await server.listen(adapter: NodeAdapter());
-```
-
-Reason:
-- runtime selection is a first-class choice, not a replaceable shim
-
-### Ambient Platform Detection
-
-Rejected:
-
-```dart
-await serve(server, detectRuntime());
-```
-
-Reason:
-- runtime selection must stay explicit in product semantics
-
-## Open Constraints for Implementation
-
-When implementing this API:
-- preserve `Server` as the center
-- keep `RequestContext` narrow
-- do not move host-specific state into core
-- do not add convenience APIs that hide explicit runtime choice
+Typical causes:
+- invalid config values
+- startup failures
+- requesting a capability that a runtime does not expose

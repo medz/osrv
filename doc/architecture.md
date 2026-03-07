@@ -1,339 +1,146 @@
 # osrv Architecture
 
-## What osrv Is
+`osrv` is a runtime layer for Dart applications.
 
-`osrv` is a unified server runtime shape for Dart applications.
+It gives you:
+- one `Server` contract
+- explicit runtime selection
+- a shared lifecycle model
+- a capability model
+- typed runtime extensions for host-specific access
 
-Its job is to provide:
-- a single `Server` contract
-- explicit host selection
-- a stable lifecycle model
-- a capability model that exposes platform differences
-- a consistent way for upper layers to run on `dart`, `node`, `bun`, `cloudflare`, `vercel`, and future official targets
+It does not give you:
+- a router DSL
+- middleware composition primitives
+- automatic runtime detection
+- one giant cross-platform config object
 
-`osrv` is the runtime substrate, not the application framework.
+## The Two Entry Models
 
-## What osrv Is Not
+`osrv` currently supports two explicit entry models.
 
-`osrv` is not:
-- an HTTP framework with its own routing DSL as the product center
-- an adapter registry that dynamically picks a platform
-- a universal configuration object that contains every platform field at once
-- a fake abstraction layer that pretends all runtimes have the same abilities
-- a compatibility wrapper around existing code structure
+### 1. Serve-Based Runtimes
 
-## Product Position
+Use `serve(server, runtimeConfig)` when the host owns a long-lived listener.
 
-The product stack should be understood like this:
+Current serve-based runtimes:
+- `dart`
+- `node`
+- `bun`
 
-```text
-Application / Framework
-  -> osrv Server contract
-  -> explicit host entry
-  -> actual host runtime
+Example:
+
+```dart
+import 'package:osrv/osrv.dart';
+import 'package:osrv/runtime/dart.dart';
+
+final runtime = await serve(
+  server,
+  const DartRuntimeConfig(host: '127.0.0.1', port: 3000),
+);
 ```
 
-This means:
-- upper layers depend on `osrv`
-- `osrv` depends on explicit runtime configs
-- runtime implementations depend on real platform APIs
+### 2. Entry-Export Runtimes
 
-## Documentation Map
+Use `defineFetchEntry(server, runtime: ...)` when the host expects a fetch handler export instead of a running listener.
 
-Use these documents as the main navigation points:
-- [runtime docs](./runtime/README.md) for runtime-family overviews and usage guides
-- [final usage examples](./examples/final-usage.md) for user-facing API shape examples
-- [runtime API](./api/runtime.md) for `RuntimeConfig` and `Runtime`
-- [core API](./api/core.md) for `Server`, `RequestContext`, and serve flow
-- [capabilities](./capabilities.md) for capability semantics
-
-## Design Premises
-
-### Explicit Runtime Selection
-
-Each deployment chooses one host family explicitly.
-
-Examples:
-- local service on `dart`
-- edge deployment on `cloudflare`
-- serverless deployment on `vercel`
-
-For serve-based hosts, this choice is expressed through one runtime config.
-For entry-export hosts, this choice is expressed through one explicit export API.
-
-The host is not discovered at runtime and is not selected from a registry.
-
-### Single Shape, Uneven Capabilities
-
-`osrv` unifies the server shape, not the platform feature set.
-
-So `osrv` must unify:
-- request and response entry semantics
-- server lifecycle stages
-- runtime capability declaration
-- access patterns for runtime-specific extensions
-
-But `osrv` must not pretend that every runtime supports:
-- filesystem
-- raw sockets
-- websocket
-- background tasks
-- long-lived process state
-
-### Core Before Targets
-
-`osrv core` must stay smaller than any single runtime family implementation.
-
-The core should define only the stable common contract required by more than one runtime family.
-Anything that exists only because one host runtime needs it belongs to that target, not to core.
-
-## Layer Model
-
-`osrv` should be split into three conceptual layers.
-
-At the current stage, these are code boundaries inside one package, not separate packages by default.
-
-### 1. Core
-
-The core defines the stable product contract:
-- `Server`
-- `serve(server, runtimeConfig)` orchestration contract
-- `RequestContext`
-- lifecycle hooks
-- `RuntimeCapabilities`
-- `Runtime`
-- runtime extension access contract
-- shared error semantics
-
-The core must not:
-- import host platform libraries
-- assume a specific process model
-- hardcode deployment behavior
-
-At the current implementation stage, there is one practical exception:
-- `lib/src/core/serve.dart` is the runtime dispatch entry for serve-based hosts
-- `lib/src/esm/*` is the runtime dispatch entry for fetch-export hosts
-
-That means the stable contract remains core-owned, but the package still uses
-small dispatch entry points that know about the official runtime implementations.
-This is an implementation convenience inside one package, not a claim that
-runtime families are hidden from the product surface.
-
-### 2. Runtime Implementations
-
-Each explicit host family maps to one official runtime implementation.
-
-Examples:
-- `node`
-- `dart`
-- `bun`
+Current entry-export runtimes:
 - `cloudflare`
 - `vercel`
 
-Each runtime implementation owns:
-- runtime config schema
-- startup rules
-- request bridging
-- response bridging
-- capability declaration
-- host environment binding
-- runtime-specific extension types
-- deployment constraints
+Example:
 
-Not every implementation must use the same top-level API shape.
+```dart
+import 'package:osrv/osrv.dart';
+import 'package:osrv/esm.dart';
 
-Examples:
-- `dart` and `node` are serve-based runtimes
-- `cloudflare` is currently an entry-export runtime
+void main() {
+  defineFetchEntry(
+    server,
+    runtime: FetchEntryRuntime.cloudflare,
+  );
+}
+```
 
-Runtimes are first-class product modules, not community adapters around a hidden center.
+## Request Flow
 
-### 3. Upper-Layer Integrations
+The shared request model is:
 
-Upper layers should only depend on `osrv` contracts.
+```text
+host request
+  -> runtime bridge
+  -> Server.fetch(request, context)
+  -> ht.Response
+  -> runtime bridge
+  -> host response
+```
 
-They should not:
-- import platform APIs directly for normal serving
-- guess runtime shape from ambient environment
-- rely on hidden side channels outside `osrv` contracts
+That gives application code one stable shape while still letting each runtime keep its own host behavior.
 
-## Core Responsibilities
+## Lifecycle Model
 
-The core is responsible for defining:
+The common lifecycle surface is:
+- `Server.fetch(...)` for request handling
+- `Server.onStart` for runtime startup
+- `Server.onStop` for runtime shutdown
+- `Server.onError` for request-level error translation
+- `RequestContext.waitUntil(...)` for background work where supported
 
-### Server Contract
+Serve-based runtimes also return a `Runtime` handle with:
+- `info`
+- `capabilities`
+- `url`
+- `close()`
+- `closed`
 
-The central abstraction is a `Server`.
+Entry-export runtimes do not return a running `Runtime`.
 
-At minimum, a `Server` must support:
-- request handling through a `fetch`-like entry
-- optional lifecycle hooks
-- access to runtime context through a stable request context object
+## Capability Model
 
-The center of the API is the server shape, not route configuration.
+`osrv` unifies the server shape, not host power.
 
-### Runtime-Oriented Serve Contract
-
-For serve-based hosts, the core should define a uniform way to boot a `Server` using one explicit `RuntimeConfig`.
-
-This means:
-- the user constructs one runtime config
-- the config selects exactly one runtime shape
-- the user calls `serve(server, runtimeConfig)`
-- the result is a `Runtime`
-
-This model does not force every host into `serve(...) -> Runtime`.
-
-Current exception:
-- `cloudflare` and `vercel` use `defineFetchEntry(...)`
-
-### Capability Model
-
-The core must let upper layers inspect runtime support instead of assuming it.
-
-Capabilities likely include:
+Use capabilities to branch on real host truth:
 - `streaming`
 - `websocket`
 - `fileSystem`
 - `backgroundTask`
-- `nodeCompat`
 - `rawTcp`
+- `nodeCompat`
 
-This list can evolve, but every capability must describe real host behavior, not marketing equivalence.
+Current global status:
+- websocket support is not implemented yet
 
-### Extension Model
+See [capabilities](./capabilities.md) for the current matrix.
 
-The core must provide a controlled way to access runtime-specific features without polluting common contracts.
+## Runtime Extensions
+
+When you need host-specific behavior, use a typed runtime extension from the request or lifecycle context.
 
 Examples:
-- Cloudflare request metadata
-- Node process or socket details
-- Bun-specific websocket or file helpers
+- `DartRuntimeExtension`
+- `NodeRuntimeExtension`
+- `BunRuntimeExtension`
+- `CloudflareRuntimeExtension<Env, Request>`
+- `VercelRuntimeExtension<Request>`
 
-These features should live behind runtime-specific extension entry points.
+Extensions expose runtime-specific power without pushing host objects into the common core API.
 
-## Runtime Responsibilities
+## Stable Imports
 
-Each runtime implementation is responsible for host truth.
+Application code should import only:
+- `package:osrv/osrv.dart`
+- `package:osrv/esm.dart`
+- `package:osrv/runtime/*.dart`
 
-That includes:
-- what startup means
-- what shutdown means
-- whether there is a durable server instance
-- whether request-scoped background work exists
-- what host bindings are available
-- what cannot be supported
+Do not import `package:osrv/src/...`.
 
-If a runtime cannot support a capability, it must declare that clearly instead of emulating it badly.
+See [public surface](./api/public-surface.md) for the exact export list.
 
-## Configuration Model
+## Related Docs
 
-Configuration is host-first.
-
-For serve-based hosts, runtime selection should stay explicit at the `serve(...)`
-call site instead of being hidden behind a synthetic top-level config bag.
-
-Correct direction:
-
-```dart
-final runtime = await serve(
-  server,
-  const DartRuntimeConfig(
-    host: '127.0.0.1',
-    port: 3000,
-  ),
-);
-```
-
-Incorrect direction:
-
-```text
-OsrvConfig
-  node: ...
-  bun: ...
-  cloudflare: ...
-  vercel: ...
-```
-
-The reason is product semantics:
-- one deployment chooses one target
-- each target has its own contract
-- shared defaults should be extracted only after they prove stable
-
-Entry-export hosts may not use `RuntimeConfig` at all.
-
-Current example:
-
-```dart
-final runtime = await serve(
-  server,
-  const DartRuntimeConfig(port: 3000),
-);
-```
-
-## Lifecycle Model
-
-The lifecycle should be unified conceptually, but not forced into identical host mechanics.
-
-The stable lifecycle vocabulary should cover:
-- configuration resolved
-- runtime prepared
-- server started
-- request handled
-- server stopping
-- server stopped
-
-Different targets may realize these stages differently.
-For example, an edge runtime may not look like a long-lived process, but it still participates in the same conceptual lifecycle.
-
-## Architectural Constraints
-
-The following constraints are mandatory:
-
-### No Adapter Registry
-
-There must be no core structure like:
-- `Adapter`
-- `AdapterRegistry`
-- `detectPlatform()`
-- `pickRuntimeFromEnv()`
-
-Those patterns hide a product decision that should stay explicit.
-
-### No Fake Uniformity
-
-Do not add broad abstractions just to erase visible runtime differences.
-
-Bad examples:
-- a fake shared filesystem API in core
-- a mandatory websocket contract for every runtime
-- a single server state model that assumes long-lived processes everywhere
-
-### No Framework Capture
-
-`osrv` cannot become an application framework by accident.
-
-If a feature mainly serves routing, controllers, middleware chains, or app composition, it belongs above `osrv` unless it is required to define the server runtime shape itself.
-
-## Initial Implementation Strategy
-
-Implementation should follow this order:
-
-1. Freeze terms and architecture.
-2. Freeze minimum user-facing API.
-3. Freeze runtime config model.
-4. Freeze capability model.
-5. Build `core`.
-6. Build one runtime family as proof, preferably `dart`.
-7. Expand to other targets one by one.
-
-This order matters because runtime families should validate the core contract, not shape it accidentally through premature implementation detail.
-
-## Success Criteria
-
-The architecture is successful when:
-- a user can declare one explicit runtime config cleanly
-- upper layers can run through a stable `Server` contract
-- runtime differences are inspectable and honest
-- adding a second runtime family does not require an adapter rewrite
-- the core remains small while targets stay authoritative
+- [config](./config.md)
+- [capabilities](./capabilities.md)
+- [core API](./api/core.md)
+- [runtime API](./api/runtime.md)
+- [runtime docs](./runtime/README.md)
+- [usage examples](./examples/final-usage.md)

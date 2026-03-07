@@ -4,8 +4,10 @@ import '../runtime/cloudflare/worker_js.dart' as cloudflare;
 import '../runtime/vercel/fetch_js.dart' as vercel;
 import 'fetch_runtime.dart';
 
+/// Default global export name used for generated fetch entrypoints.
 const defaultFetchEntryName = internal.defaultFetchEntryName;
 
+/// Defines a JavaScript fetch entrypoint for the selected runtime family.
 void defineFetchEntry(
   Server server, {
   required FetchEntryRuntime runtime,

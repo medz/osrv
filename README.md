@@ -1,33 +1,56 @@
 # osrv
 
-A unified server runtime shape for Dart applications.
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+[![Dart SDK](https://img.shields.io/badge/dart-%5E3.10.0-0175C2?logo=dart)](https://dart.dev/)
+[![GitHub stars](https://img.shields.io/github/stars/medz/osrv?style=social)](https://github.com/medz/osrv)
 
-## Status
+`osrv` is a unified server runtime for Dart applications.
 
-Implemented runtime families:
-- `dart` via `serve(server, DartRuntimeConfig(...))`
-- `node` via `serve(server, NodeRuntimeConfig(...))`
-- `bun` via `serve(server, BunRuntimeConfig(...))`
-- `cloudflare` via `defineFetchEntry(server, runtime: FetchEntryRuntime.cloudflare)`
-- `vercel` via `defineFetchEntry(server, runtime: FetchEntryRuntime.vercel)`
+It provides one portable `Server` contract and explicit runtime entrypoints for:
+- `dart`
+- `node`
+- `bun`
+- `cloudflare`
+- `vercel`
 
-## Install
+`osrv` is a runtime layer focused on running the same server contract across different host families, while keeping runtime capabilities and host-specific extensions explicit.
+
+## Why osrv
+
+Use `osrv` when you want:
+- one request-handling contract across multiple runtime families
+- explicit runtime selection instead of host auto-detection
+- honest capability reporting instead of fake cross-platform uniformity
+- typed runtime extensions for host-specific access
+
+## Features
+
+- Unified `Server` contract built around `Request`, `Response`, and `RequestContext`
+- Explicit runtime selection through `RuntimeConfig` or `defineFetchEntry(...)`
+- Runtime capability model via `RuntimeCapabilities`
+- Lifecycle hooks: `onStart`, `onStop`, and `onError`
+- Typed runtime-specific extension access
+- Separate entry models for listener runtimes and fetch-export runtimes
+
+## Installation
 
 ```bash
 dart pub add osrv
 ```
 
-## Core Shape
+## Supported Runtimes
 
-The core API is intentionally small:
-- `Server`
-- `serve(server, runtimeConfig)` for serve-based runtimes
-- `RequestContext`
-- `Runtime`
-- `RuntimeCapabilities`
-- `RuntimeExtension`
+| Runtime | Entry model | Import |
+| --- | --- | --- |
+| `dart` | `serve(server, DartRuntimeConfig(...))` | `package:osrv/runtime/dart.dart` |
+| `node` | `serve(server, NodeRuntimeConfig(...))` | `package:osrv/runtime/node.dart` |
+| `bun` | `serve(server, BunRuntimeConfig(...))` | `package:osrv/runtime/bun.dart` |
+| `cloudflare` | `defineFetchEntry(server, runtime: FetchEntryRuntime.cloudflare)` | `package:osrv/runtime/cloudflare.dart` + `package:osrv/esm.dart` |
+| `vercel` | `defineFetchEntry(server, runtime: FetchEntryRuntime.vercel)` | `package:osrv/runtime/vercel.dart` + `package:osrv/esm.dart` |
 
-## Quick Start: Dart Runtime
+## Quick Start
+
+### Serve-Based Runtime
 
 ```dart
 import 'package:osrv/osrv.dart';
@@ -45,17 +68,14 @@ Future<void> main() async {
 
   final runtime = await serve(
     server,
-    const DartRuntimeConfig(
-      host: '127.0.0.1',
-      port: 3000,
-    ),
+    const DartRuntimeConfig(host: '127.0.0.1', port: 3000),
   );
 
-  print(runtime.url);
+  print('Listening on ${runtime.url}');
 }
 ```
 
-## Quick Start: Cloudflare / Vercel Entry Export
+### Fetch-Export Runtime
 
 ```dart
 import 'package:osrv/osrv.dart';
@@ -64,14 +84,14 @@ import 'package:osrv/esm.dart';
 void main() {
   defineFetchEntry(
     Server(
-      fetch: (request, context) => Response.text('Hello Osrv!'),
+      fetch: (request, context) => Response.text('Hello from osrv'),
     ),
     runtime: FetchEntryRuntime.cloudflare,
   );
 }
 ```
 
-Then use a thin JS shim:
+Example JavaScript shim:
 
 ```js
 import './cloudflare.dart.js';
@@ -79,34 +99,42 @@ import './cloudflare.dart.js';
 export default { fetch: globalThis.__osrv_fetch__ };
 ```
 
-## Capability Model
+## Core API
 
-`osrv` unifies server shape, not host power.
+The public core entrypoint is `package:osrv/osrv.dart`.
 
-Check host truth through capabilities:
+Main exported concepts:
+- `Server`
+- `serve(...)`
+- `Runtime`
+- `RuntimeConfig`
+- `RequestContext`
+- `RuntimeCapabilities`
+- `RuntimeExtension`
 
-```dart
-if (!runtime.capabilities.websocket) {
-  // explicit fallback
-}
-```
+For fetch-export runtimes, use `package:osrv/esm.dart`.
 
-## Docs
+## Documentation
 
-- [architecture](./doc/architecture.md)
-- [capabilities](./doc/capabilities.md)
-- [config model](./doc/config.md)
-- [core API](./doc/api/core.md)
-- [runtime API](./doc/api/runtime.md)
-- [runtime docs](./doc/runtime/README.md)
-- [terms](./doc/terms.md)
-- [final usage examples](./doc/examples/final-usage.md)
+- [Documentation Index](./doc/README.md)
+- [Architecture](./doc/architecture.md)
+- [Configuration](./doc/config.md)
+- [Capabilities](./doc/capabilities.md)
+- [Core API](./doc/api/core.md)
+- [Runtime API](./doc/api/runtime.md)
+- [Public Surface](./doc/api/public-surface.md)
+- [Runtime Guides](./doc/runtime/README.md)
+- [Usage Examples](./doc/examples/final-usage.md)
 
-## Example
+## Examples
 
-The [`example`](./example) directory contains minimal runtime entry samples for:
+The [`example`](./example) directory contains runnable minimal entries for:
 - `dart`
 - `node`
 - `bun`
 - `cloudflare`
 - `vercel`
+
+## License
+
+[MIT](./LICENSE)

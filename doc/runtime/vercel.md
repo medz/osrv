@@ -1,16 +1,19 @@
 # Vercel Runtime
 
-## Status
+Use the `vercel` runtime when you want to export a fetch handler for Vercel and access helpers from `@vercel/functions`.
 
-`vercel` is implemented as an explicit fetch-export host.
-
-It is not part of the `serve(...) -> Runtime` family.
-
-## Entry Shape
+## Imports
 
 ```dart
+import 'package:osrv/osrv.dart';
 import 'package:osrv/esm.dart';
+import 'package:osrv/runtime/vercel.dart';
+import 'package:web/web.dart' as web;
+```
 
+## Define the Entry
+
+```dart
 void main() {
   defineFetchEntry(
     server,
@@ -19,9 +22,21 @@ void main() {
 }
 ```
 
-## JS Shim
+Optional custom export name:
 
-The intended deploy shim is intentionally thin:
+```dart
+defineFetchEntry(
+  server,
+  runtime: FetchEntryRuntime.vercel,
+  name: '__custom_fetch__',
+);
+```
+
+The default export name is `__osrv_fetch__`.
+
+## JavaScript Shim
+
+Compile the Dart entry to JavaScript, then re-export the generated fetch handler:
 
 ```js
 import './vercel.dart.js';
@@ -29,42 +44,86 @@ import './vercel.dart.js';
 export default { fetch: globalThis.__osrv_fetch__ };
 ```
 
-## Request Context
+If you pass `name: '__custom_fetch__'` to `defineFetchEntry(...)`, re-export
+`globalThis.__custom_fetch__` instead.
 
-Runtime-specific data is available through:
+## Runtime Model
+
+Vercel currently uses the entry-export model.
+
+That means:
+- use `defineFetchEntry(...)`
+- there is no `RuntimeConfig`
+- there is no running `Runtime` handle returned from `main()`
+
+## Capabilities
+
+| Capability | Value |
+| --- | --- |
+| `streaming` | `true` |
+| `websocket` | `false` |
+| `fileSystem` | `true` |
+| `backgroundTask` | `true` |
+| `rawTcp` | `false` |
+| `nodeCompat` | `true` |
+
+## `VercelRuntimeExtension`
+
+Use:
 
 ```dart
-final vercel = context.extension<
-    VercelRuntimeExtension<web.Request>>();
+final vercel =
+    context.extension<VercelRuntimeExtension<web.Request>>();
 ```
 
-The extension currently carries:
-- `request`
+The extension can expose:
 - `functions`
+- `request`
 
-## Functions Facade
+## `VercelFunctions`
 
-`VercelFunctions` currently exposes:
+`VercelFunctions` is exported from `package:osrv/runtime/vercel.dart`.
+
+Current helpers:
 - `waitUntil(...)`
 - `env`
 - `geolocation`
 - `ipAddress`
-- cache invalidation helpers
-- runtime cache access
+- `invalidateByTag(...)`
+- `dangerouslyDeleteByTag(...)`
+- `invalidateBySrcImage(...)`
+- `dangerouslyDeleteBySrcImage(...)`
+- `addCacheTag(...)`
+- `getCache(...)`
 - `attachDatabasePool(...)`
 
-## Current Support
+`getCache(...)` returns `VercelRuntimeCache`.
 
-Current support:
-- `fetch`
-- typed runtime extension access
-- host helper access through `VercelFunctions`
-- streaming request bodies
-- streaming response bodies
-- `onStart`
-- `onError`
+## Background Work
 
-Current non-support:
-- a `Runtime` handle from `serve(...)`
-- websocket support
-- non-fetch Vercel entry shapes
+Use `context.waitUntil(...)` normally.
+
+On Vercel, `osrv` forwards it to the helper bag loaded from `@vercel/functions`.
+
+## Example
+
+```dart
+import 'package:web/web.dart' as web;
+
+final server = Server(
+  fetch: (request, context) {
+    final vercel =
+        context.extension<VercelRuntimeExtension<web.Request>>();
+    return Response.json({
+      'runtime': context.runtime.name,
+      'hasFunctions': vercel?.functions != null,
+    });
+  },
+);
+```
+
+## Current Limitations
+
+- websocket support is not implemented
+- `defineFetchEntry(...)` requires a JavaScript host
+- there is no listener-style `serve(...)` API for Vercel
