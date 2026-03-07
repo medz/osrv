@@ -64,4 +64,8 @@ jobs:
         run: dart pub get
 
       - name: Run Node tests
-        run: dart test -p node
+        run: >
+          dart test -p node
+          test/node_runtime_node_test.dart
+          test/cloudflare_worker_node_test.dart
+          test/vercel_fetch_node_test.dart

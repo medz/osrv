@@ -1,3 +1,6 @@
+@TestOn('vm')
+library;
+
 import 'package:osrv/osrv.dart';
 import 'package:osrv/esm.dart';
 import 'package:test/test.dart';

@@ -1,3 +1,6 @@
+@TestOn('vm')
+library;
+
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/node.dart';
 import 'package:osrv/src/runtime/node/http_host.dart';
