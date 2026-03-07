@@ -154,10 +154,7 @@ void main() {
     );
 
     await expectLater(
-      nodeRequestFromHost(
-        request,
-        origin: Uri.parse('http://127.0.0.1:3000'),
-      ),
+      nodeRequestFromHost(request, origin: Uri.parse('http://127.0.0.1:3000')),
       throwsA(
         isA<Object>().having(
           (error) => error.toString(),
