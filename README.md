@@ -1,20 +1,15 @@
 # osrv
 
-Dart-first unified server core with a single `Server(...)` API.
+A unified server runtime shape for Dart applications.
 
 ## Status
 
-- Core API implemented: `Server`, middleware, plugins, lifecycle, error handling.
-- `dart:io` runtime transport implemented and tested.
-- WebSocket upgrade helper implemented for Dart/Node/Bun, and Edge adapters with provider-specific limits.
-- Maintainer helper script available at `dart run tool/build.dart` (delegates to CLI build).
-- `dart run osrv build` generates direct-deploy Node/Bun/Deno/Edge adapters under `dist/` that load Dart-compiled JS core.
-
-Edge WebSocket support:
-
-- Cloudflare Workers: supported.
-- Netlify Edge: supported when runtime exposes `Deno.upgradeWebSocket` (or `WebSocketPair`).
-- Vercel Edge: not supported by runtime; adapter returns `501` for websocket upgrade attempts.
+Implemented runtime families:
+- `dart` via `serve(server, DartRuntimeConfig(...))`
+- `node` via `serve(server, NodeRuntimeConfig(...))`
+- `bun` via `serve(server, BunRuntimeConfig(...))`
+- `cloudflare` via `defineFetchEntry(server, runtime: FetchEntryRuntime.cloudflare)`
+- `vercel` via `defineFetchEntry(server, runtime: FetchEntryRuntime.vercel)`
 
 ## Install
 
@@ -22,148 +17,76 @@ Edge WebSocket support:
 dart pub add osrv
 ```
 
-## Use osrv in your own package
+## Core Shape
 
-Published dependency:
+The core API is intentionally small:
+- `Server`
+- `serve(server, runtimeConfig)` for serve-based runtimes
+- `RequestContext`
+- `Runtime`
+- `RuntimeCapabilities`
+- `RuntimeExtension`
 
-```yaml
-dependencies:
-  osrv: ^0.1.0
-```
-
-Then create `bin/main.dart`:
-
-```dart
-import 'package:osrv/osrv.dart';
-
-Future<void> main() async {
-  final server = Server(
-    fetch: (request) => Response.json({'ok': true, 'path': request.url.path}),
-  );
-  await server.serve();
-}
-```
-
-Local path dependency (for osrv contributors):
-
-```yaml
-dependencies:
-  osrv:
-    path: ../osrv
-```
-
-## Example package
-
-`/example` is a minimal non-publishable pub package that depends on `osrv` via path dependency.
-
-```bash
-cd example
-dart pub get
-dart run osrv serve
-dart run osrv build
-```
-
-## Quick start
+## Quick Start: Dart Runtime
 
 ```dart
 import 'package:osrv/osrv.dart';
+import 'package:osrv/runtime/dart.dart';
 
 Future<void> main() async {
   final server = Server(
-    fetch: (request) async {
-      return Response.json({'ok': true, 'path': request.url.path});
+    fetch: (request, context) {
+      return Response.json({
+        'runtime': context.runtime.name,
+        'path': request.url.path,
+      });
     },
   );
 
-  await server.serve();
+  final runtime = await serve(
+    server,
+    const DartRuntimeConfig(
+      host: '127.0.0.1',
+      port: 3000,
+    ),
+  );
+
+  print(runtime.url);
 }
 ```
 
-## CLI
-
-```bash
-dart run osrv serve
-dart run osrv build
-```
-
-`serve` defaults to `server.dart` (fallback: `bin/server.dart`), and `build` also defaults to the same entry.
-
-`osrv.config.dart` is not supported in V1. Use CLI flags, environment variables, or constructor options.
-
-TLS/HTTP2 flags for local serve:
-
-```bash
-dart run osrv serve --tls --cert=cert.pem --key=key.pem --http2
-```
-
-`http2` is tri-state in CLI:
-
-- `--http2`: force on.
-- `--no-http2`: force off.
-- omitted: runtime default (`auto`).
-
-Dependency-mode workflow (inside your app package):
-
-1. Add `osrv` dependency.
-2. Create `server.dart` with your server entrypoint.
-3. Run `dart run osrv serve` for local run.
-4. Run `dart run osrv build` for distributable artifacts.
-
-CLI config precedence:
-
-1. CLI flags
-2. Environment variables
-3. Defaults
-
-Programmatic build API (for downstream packages):
+## Quick Start: Cloudflare / Vercel Entry Export
 
 ```dart
-import 'package:osrv/build.dart';
+import 'package:osrv/osrv.dart';
+import 'package:osrv/esm.dart';
 
-Future<void> main() async {
-  await build(
-    const BuildOptions(
-      entry: 'server.dart',
-      outDir: 'dist',
+void main() {
+  defineFetchEntry(
+    Server(
+      fetch: (request, context) => Response.text('Hello Osrv!'),
     ),
+    runtime: FetchEntryRuntime.cloudflare,
   );
 }
 ```
 
-## Maintainer Build Helper
+Then use a thin JS shim:
 
-```bash
-dart run tool/build.dart
+```js
+import './cloudflare.dart.js';
+
+export default { fetch: globalThis.__osrv_fetch__ };
 ```
 
-This is for local osrv repo development convenience.
-User/application build flow remains `dart run osrv build`.
+## Capability Model
 
-Artifacts:
+`osrv` unifies server shape, not host power.
 
-- `dist/js/<runtime>/`
-- `dist/edge/<provider>/`
-- `dist/bin/`
+Check host truth through capabilities:
 
-## Test
-
-```bash
-dart test
+```dart
+if (!runtime.capabilities.websocket) {
+  // explicit fallback
+}
 ```
-
-Contract runner:
-
-```bash
-dart run tool/contract.dart
-```
-
-Multi-runtime contract matrix (auto-detects available runtimes):
-
-```bash
-dart run tool/contract_matrix.dart
-```
-
-## Docs
-
-- [`docs/troubleshooting.md`](docs/troubleshooting.md)
-- [`docs/examples.md`](docs/examples.md)

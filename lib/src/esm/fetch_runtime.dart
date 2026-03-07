@@ -1,0 +1,1 @@
+enum FetchEntryRuntime { cloudflare, vercel }
