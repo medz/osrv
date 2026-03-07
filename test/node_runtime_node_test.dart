@@ -128,6 +128,41 @@ void main() {
     expect(response.header('x-stream'), 'yes');
   });
 
+  test(
+    'node runtime does not route transport write failures into onError',
+    () async {
+      var onErrorCalls = 0;
+
+      final runtime = await serve(
+        Server(
+          fetch: (request, context) {
+            final controller = StreamController<List<int>>();
+            controller.add(utf8.encode('hello '));
+            scheduleMicrotask(() {
+              controller.addError(StateError('stream failed'));
+            });
+            scheduleMicrotask(() async {
+              await controller.close();
+            });
+            return Response(body: controller.stream);
+          },
+          onError: (error, stackTrace, context) {
+            onErrorCalls++;
+            return Response.text('handled node', status: 418);
+          },
+        ),
+        const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+      );
+
+      addTearDown(runtime.close);
+
+      final response = await _fetchText(runtime.url!.resolve('/broken'));
+      expect(response.status, 200);
+      expect(response.text, 'hello ');
+      expect(onErrorCalls, 0);
+    },
+  );
+
   test('node runtime wraps startup hook failures', () async {
     await expectLater(
       () => serve(

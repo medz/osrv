@@ -223,9 +223,9 @@ void main() {
     await expectLater(
       () => writeHtResponseToNodeServerResponse(response, target),
       throwsA(
-        isA<StateError>().having(
-          (error) => error.message,
-          'message',
+        isA<NodeTransportWriteError>().having(
+          (error) => error.cause.toString(),
+          'cause',
           contains('write failed'),
         ),
       ),
@@ -239,9 +239,9 @@ void main() {
     await expectLater(
       () => writeHtResponseToNodeServerResponse(response, target),
       throwsA(
-        isA<StateError>().having(
-          (error) => error.message,
-          'message',
+        isA<NodeTransportWriteError>().having(
+          (error) => error.cause.toString(),
+          'cause',
           contains('end failed'),
         ),
       ),

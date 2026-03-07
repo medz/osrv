@@ -125,12 +125,21 @@ Future<void> _handleNodeRequest({
     final htResponse = await server.fetch(htRequest, context);
     await writeHtResponseToNodeServerResponse(htResponse, response);
   } catch (error, stackTrace) {
+    if (error is NodeTransportWriteError) {
+      return;
+    }
+
     final handled = await handleServerError(
       server: server,
       error: error,
       stackTrace: stackTrace,
       context: lifecycleContext,
     );
-    await writeHtResponseToNodeServerResponse(handled, response);
+
+    try {
+      await writeHtResponseToNodeServerResponse(handled, response);
+    } on NodeTransportWriteError {
+      return;
+    }
   }
 }
