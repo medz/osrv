@@ -33,6 +33,7 @@ Current body behavior is:
 - `null` when the request has no body
 - `String` and `List<int>` when materialized bodies are used in stub tests
 - `Stream<List<int>>` on the real Node host path
+- unexpected raw body shapes fall back to `null`
 
 This distinction matters because:
 - `GET` requests must not be forced into fake empty-body requests

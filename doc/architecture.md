@@ -110,6 +110,15 @@ The core must not:
 - assume a specific process model
 - hardcode deployment behavior
 
+At the current implementation stage, there is one practical exception:
+- `lib/src/core/serve.dart` is the runtime dispatch entry for serve-based hosts
+- `lib/src/esm/*` is the runtime dispatch entry for fetch-export hosts
+
+That means the stable contract remains core-owned, but the package still uses
+small dispatch entry points that know about the official runtime implementations.
+This is an implementation convenience inside one package, not a claim that
+runtime families are hidden from the product surface.
+
 ### 2. Runtime Implementations
 
 Each explicit host family maps to one official runtime implementation.
