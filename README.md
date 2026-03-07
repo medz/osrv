@@ -94,9 +94,12 @@ if (!runtime.capabilities.websocket) {
 ## Docs
 
 - [architecture](./doc/architecture.md)
+- [capabilities](./doc/capabilities.md)
+- [config model](./doc/config.md)
 - [core API](./doc/api/core.md)
 - [runtime API](./doc/api/runtime.md)
 - [runtime docs](./doc/runtime/README.md)
+- [terms](./doc/terms.md)
 - [final usage examples](./doc/examples/final-usage.md)
 
 ## Playground

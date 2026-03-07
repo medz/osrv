@@ -29,6 +29,7 @@ export default { fetch: globalThis.__osrv_fetch__ };
 ## Typed Extension Access
 
 ```dart
+import 'package:osrv/runtime/vercel.dart';
 import 'package:web/web.dart' as web;
 
 final vercel = context.extension<

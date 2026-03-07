@@ -221,13 +221,19 @@ If a runtime cannot support a capability, it must declare that clearly instead o
 
 Configuration is host-first.
 
-For serve-based hosts, the root config should contain one runtime selection, not a bag of optional platform sections.
+For serve-based hosts, runtime selection should stay explicit at the `serve(...)`
+call site instead of being hidden behind a synthetic top-level config bag.
 
 Correct direction:
 
-```text
-OsrvConfig
-  runtime: DartRuntimeConfig(...)
+```dart
+final runtime = await serve(
+  server,
+  const DartRuntimeConfig(
+    host: '127.0.0.1',
+    port: 3000,
+  ),
+);
 ```
 
 Incorrect direction:
@@ -250,12 +256,10 @@ Entry-export hosts may not use `RuntimeConfig` at all.
 Current example:
 
 ```dart
-void main() {
-  defineFetchEntry(
-    server,
-    runtime: FetchEntryRuntime.cloudflare,
-  );
-}
+final runtime = await serve(
+  server,
+  const DartRuntimeConfig(port: 3000),
+);
 ```
 
 ## Lifecycle Model

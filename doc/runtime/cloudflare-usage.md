@@ -30,6 +30,7 @@ export default { fetch: globalThis.__osrv_fetch__ };
 
 ```dart
 import 'dart:js_interop';
+import 'package:osrv/runtime/cloudflare.dart';
 import 'package:web/web.dart' as web;
 
 final cf = context.extension<

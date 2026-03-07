@@ -41,6 +41,9 @@ export default { fetch: globalThis.__osrv_fetch__ };
 Runtime-specific data is available through:
 
 ```dart
+import 'package:osrv/runtime/cloudflare.dart';
+import 'package:web/web.dart' as web;
+
 final cf = context.extension<
     CloudflareRuntimeExtension<Env, web.Request>>();
 ```

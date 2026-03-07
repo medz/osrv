@@ -50,9 +50,12 @@ This keeps the portable `ht` request model clean without pretending every host h
 ## Failure Behavior
 
 Current failure behavior:
-- request body `error` becomes a Dart error on the bridged request body stream
-- request `aborted` becomes a Dart error on the bridged request body stream
-- these failures can surface while the request body is being consumed
+- `readNodeIncomingMessageBody(...)` may fail before `nodeRequestFromHost(...)`
+  finishes constructing the `ht.Request`
+- request body `error` can become a Dart error on the bridged request body stream
+- request `aborted` can become a Dart error on the bridged request body stream
+- in practice, failures can surface either during bridge creation or later while
+  the request body is being consumed
 
 ## Why This Boundary Matters
 

@@ -85,8 +85,8 @@ Typical shutdown shape:
 ```dart
 final runtime = await serve(server, const NodeRuntimeConfig(port: 3000));
 
-await runtime.close();
-await runtime.closed;
+await runtime.close();  // initiate graceful shutdown
+await runtime.closed;   // wait until the runtime is fully closed
 ```
 
 ## Capabilities

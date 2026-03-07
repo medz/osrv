@@ -49,6 +49,7 @@ What this example proves:
 ```dart
 import 'package:osrv/osrv.dart';
 import 'package:osrv/esm.dart';
+import 'package:osrv/runtime/cloudflare.dart';
 import 'package:web/web.dart' as web;
 
 void main() {
