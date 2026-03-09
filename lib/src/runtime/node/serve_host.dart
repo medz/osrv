@@ -25,21 +25,32 @@ Future<Runtime> serveNodeRuntimeHost(
   }
 
   final coordinator = ShutdownCoordinator();
+  final startup = Completer<void>();
+  unawaited(startup.future.catchError((Object _, StackTrace __) {}));
 
   late final NodeHttpServerHost hostServer;
   late final Uri runtimeUrl;
   hostServer = createNodeHttpServer(
     httpModule,
     onRequest: (request, response) {
-      final operation = _handleNodeRequest(
-        server: server,
-        preflight: preflight,
-        hostServer: hostServer,
-        origin: runtimeUrl,
-        request: request,
-        response: response,
-        onWaitUntil: coordinator.trackTask,
-      );
+      final operation = () async {
+        try {
+          await startup.future;
+        } catch (_) {
+          await _writeNodeStartupFailureResponse(response);
+          return;
+        }
+
+        await _handleNodeRequest(
+          server: server,
+          preflight: preflight,
+          hostServer: hostServer,
+          origin: runtimeUrl,
+          request: request,
+          response: response,
+          onWaitUntil: coordinator.trackTask,
+        );
+      }();
       coordinator.trackRequest(operation);
       unawaited(operation);
     },
@@ -66,7 +77,11 @@ Future<Runtime> serveNodeRuntimeHost(
     if (server.onStart != null) {
       await server.onStart!(lifecycleContext);
     }
+    startup.complete();
   } catch (error) {
+    if (!startup.isCompleted) {
+      startup.completeError(error);
+    }
     await closeNodeHttpServer(hostServer);
     throw RuntimeStartupError('Failed to start node runtime.', error);
   }
@@ -144,5 +159,20 @@ Future<void> _handleNodeRequest({
     } on NodeTransportWriteError {
       return;
     }
+  }
+}
+
+Future<void> _writeNodeStartupFailureResponse(
+  NodeServerResponseHost response,
+) async {
+  try {
+    nodeServerResponseSetStatus(
+      response,
+      status: 503,
+      statusText: 'Service Unavailable',
+    );
+    await nodeServerResponseEnd(response, 'Service Unavailable');
+  } catch (_) {
+    // The listener may already be closing after startup failure.
   }
 }

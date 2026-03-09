@@ -4,6 +4,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
+import 'dart:math';
 
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/node.dart';
@@ -187,6 +188,50 @@ void main() {
       ),
     );
   });
+
+  test(
+    'node runtime does not dispatch requests before onStart completes',
+    () async {
+      final startupEntered = Completer<void>();
+      final releaseStartup = Completer<void>();
+      var fetchCalls = 0;
+      final port = 20000 + Random().nextInt(20000);
+
+      final runtimeFuture = serve(
+        Server(
+          onStart: (context) async {
+            startupEntered.complete();
+            await releaseStartup.future;
+          },
+          fetch: (request, context) {
+            fetchCalls++;
+            return Response.text('started');
+          },
+        ),
+        host: '127.0.0.1',
+        port: port,
+      );
+
+      await startupEntered.future;
+
+      final responseFuture = _fetchText(
+        Uri.parse('http://127.0.0.1:$port/early'),
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(fetchCalls, 0);
+
+      releaseStartup.complete();
+
+      final runtime = await runtimeFuture;
+      addTearDown(runtime.close);
+
+      final response = await responseFuture;
+      expect(response.status, 200);
+      expect(response.text, 'started');
+      expect(fetchCalls, 1);
+    },
+  );
 
   test('node runtime.close waits for waitUntil tasks and onStop', () async {
     final waitUntilCompleter = Completer<void>();
