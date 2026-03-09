@@ -21,7 +21,7 @@ It does not give you:
 
 ### 1. Serve-Based Runtimes
 
-Use the runtime-specific `serve(server, config)` entrypoint when the host owns a long-lived listener.
+Use the runtime-specific `serve(server, {platform params})` entrypoint when the host owns a long-lived listener.
 
 Current serve-based runtimes:
 - `dart`
@@ -36,7 +36,8 @@ import 'package:osrv/runtime/dart.dart';
 
 final runtime = await serve(
   server,
-  const DartRuntimeConfig(host: '127.0.0.1', port: 3000),
+  host: '127.0.0.1',
+  port: 3000,
 );
 ```
 

@@ -20,9 +20,9 @@ It is not:
 Runtime config is the explicit input passed to a serve-based runtime entrypoint.
 
 Current examples:
-- `DartRuntimeConfig`
-- `NodeRuntimeConfig`
-- `BunRuntimeConfig`
+- `serve(server, host: ..., port: ...)` from `package:osrv/runtime/dart.dart`
+- `serve(server, host: ..., port: ...)` from `package:osrv/runtime/node.dart`
+- `serve(server, host: ..., port: ...)` from `package:osrv/runtime/bun.dart`
 
 It is input, not the running runtime handle.
 

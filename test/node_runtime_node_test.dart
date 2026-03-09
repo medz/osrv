@@ -22,7 +22,8 @@ void main() {
           headers: Headers()..set('x-runtime', context.runtime.name),
         ),
       ),
-      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+      host: '127.0.0.1',
+      port: 0,
     );
 
     addTearDown(runtime.close);
@@ -54,7 +55,8 @@ void main() {
             });
           },
         ),
-        const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+        host: '127.0.0.1',
+        port: 0,
       );
 
       addTearDown(runtime.close);
@@ -91,7 +93,8 @@ void main() {
             );
           },
         ),
-        const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+        host: '127.0.0.1',
+        port: 0,
       );
 
       addTearDown(runtime.close);
@@ -115,7 +118,8 @@ void main() {
           );
         },
       ),
-      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+      host: '127.0.0.1',
+      port: 0,
     );
 
     addTearDown(runtime.close);
@@ -151,7 +155,8 @@ void main() {
             return Response.text('handled node', status: 418);
           },
         ),
-        const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+        host: '127.0.0.1',
+        port: 0,
       );
 
       addTearDown(runtime.close);
@@ -170,7 +175,8 @@ void main() {
           onStart: (context) => throw StateError('boom'),
           fetch: (request, context) => Response.text('ok'),
         ),
-        const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+        host: '127.0.0.1',
+        port: 0,
       ),
       throwsA(
         isA<RuntimeStartupError>().having(
@@ -198,7 +204,8 @@ void main() {
           await stopCompleter.future;
         },
       ),
-      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+      host: '127.0.0.1',
+      port: 0,
     );
 
     await _fetchText(runtime.url!.resolve('/close'));
@@ -227,7 +234,8 @@ void main() {
         fetch: (request, context) => Response.text('ok'),
         onStop: (context) => throw StateError('stop failed'),
       ),
-      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+      host: '127.0.0.1',
+      port: 0,
     );
 
     final closedExpectation = expectLater(
@@ -269,7 +277,8 @@ void main() {
           return Response.text('late');
         },
       ),
-      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+      host: '127.0.0.1',
+      port: 0,
     );
 
     final responseFuture = _fetchText(runtime.url!.resolve('/slow'));

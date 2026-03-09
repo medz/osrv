@@ -9,7 +9,6 @@ import '../../core/runtime.dart';
 import '../../core/server.dart';
 import '../_internal/server/error_handler.dart';
 import '../_internal/server/shutdown_coordinator.dart';
-import 'config.dart';
 import 'extension.dart';
 import 'request_bridge.dart';
 import 'response_bridge.dart';
@@ -25,12 +24,22 @@ const dartRuntimeCapabilities = RuntimeCapabilities(
 );
 
 Future<Runtime> serveDartRuntime(
-  Server server,
-  DartRuntimeConfig config,
-) async {
-  _validateDartRuntimeConfig(config);
+  Server server, {
+  String host = '127.0.0.1',
+  int port = 3000,
+  int backlog = 0,
+  bool shared = false,
+  bool v6Only = false,
+}) async {
+  _validateDartServeParameters(host: host, port: port, backlog: backlog);
 
-  final httpServer = await _bindDartHttpServer(config);
+  final httpServer = await _bindDartHttpServer(
+    host: host,
+    port: port,
+    backlog: backlog,
+    shared: shared,
+    v6Only: v6Only,
+  );
 
   final runtimeInfo = RuntimeInfo(name: 'dart', kind: 'server');
   final lifecycleExtension = DartRuntimeExtension(server: httpServer);
@@ -97,7 +106,7 @@ Future<Runtime> serveDartRuntime(
     info: runtimeInfo,
     capabilities: dartRuntimeCapabilities,
     closed: coordinator.closed,
-    url: Uri(scheme: 'http', host: config.host, port: httpServer.port),
+    url: Uri(scheme: 'http', host: host, port: httpServer.port),
     onClose: () async {
       unawaited(
         coordinator.stop(
@@ -115,37 +124,45 @@ Future<Runtime> serveDartRuntime(
   );
 }
 
-Future<HttpServer> _bindDartHttpServer(DartRuntimeConfig config) async {
+Future<HttpServer> _bindDartHttpServer({
+  required String host,
+  required int port,
+  required int backlog,
+  required bool shared,
+  required bool v6Only,
+}) async {
   try {
     return await HttpServer.bind(
-      config.host,
-      config.port,
-      backlog: config.backlog,
-      shared: config.shared,
-      v6Only: config.v6Only,
+      host,
+      port,
+      backlog: backlog,
+      shared: shared,
+      v6Only: v6Only,
     );
   } catch (error) {
     throw RuntimeStartupError(
-      'Failed to bind dart runtime on ${config.host}:${config.port}.',
+      'Failed to bind dart runtime on $host:$port.',
       error,
     );
   }
 }
 
-void _validateDartRuntimeConfig(DartRuntimeConfig config) {
-  if (config.host.trim().isEmpty) {
-    throw RuntimeConfigurationError('DartRuntimeConfig.host cannot be empty.');
+void _validateDartServeParameters({
+  required String host,
+  required int port,
+  required int backlog,
+}) {
+  if (host.trim().isEmpty) {
+    throw RuntimeConfigurationError('Dart runtime host cannot be empty.');
   }
 
-  if (config.port < 0 || config.port > 65535) {
+  if (port < 0 || port > 65535) {
     throw RuntimeConfigurationError(
-      'DartRuntimeConfig.port must be between 0 and 65535.',
+      'Dart runtime port must be between 0 and 65535.',
     );
   }
 
-  if (config.backlog < 0) {
-    throw RuntimeConfigurationError(
-      'DartRuntimeConfig.backlog cannot be negative.',
-    );
+  if (backlog < 0) {
+    throw RuntimeConfigurationError('Dart runtime backlog cannot be negative.');
   }
 }

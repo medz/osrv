@@ -44,9 +44,9 @@ dart pub add osrv
 
 | Runtime | Entry model | Import |
 | --- | --- | --- |
-| `dart` | `serve(server, DartRuntimeConfig(...))` | `package:osrv/runtime/dart.dart` |
-| `node` | `serve(server, NodeRuntimeConfig(...))` | `package:osrv/runtime/node.dart` |
-| `bun` | `serve(server, BunRuntimeConfig(...))` | `package:osrv/runtime/bun.dart` |
+| `dart` | `serve(server, host: ..., port: ...)` | `package:osrv/runtime/dart.dart` |
+| `node` | `serve(server, host: ..., port: ...)` | `package:osrv/runtime/node.dart` |
+| `bun` | `serve(server, host: ..., port: ...)` | `package:osrv/runtime/bun.dart` |
 | `cloudflare` | `defineFetchExport(server)` | `package:osrv/runtime/cloudflare.dart` |
 | `vercel` | `defineFetchExport(server)` | `package:osrv/runtime/vercel.dart` |
 
@@ -70,7 +70,8 @@ Future<void> main() async {
 
   final runtime = await serve(
     server,
-    const DartRuntimeConfig(host: '127.0.0.1', port: 3000),
+    host: '127.0.0.1',
+    port: 3000,
   );
 
   print('Listening on ${runtime.url}');

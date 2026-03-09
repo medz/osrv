@@ -29,9 +29,7 @@ void main() {
   });
 
   test('bun runtime preflight is compile-safe on the current VM host', () {
-    final preflight = preflightBunRuntime(
-      const BunRuntimeConfig(host: '127.0.0.1', port: 3000),
-    );
+    final preflight = preflightBunRuntime(host: '127.0.0.1', port: 3000);
 
     expect(preflight.info.name, 'bun');
     expect(preflight.info.kind, 'javascript-host');
@@ -55,7 +53,8 @@ void main() {
     'bun runtime preflight reports missing Bun.serve on a Bun-like host',
     () {
       final preflight = preflightBunRuntime(
-        const BunRuntimeConfig(host: '127.0.0.1', port: 3000),
+        host: '127.0.0.1',
+        port: 3000,
         probe: const BunHostProbe(
           isJavaScriptHost: true,
           hasBunGlobal: true,
@@ -78,7 +77,8 @@ void main() {
 
   test('bun runtime preflight reports a serve-ready Bun host', () {
     final preflight = preflightBunRuntime(
-      const BunRuntimeConfig(host: '127.0.0.1', port: 3000),
+      host: '127.0.0.1',
+      port: 3000,
       probe: const BunHostProbe(
         isJavaScriptHost: true,
         hasBunGlobal: true,
@@ -97,7 +97,7 @@ void main() {
     final server = Server(fetch: (request, context) => Response.text('ok'));
 
     await expectLater(
-      () => serve(server, const BunRuntimeConfig(host: '', port: 3000)),
+      () => serve(server, host: '', port: 3000),
       throwsA(isA<RuntimeConfigurationError>()),
     );
   });
@@ -106,8 +106,7 @@ void main() {
     final server = Server(fetch: (request, context) => Response.text('ok'));
 
     await expectLater(
-      () =>
-          serve(server, const BunRuntimeConfig(host: '127.0.0.1', port: 3000)),
+      () => serve(server, host: '127.0.0.1', port: 3000),
       throwsA(
         isA<UnsupportedError>().having(
           (error) => error.message,

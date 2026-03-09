@@ -3,7 +3,7 @@
 `osrv` is a unified server runtime for Dart applications.
 
 It gives you one `Server` contract and two explicit host entry models:
-- runtime-specific `serve(server, config)` for listener-style runtimes
+- runtime-specific `serve(server, {platform params})` for listener-style runtimes
 - runtime-specific `defineFetchExport(server)` for fetch-export runtimes
 
 Current runtime families:

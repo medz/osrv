@@ -2,12 +2,15 @@
 
 import '../../core/runtime.dart';
 import '../../core/server.dart';
-import 'config.dart';
 import 'preflight.dart';
 import 'serve_host.dart';
 
-Future<Runtime> serveBunRuntime(Server server, BunRuntimeConfig config) async {
-  final preflight = preflightBunRuntime(config);
+Future<Runtime> serveBunRuntime(
+  Server server, {
+  String host = '127.0.0.1',
+  int port = 3000,
+}) async {
+  final preflight = preflightBunRuntime(host: host, port: port);
   if (!preflight.canServe) {
     throw preflight.toUnsupportedError();
   }

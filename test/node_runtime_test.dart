@@ -261,9 +261,7 @@ void main() {
   });
 
   test('node runtime preflight is compile-safe on the current VM host', () {
-    final preflight = preflightNodeRuntime(
-      const NodeRuntimeConfig(host: '127.0.0.1', port: 3000),
-    );
+    final preflight = preflightNodeRuntime(host: '127.0.0.1', port: 3000);
 
     expect(preflight.info.name, 'node');
     expect(preflight.info.kind, 'javascript-host');
@@ -285,7 +283,8 @@ void main() {
     'node runtime preflight reports missing node:http module on a Node-like host',
     () {
       final preflight = preflightNodeRuntime(
-        const NodeRuntimeConfig(host: '127.0.0.1', port: 3000),
+        host: '127.0.0.1',
+        port: 3000,
         probe: const NodeHostProbe(
           isJavaScriptHost: true,
           hasNodeProcess: true,
@@ -310,7 +309,7 @@ void main() {
     final server = Server(fetch: (request, context) => Response.text('ok'));
 
     await expectLater(
-      () => serve(server, const NodeRuntimeConfig(host: '', port: 3000)),
+      () => serve(server, host: '', port: 3000),
       throwsA(isA<RuntimeConfigurationError>()),
     );
   });
@@ -319,8 +318,7 @@ void main() {
     final server = Server(fetch: (request, context) => Response.text('ok'));
 
     await expectLater(
-      () =>
-          serve(server, const NodeRuntimeConfig(host: '127.0.0.1', port: 3000)),
+      () => serve(server, host: '127.0.0.1', port: 3000),
       throwsA(
         isA<UnsupportedError>().having(
           (error) => error.message,

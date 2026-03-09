@@ -23,10 +23,7 @@ void main() {
       },
     );
 
-    final runtime = await serve(
-      server,
-      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
-    );
+    final runtime = await serve(server, host: '127.0.0.1', port: 0);
 
     addTearDown(() async {
       await runtime.close();
@@ -48,7 +45,7 @@ void main() {
     final server = Server(fetch: (request, context) => Response.text('ok'));
 
     expect(
-      () => serve(server, const DartRuntimeConfig(host: '', port: 3000)),
+      () => serve(server, host: '', port: 3000),
       throwsA(isA<RuntimeConfigurationError>()),
     );
   });
@@ -62,7 +59,7 @@ void main() {
     );
 
     await expectLater(
-      () => serve(server, const DartRuntimeConfig(host: '127.0.0.1', port: 0)),
+      () => serve(server, host: '127.0.0.1', port: 0),
       throwsA(isA<RuntimeStartupError>()),
     );
   });
@@ -79,10 +76,7 @@ void main() {
       },
     );
 
-    final runtime = await serve(
-      server,
-      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
-    );
+    final runtime = await serve(server, host: '127.0.0.1', port: 0);
 
     addTearDown(() async {
       await runtime.close();
@@ -107,10 +101,7 @@ void main() {
       },
     );
 
-    final runtime = await serve(
-      server,
-      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
-    );
+    final runtime = await serve(server, host: '127.0.0.1', port: 0);
 
     addTearDown(() async {
       await runtime.close();
@@ -144,10 +135,7 @@ void main() {
       },
     );
 
-    final runtime = await serve(
-      server,
-      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
-    );
+    final runtime = await serve(server, host: '127.0.0.1', port: 0);
 
     addTearDown(() async {
       await runtime.close();
@@ -187,10 +175,7 @@ void main() {
       },
     );
 
-    final runtime = await serve(
-      server,
-      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
-    );
+    final runtime = await serve(server, host: '127.0.0.1', port: 0);
 
     addTearDown(() async {
       await runtime.close();
@@ -220,10 +205,7 @@ void main() {
       },
     );
 
-    final runtime = await serve(
-      server,
-      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
-    );
+    final runtime = await serve(server, host: '127.0.0.1', port: 0);
 
     addTearDown(() async {
       await runtime.close();
@@ -256,10 +238,7 @@ void main() {
       },
     );
 
-    final runtime = await serve(
-      server,
-      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
-    );
+    final runtime = await serve(server, host: '127.0.0.1', port: 0);
 
     addTearDown(() async {
       if (!backgroundTask.isCompleted) {
@@ -310,10 +289,7 @@ void main() {
       fetch: (request, context) => Response.text('ok'),
     );
 
-    final runtime = await serve(
-      server,
-      const DartRuntimeConfig(host: '127.0.0.1', port: 0),
-    );
+    final runtime = await serve(server, host: '127.0.0.1', port: 0);
 
     final client = HttpClient();
     addTearDown(client.close);

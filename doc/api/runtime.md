@@ -17,7 +17,7 @@ See [public surface](./public-surface.md) for the importable entrypoints.
 
 ### Serve-Based
 
-These runtimes use runtime-specific `serve(server, config)`:
+These runtimes use runtime-specific `serve(server, {platform params})`:
 - `dart`
 - `node`
 - `bun`
@@ -32,21 +32,17 @@ These runtimes use runtime-specific `defineFetchExport(server)`:
 
 They do not return a running `Runtime`.
 
-## Runtime Config Input
+## Serve Parameters
 
-For serve-based runtimes, runtime choice is expressed through the runtime family's own config type.
-
-Current public config types:
-- `DartRuntimeConfig`
-- `NodeRuntimeConfig`
-- `BunRuntimeConfig`
+For serve-based runtimes, runtime choice is expressed through the selected runtime entrypoint and its named platform parameters.
 
 Example:
 
 ```dart
 final runtime = await serve(
   server,
-  const BunRuntimeConfig(host: '127.0.0.1', port: 3000),
+  host: '127.0.0.1',
+  port: 3000,
 );
 ```
 
@@ -124,6 +120,6 @@ Typical runtime-related failures:
 - `UnsupportedError` when a runtime is selected on an unsupported host
 
 Examples:
-- `NodeRuntimeConfig` on a non-JavaScript host
-- `BunRuntimeConfig` outside Bun
+- `serve(server, host: ..., port: ...)` from `package:osrv/runtime/node.dart` on a non-JavaScript host
+- `serve(server, host: ..., port: ...)` from `package:osrv/runtime/bun.dart` outside Bun
 - `defineFetchExport(...)` on a non-JavaScript host

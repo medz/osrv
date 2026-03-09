@@ -75,7 +75,7 @@ Example:
 ```dart
 final runtime = await serve(
   server,
-  const NodeRuntimeConfig(port: 3000),
+  port: 3000,
 );
 
 if (!runtime.capabilities.websocket) {

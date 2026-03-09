@@ -43,7 +43,6 @@ ServerErrorHook
 ### `package:osrv/runtime/dart.dart`
 
 ```dart
-DartRuntimeConfig
 DartRuntimeExtension
 serve
 ```
@@ -51,7 +50,6 @@ serve
 ### `package:osrv/runtime/node.dart`
 
 ```dart
-NodeRuntimeConfig
 NodeRuntimeExtension
 serve
 ```
@@ -59,7 +57,6 @@ serve
 ### `package:osrv/runtime/bun.dart`
 
 ```dart
-BunRuntimeConfig
 BunRuntimeExtension
 serve
 ```
@@ -105,7 +102,8 @@ import 'package:osrv/runtime/node.dart';
 Future<void> main() async {
   final runtime = await serve(
     server,
-    const NodeRuntimeConfig(host: '127.0.0.1', port: 3000),
+    host: '127.0.0.1',
+    port: 3000,
   );
 
   print(runtime.url);

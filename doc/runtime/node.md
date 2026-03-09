@@ -14,7 +14,8 @@ import 'package:osrv/runtime/node.dart';
 ```dart
 final runtime = await serve(
   server,
-  const NodeRuntimeConfig(host: '127.0.0.1', port: 3000),
+  host: '127.0.0.1',
+  port: 3000,
 );
 ```
 
@@ -27,13 +28,14 @@ The `node` runtime requires:
 
 If you call it on an unsupported host, startup fails with `UnsupportedError`.
 
-## Config
+## Parameters
 
 ```dart
-const NodeRuntimeConfig({
-  this.host = '127.0.0.1',
-  this.port = 3000,
-});
+serve(
+  server,
+  host: '127.0.0.1',
+  port: 3000,
+);
 ```
 
 Validation:

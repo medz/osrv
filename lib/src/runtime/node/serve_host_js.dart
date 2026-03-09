@@ -46,8 +46,8 @@ Future<Runtime> serveNodeRuntimeHost(
 
   final binding = await listenNodeHttpServer(
     hostServer,
-    host: preflight.config.host,
-    port: preflight.config.port,
+    host: preflight.host,
+    port: preflight.port,
   );
   final runtimeInfo = const RuntimeInfo(name: 'node', kind: 'server');
   runtimeUrl = Uri(scheme: 'http', host: binding.host, port: binding.port);

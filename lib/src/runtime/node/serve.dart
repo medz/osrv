@@ -2,15 +2,15 @@
 
 import '../../core/runtime.dart';
 import '../../core/server.dart';
-import 'config.dart';
 import 'preflight.dart';
 import 'serve_host.dart';
 
 Future<Runtime> serveNodeRuntime(
-  Server server,
-  NodeRuntimeConfig config,
-) async {
-  final preflight = preflightNodeRuntime(config);
+  Server server, {
+  String host = '127.0.0.1',
+  int port = 3000,
+}) async {
+  final preflight = preflightNodeRuntime(host: host, port: port);
   if (!preflight.canServe) {
     throw preflight.toUnsupportedError();
   }

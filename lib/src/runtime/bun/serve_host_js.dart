@@ -64,13 +64,13 @@ Future<Runtime> serveBunRuntimeHost(
   try {
     hostServer = bunServe(
       bun,
-      host: preflight.config.host,
-      port: preflight.config.port,
+      host: preflight.host,
+      port: preflight.port,
       fetch: fetch.toJS,
     );
   } catch (error) {
     throw RuntimeStartupError(
-      'Failed to bind bun runtime on ${preflight.config.host}:${preflight.config.port}.',
+      'Failed to bind bun runtime on ${preflight.host}:${preflight.port}.',
       error,
     );
   }
@@ -97,8 +97,8 @@ Future<Runtime> serveBunRuntimeHost(
 
   final runtimeUrl = Uri(
     scheme: 'http',
-    host: preflight.config.host,
-    port: bunServerPort(hostServer) ?? preflight.config.port,
+    host: preflight.host,
+    port: bunServerPort(hostServer) ?? preflight.port,
   );
 
   return ServerRuntimeHandle(

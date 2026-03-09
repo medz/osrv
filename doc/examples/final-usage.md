@@ -22,7 +22,8 @@ Future<void> main() async {
 
   final runtime = await serve(
     server,
-    const DartRuntimeConfig(host: '127.0.0.1', port: 3000),
+    host: '127.0.0.1',
+    port: 3000,
   );
 
   print(runtime.url);
@@ -38,7 +39,8 @@ import 'package:osrv/runtime/node.dart';
 Future<void> main() async {
   final runtime = await serve(
     Server(fetch: (request, context) => Response.text('hello from node')),
-    const NodeRuntimeConfig(host: '127.0.0.1', port: 3000),
+    host: '127.0.0.1',
+    port: 3000,
   );
 
   print(runtime.url);
@@ -95,7 +97,7 @@ void main() {
 ```dart
 final runtime = await serve(
   server,
-  const BunRuntimeConfig(port: 3000),
+  port: 3000,
 );
 
 if (!runtime.capabilities.websocket) {
