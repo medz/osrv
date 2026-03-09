@@ -1,7 +1,7 @@
-import 'package:osrv/esm.dart';
+import 'package:osrv/runtime/vercel.dart';
 
 import 'server.dart' as example;
 
 void main() {
-  defineFetchEntry(example.server, runtime: FetchEntryRuntime.vercel);
+  defineFetchExport(example.server);
 }

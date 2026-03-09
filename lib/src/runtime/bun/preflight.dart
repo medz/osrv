@@ -3,7 +3,6 @@
 import '../../core/capabilities.dart';
 import '../../core/errors.dart';
 import '../../core/runtime.dart';
-import 'config.dart';
 import 'extension.dart';
 import 'probe.dart';
 
@@ -18,7 +17,8 @@ const bunRuntimePreflightCapabilities = RuntimeCapabilities(
 
 final class BunRuntimePreflight {
   const BunRuntimePreflight({
-    required this.config,
+    required this.host,
+    required this.port,
     required this.info,
     required this.capabilities,
     required this.extension,
@@ -26,7 +26,8 @@ final class BunRuntimePreflight {
     required this.blockReason,
   });
 
-  final BunRuntimeConfig config;
+  final String host;
+  final int port;
   final RuntimeInfo info;
   final RuntimeCapabilities capabilities;
   final BunRuntimeExtension extension;
@@ -72,15 +73,18 @@ final class BunRuntimePreflight {
   }
 }
 
-BunRuntimePreflight preflightBunRuntime(
-  BunRuntimeConfig config, {
+BunRuntimePreflight preflightBunRuntime({
+  String host = '127.0.0.1',
+  int port = 3000,
   BunHostProbe? probe,
 }) {
-  _validateBunRuntimeConfig(config);
+  final normalizedHost = host.trim();
+  _validateBunServeParameters(host: normalizedHost, port: port);
 
   final resolvedProbe = probe ?? probeBunHost();
   return BunRuntimePreflight(
-    config: config,
+    host: normalizedHost,
+    port: port,
     info: const RuntimeInfo(name: 'bun', kind: 'javascript-host'),
     capabilities: bunRuntimePreflightCapabilities,
     extension: resolvedProbe.extension,
@@ -89,14 +93,14 @@ BunRuntimePreflight preflightBunRuntime(
   );
 }
 
-void _validateBunRuntimeConfig(BunRuntimeConfig config) {
-  if (config.host.trim().isEmpty) {
-    throw RuntimeConfigurationError('BunRuntimeConfig.host cannot be empty.');
+void _validateBunServeParameters({required String host, required int port}) {
+  if (host.trim().isEmpty) {
+    throw RuntimeConfigurationError('Bun runtime host cannot be empty.');
   }
 
-  if (config.port < 0 || config.port > 65535) {
+  if (port < 0 || port > 65535) {
     throw RuntimeConfigurationError(
-      'BunRuntimeConfig.port must be between 0 and 65535.',
+      'Bun runtime port must be between 0 and 65535.',
     );
   }
 }

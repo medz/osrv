@@ -14,26 +14,30 @@ import 'package:osrv/runtime/node.dart';
 ```dart
 final runtime = await serve(
   server,
-  const NodeRuntimeConfig(host: '127.0.0.1', port: 3000),
+  host: '127.0.0.1',
+  port: 3000,
 );
 ```
 
 ## Host Requirements
 
 The `node` runtime requires:
+- a JavaScript-target build
 - a JavaScript host
 - the Node `process` object
 - the `node:http` module
 
-If you call it on an unsupported host, startup fails with `UnsupportedError`.
+Compiling this entrypoint for a native target is unsupported and fails during compilation.
+When compiled for JavaScript, startup still fails with `UnsupportedError` if the host is not actually Node-compatible.
 
-## Config
+## Parameters
 
 ```dart
-const NodeRuntimeConfig({
-  this.host = '127.0.0.1',
-  this.port = 3000,
-});
+serve(
+  server,
+  host: '127.0.0.1',
+  port: 3000,
+);
 ```
 
 Validation:
@@ -96,5 +100,5 @@ Current behavior:
 ## Current Limitations
 
 - websocket support is not implemented
-- the runtime depends on Node's JavaScript host APIs and is not available on the Dart VM
+- the runtime is JavaScript-target only and is not available to native Dart compilation
 - Node-specific bridge types are internal implementation detail and should not be imported from `src/`

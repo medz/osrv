@@ -53,10 +53,7 @@ Future<void> main() async {
     },
   );
 
-  runtime = await serve(
-    server,
-    const BunRuntimeConfig(host: '127.0.0.1', port: 0),
-  );
+  runtime = await serve(server, host: '127.0.0.1', port: 0);
 
   print('URL:${runtime.url}');
   await runtime.closed;

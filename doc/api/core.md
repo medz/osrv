@@ -68,22 +68,16 @@ Use `onError` to translate request-time failures into a response.
 
 If `onError` returns `null`, the runtime writes a default internal-server-error response.
 
-## `serve`
+## Runtime Entry APIs
 
-```dart
-Future<Runtime> serve(Server server, RuntimeConfig runtime)
-```
+`package:osrv/osrv.dart` does not export runtime startup functions.
 
-Use `serve(...)` for:
-- `DartRuntimeConfig`
-- `NodeRuntimeConfig`
-- `BunRuntimeConfig`
-
-Do not use `serve(...)` for:
-- `cloudflare`
-- `vercel`
-
-Those runtimes use `defineFetchEntry(...)` from `package:osrv/esm.dart`.
+Use runtime-family entrypoints:
+- `package:osrv/runtime/dart.dart` exports `serve(Server, {host, port, backlog, shared, v6Only})`
+- `package:osrv/runtime/node.dart` exports `serve(Server, {host, port})`
+- `package:osrv/runtime/bun.dart` exports `serve(Server, {host, port})`
+- `package:osrv/runtime/cloudflare.dart` exports `defineFetchExport(...)` for fetch-export runtimes
+- `package:osrv/runtime/vercel.dart` exports `defineFetchExport(...)` for fetch-export runtimes
 
 ## `Runtime`
 

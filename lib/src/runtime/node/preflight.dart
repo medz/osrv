@@ -3,7 +3,6 @@
 import '../../core/capabilities.dart';
 import '../../core/errors.dart';
 import '../../core/runtime.dart';
-import 'config.dart';
 import 'extension.dart';
 import 'http_host.dart';
 import 'probe.dart';
@@ -19,7 +18,8 @@ const nodeRuntimePreflightCapabilities = RuntimeCapabilities(
 
 final class NodeRuntimePreflight {
   const NodeRuntimePreflight({
-    required this.config,
+    required this.host,
+    required this.port,
     required this.info,
     required this.capabilities,
     required this.extension,
@@ -28,7 +28,8 @@ final class NodeRuntimePreflight {
     required this.blockReason,
   });
 
-  final NodeRuntimeConfig config;
+  final String host;
+  final int port;
   final RuntimeInfo info;
   final RuntimeCapabilities capabilities;
   final NodeRuntimeExtension extension;
@@ -75,17 +76,19 @@ final class NodeRuntimePreflight {
   }
 }
 
-NodeRuntimePreflight preflightNodeRuntime(
-  NodeRuntimeConfig config, {
+NodeRuntimePreflight preflightNodeRuntime({
+  String host = '127.0.0.1',
+  int port = 3000,
   NodeHostProbe? probe,
   NodeHttpModuleHost? httpModule,
 }) {
-  _validateNodeRuntimeConfig(config);
+  _validateNodeServeParameters(host: host, port: port);
 
   final resolvedProbe = probe ?? probeNodeHost();
   final resolvedHttpModule = httpModule ?? nodeHttpModule;
   return NodeRuntimePreflight(
-    config: config,
+    host: host,
+    port: port,
     info: const RuntimeInfo(name: 'node', kind: 'javascript-host'),
     capabilities: nodeRuntimePreflightCapabilities,
     extension: resolvedProbe.extension,
@@ -98,14 +101,14 @@ NodeRuntimePreflight preflightNodeRuntime(
   );
 }
 
-void _validateNodeRuntimeConfig(NodeRuntimeConfig config) {
-  if (config.host.trim().isEmpty) {
-    throw RuntimeConfigurationError('NodeRuntimeConfig.host cannot be empty.');
+void _validateNodeServeParameters({required String host, required int port}) {
+  if (host.trim().isEmpty) {
+    throw RuntimeConfigurationError('Node runtime host cannot be empty.');
   }
 
-  if (config.port < 0 || config.port > 65535) {
+  if (port < 0 || port > 65535) {
     throw RuntimeConfigurationError(
-      'NodeRuntimeConfig.port must be between 0 and 65535.',
+      'Node runtime port must be between 0 and 65535.',
     );
   }
 }

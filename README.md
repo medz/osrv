@@ -28,7 +28,7 @@ Use `osrv` when you want:
 ## Features
 
 - Unified `Server` contract built around `Request`, `Response`, and `RequestContext`
-- Explicit runtime selection through `RuntimeConfig` or `defineFetchEntry(...)`
+- Explicit runtime selection through runtime-specific `serve(...)` or `defineFetchExport(...)`
 - Runtime capability model via `RuntimeCapabilities`
 - Lifecycle hooks: `onStart`, `onStop`, and `onError`
 - Typed runtime-specific extension access
@@ -44,11 +44,15 @@ dart pub add osrv
 
 | Runtime | Entry model | Import |
 | --- | --- | --- |
-| `dart` | `serve(server, DartRuntimeConfig(...))` | `package:osrv/runtime/dart.dart` |
-| `node` | `serve(server, NodeRuntimeConfig(...))` | `package:osrv/runtime/node.dart` |
-| `bun` | `serve(server, BunRuntimeConfig(...))` | `package:osrv/runtime/bun.dart` |
-| `cloudflare` | `defineFetchEntry(server, runtime: FetchEntryRuntime.cloudflare)` | `package:osrv/runtime/cloudflare.dart` + `package:osrv/esm.dart` |
-| `vercel` | `defineFetchEntry(server, runtime: FetchEntryRuntime.vercel)` | `package:osrv/runtime/vercel.dart` + `package:osrv/esm.dart` |
+| `dart` | `serve(server, host: ..., port: ...)` | `package:osrv/runtime/dart.dart` |
+| `node` | `serve(server, host: ..., port: ...)` | `package:osrv/runtime/node.dart` |
+| `bun` | `serve(server, host: ..., port: ...)` | `package:osrv/runtime/bun.dart` |
+| `cloudflare` | `defineFetchExport(server)` | `package:osrv/runtime/cloudflare.dart` |
+| `vercel` | `defineFetchExport(server)` | `package:osrv/runtime/vercel.dart` |
+
+Target notes:
+- `package:osrv/runtime/dart.dart` is the native Dart listener entry.
+- `package:osrv/runtime/node.dart`, `package:osrv/runtime/bun.dart`, `package:osrv/runtime/cloudflare.dart`, and `package:osrv/runtime/vercel.dart` are JavaScript-target runtime entries and intentionally do not compile to native executables.
 
 ## Quick Start
 
@@ -70,7 +74,8 @@ Future<void> main() async {
 
   final runtime = await serve(
     server,
-    const DartRuntimeConfig(host: '127.0.0.1', port: 3000),
+    host: '127.0.0.1',
+    port: 3000,
   );
 
   print('Listening on ${runtime.url}');
@@ -81,14 +86,13 @@ Future<void> main() async {
 
 ```dart
 import 'package:osrv/osrv.dart';
-import 'package:osrv/esm.dart';
+import 'package:osrv/runtime/cloudflare.dart';
 
 void main() {
-  defineFetchEntry(
+  defineFetchExport(
     Server(
       fetch: (request, context) => Response.text('Hello from osrv'),
     ),
-    runtime: FetchEntryRuntime.cloudflare,
   );
 }
 ```
@@ -112,14 +116,12 @@ The public core entrypoint is `package:osrv/osrv.dart`.
 
 Main exported concepts:
 - `Server`
-- `serve(...)`
 - `Runtime`
-- `RuntimeConfig`
 - `RequestContext`
 - `RuntimeCapabilities`
 - `RuntimeExtension`
 
-For fetch-export runtimes, use `package:osrv/esm.dart`.
+For runtime entry APIs, use the matching runtime entrypoint such as `package:osrv/runtime/dart.dart`, `package:osrv/runtime/node.dart`, `package:osrv/runtime/bun.dart`, `package:osrv/runtime/cloudflare.dart`, or `package:osrv/runtime/vercel.dart`.
 
 ## Documentation
 

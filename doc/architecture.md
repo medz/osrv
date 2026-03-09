@@ -21,7 +21,7 @@ It does not give you:
 
 ### 1. Serve-Based Runtimes
 
-Use `serve(server, runtimeConfig)` when the host owns a long-lived listener.
+Use the runtime-specific `serve(server, {platform params})` entrypoint when the host owns a long-lived listener.
 
 Current serve-based runtimes:
 - `dart`
@@ -36,13 +36,14 @@ import 'package:osrv/runtime/dart.dart';
 
 final runtime = await serve(
   server,
-  const DartRuntimeConfig(host: '127.0.0.1', port: 3000),
+  host: '127.0.0.1',
+  port: 3000,
 );
 ```
 
 ### 2. Entry-Export Runtimes
 
-Use `defineFetchEntry(server, runtime: ...)` when the host expects a fetch handler export instead of a running listener.
+Use runtime-specific `defineFetchExport(server)` when the host expects a fetch handler export instead of a running listener.
 
 Current entry-export runtimes:
 - `cloudflare`
@@ -52,12 +53,11 @@ Example:
 
 ```dart
 import 'package:osrv/osrv.dart';
-import 'package:osrv/esm.dart';
+import 'package:osrv/runtime/cloudflare.dart';
 
 void main() {
-  defineFetchEntry(
+  defineFetchExport(
     server,
-    runtime: FetchEntryRuntime.cloudflare,
   );
 }
 ```
@@ -129,7 +129,6 @@ Extensions expose runtime-specific power without pushing host objects into the c
 
 Application code should import only:
 - `package:osrv/osrv.dart`
-- `package:osrv/esm.dart`
 - `package:osrv/runtime/*.dart`
 
 Do not import `package:osrv/src/...`.

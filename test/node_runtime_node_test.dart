@@ -4,6 +4,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
+import 'dart:math';
 
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/node.dart';
@@ -22,7 +23,8 @@ void main() {
           headers: Headers()..set('x-runtime', context.runtime.name),
         ),
       ),
-      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+      host: '127.0.0.1',
+      port: 0,
     );
 
     addTearDown(runtime.close);
@@ -54,7 +56,8 @@ void main() {
             });
           },
         ),
-        const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+        host: '127.0.0.1',
+        port: 0,
       );
 
       addTearDown(runtime.close);
@@ -91,7 +94,8 @@ void main() {
             );
           },
         ),
-        const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+        host: '127.0.0.1',
+        port: 0,
       );
 
       addTearDown(runtime.close);
@@ -115,7 +119,8 @@ void main() {
           );
         },
       ),
-      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+      host: '127.0.0.1',
+      port: 0,
     );
 
     addTearDown(runtime.close);
@@ -151,7 +156,8 @@ void main() {
             return Response.text('handled node', status: 418);
           },
         ),
-        const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+        host: '127.0.0.1',
+        port: 0,
       );
 
       addTearDown(runtime.close);
@@ -170,7 +176,8 @@ void main() {
           onStart: (context) => throw StateError('boom'),
           fetch: (request, context) => Response.text('ok'),
         ),
-        const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+        host: '127.0.0.1',
+        port: 0,
       ),
       throwsA(
         isA<RuntimeStartupError>().having(
@@ -181,6 +188,50 @@ void main() {
       ),
     );
   });
+
+  test(
+    'node runtime does not dispatch requests before onStart completes',
+    () async {
+      final startupEntered = Completer<void>();
+      final releaseStartup = Completer<void>();
+      var fetchCalls = 0;
+      final port = 20000 + Random().nextInt(20000);
+
+      final runtimeFuture = serve(
+        Server(
+          onStart: (context) async {
+            startupEntered.complete();
+            await releaseStartup.future;
+          },
+          fetch: (request, context) {
+            fetchCalls++;
+            return Response.text('started');
+          },
+        ),
+        host: '127.0.0.1',
+        port: port,
+      );
+
+      await startupEntered.future;
+
+      final responseFuture = _fetchText(
+        Uri.parse('http://127.0.0.1:$port/early'),
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(fetchCalls, 0);
+
+      releaseStartup.complete();
+
+      final runtime = await runtimeFuture;
+      addTearDown(runtime.close);
+
+      final response = await responseFuture;
+      expect(response.status, 200);
+      expect(response.text, 'started');
+      expect(fetchCalls, 1);
+    },
+  );
 
   test('node runtime.close waits for waitUntil tasks and onStop', () async {
     final waitUntilCompleter = Completer<void>();
@@ -198,7 +249,8 @@ void main() {
           await stopCompleter.future;
         },
       ),
-      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+      host: '127.0.0.1',
+      port: 0,
     );
 
     await _fetchText(runtime.url!.resolve('/close'));
@@ -227,7 +279,8 @@ void main() {
         fetch: (request, context) => Response.text('ok'),
         onStop: (context) => throw StateError('stop failed'),
       ),
-      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+      host: '127.0.0.1',
+      port: 0,
     );
 
     final closedExpectation = expectLater(
@@ -269,7 +322,8 @@ void main() {
           return Response.text('late');
         },
       ),
-      const NodeRuntimeConfig(host: '127.0.0.1', port: 0),
+      host: '127.0.0.1',
+      port: 0,
     );
 
     final responseFuture = _fetchText(runtime.url!.resolve('/slow'));

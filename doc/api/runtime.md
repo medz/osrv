@@ -17,7 +17,7 @@ See [public surface](./public-surface.md) for the importable entrypoints.
 
 ### Serve-Based
 
-These runtimes use `serve(server, runtimeConfig)`:
+These runtimes use runtime-specific `serve(server, {platform params})`:
 - `dart`
 - `node`
 - `bun`
@@ -26,27 +26,23 @@ They return a running `Runtime` handle.
 
 ### Entry-Export
 
-These runtimes use `defineFetchEntry(server, runtime: ...)`:
+These runtimes use runtime-specific `defineFetchExport(server)`:
 - `cloudflare`
 - `vercel`
 
 They do not return a running `Runtime`.
 
-## Runtime Config Input
+## Serve Parameters
 
-For serve-based runtimes, runtime choice is expressed through a `RuntimeConfig` implementation.
-
-Current public config types:
-- `DartRuntimeConfig`
-- `NodeRuntimeConfig`
-- `BunRuntimeConfig`
+For serve-based runtimes, runtime choice is expressed through the selected runtime entrypoint and its named platform parameters.
 
 Example:
 
 ```dart
 final runtime = await serve(
   server,
-  const BunRuntimeConfig(host: '127.0.0.1', port: 3000),
+  host: '127.0.0.1',
+  port: 3000,
 );
 ```
 
@@ -76,23 +72,21 @@ It is not:
 For Cloudflare and Vercel:
 
 ```dart
-defineFetchEntry(
+defineFetchExport(
   server,
-  runtime: FetchEntryRuntime.cloudflare,
 );
 ```
 
 Optional:
 
 ```dart
-defineFetchEntry(
+defineFetchExport(
   server,
-  runtime: FetchEntryRuntime.vercel,
   name: '__custom_fetch__',
 );
 ```
 
-This defines a JavaScript fetch export with the selected runtime family.
+This defines a JavaScript fetch export through the selected runtime family entrypoint.
 
 ## Runtime-Specific Extensions
 
@@ -115,17 +109,18 @@ Current public runtime-specific types:
 | `dart` | `package:osrv/runtime/dart.dart` | `serve(...)` | yes |
 | `node` | `package:osrv/runtime/node.dart` | `serve(...)` | yes |
 | `bun` | `package:osrv/runtime/bun.dart` | `serve(...)` | yes |
-| `cloudflare` | `package:osrv/runtime/cloudflare.dart` + `package:osrv/esm.dart` | `defineFetchEntry(...)` | no |
-| `vercel` | `package:osrv/runtime/vercel.dart` + `package:osrv/esm.dart` | `defineFetchEntry(...)` | no |
+| `cloudflare` | `package:osrv/runtime/cloudflare.dart` | `defineFetchExport(...)` | no |
+| `vercel` | `package:osrv/runtime/vercel.dart` | `defineFetchExport(...)` | no |
 
 ## Errors You Should Expect
 
 Typical runtime-related failures:
-- `RuntimeConfigurationError` for invalid serve config values
+- `RuntimeConfigurationError` for invalid serve parameter values such as `serve(server, host: ..., port: ...)`
 - `RuntimeStartupError` for listener startup failures
-- `UnsupportedError` when a runtime is selected on an unsupported host
+- compile-time target errors when a JavaScript-only runtime entrypoint is built for a native target
+- `UnsupportedError` when a JavaScript-target build runs on a host that does not expose the required runtime APIs
 
 Examples:
-- `NodeRuntimeConfig` on a non-JavaScript host
-- `BunRuntimeConfig` outside Bun
-- `defineFetchEntry(...)` on a non-JavaScript host
+- compiling `package:osrv/runtime/node.dart` or `package:osrv/runtime/cloudflare.dart` into a native executable
+- `serve(server, host: ..., port: ...)` from `package:osrv/runtime/node.dart` on a JavaScript host without Node APIs
+- `serve(server, host: ..., port: ...)` from `package:osrv/runtime/bun.dart` on a JavaScript host outside Bun

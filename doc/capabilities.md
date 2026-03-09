@@ -29,8 +29,8 @@ final class RuntimeCapabilities {
 | `dart` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `false` |
 | `node` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `true` |
 | `bun` | `serve(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
-| `cloudflare` | `defineFetchEntry(...)` | `true` | `false` | `false` | `true` | `false` | `true` |
-| `vercel` | `defineFetchEntry(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
+| `cloudflare` | `defineFetchExport(...)` | `true` | `false` | `false` | `true` | `false` | `true` |
+| `vercel` | `defineFetchExport(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
 
 ## What Each Field Means
 
@@ -75,7 +75,7 @@ Example:
 ```dart
 final runtime = await serve(
   server,
-  const NodeRuntimeConfig(port: 3000),
+  port: 3000,
 );
 
 if (!runtime.capabilities.websocket) {

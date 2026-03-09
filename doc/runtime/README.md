@@ -9,8 +9,8 @@ Use this directory to choose a runtime family and see its real setup, capabiliti
 | `dart` | `package:osrv/runtime/dart.dart` | `serve(...)` | yes | `DartRuntimeExtension` |
 | `node` | `package:osrv/runtime/node.dart` | `serve(...)` | yes | `NodeRuntimeExtension` |
 | `bun` | `package:osrv/runtime/bun.dart` | `serve(...)` | yes | `BunRuntimeExtension` |
-| `cloudflare` | `package:osrv/runtime/cloudflare.dart` + `package:osrv/esm.dart` | `defineFetchEntry(...)` | no | `CloudflareRuntimeExtension<Env, Request>` |
-| `vercel` | `package:osrv/runtime/vercel.dart` + `package:osrv/esm.dart` | `defineFetchEntry(...)` | no | `VercelRuntimeExtension<Request>` |
+| `cloudflare` | `package:osrv/runtime/cloudflare.dart` | `defineFetchExport(...)` | no | `CloudflareRuntimeExtension<Env, Request>` |
+| `vercel` | `package:osrv/runtime/vercel.dart` | `defineFetchExport(...)` | no | `VercelRuntimeExtension<Request>` |
 
 ## Runtime Pages
 

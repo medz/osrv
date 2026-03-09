@@ -14,22 +14,24 @@ import 'package:osrv/runtime/dart.dart';
 ```dart
 final runtime = await serve(
   server,
-  const DartRuntimeConfig(host: '127.0.0.1', port: 3000),
+  host: '127.0.0.1',
+  port: 3000,
 );
 ```
 
 `runtime.url` contains the bound listener URL.
 
-## Config
+## Parameters
 
 ```dart
-const DartRuntimeConfig({
-  this.host = '127.0.0.1',
-  this.port = 3000,
-  this.backlog = 0,
-  this.shared = false,
-  this.v6Only = false,
-});
+serve(
+  server,
+  host: '127.0.0.1',
+  port: 3000,
+  backlog: 0,
+  shared: false,
+  v6Only: false,
+);
 ```
 
 Notes:

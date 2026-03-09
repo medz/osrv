@@ -6,6 +6,7 @@ import 'dart:js_interop';
 import 'package:ht/ht.dart' show Request, Response;
 import 'package:web/web.dart' as web;
 
+import '../../../core/request_context.dart';
 import '../../../core/server.dart';
 
 final class JsEntryFetchHandler {

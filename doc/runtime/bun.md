@@ -14,26 +14,30 @@ import 'package:osrv/runtime/bun.dart';
 ```dart
 final runtime = await serve(
   server,
-  const BunRuntimeConfig(host: '127.0.0.1', port: 3000),
+  host: '127.0.0.1',
+  port: 3000,
 );
 ```
 
 ## Host Requirements
 
 The `bun` runtime requires:
+- a JavaScript-target build
 - a JavaScript host
 - the global `Bun` object
 - `Bun.serve`
 
-If any of these are missing, startup fails with `UnsupportedError`.
+Compiling this entrypoint for a native target is unsupported and fails during compilation.
+When compiled for JavaScript, startup fails with `UnsupportedError` if the host does not expose Bun APIs.
 
-## Config
+## Parameters
 
 ```dart
-const BunRuntimeConfig({
-  this.host = '127.0.0.1',
-  this.port = 3000,
-});
+serve(
+  server,
+  host: '127.0.0.1',
+  port: 3000,
+);
 ```
 
 Validation:
@@ -95,4 +99,4 @@ Current behavior:
 ## Current Limitations
 
 - websocket support is not implemented in the `osrv` surface
-- the runtime requires Bun host APIs and is not available on the Dart VM
+- the runtime is JavaScript-target only and is not available to native Dart compilation

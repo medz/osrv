@@ -6,7 +6,6 @@ This page lists the stable package entrypoints and exports intended for applicat
 
 These are the supported public import paths:
 - `package:osrv/osrv.dart`
-- `package:osrv/esm.dart`
 - `package:osrv/runtime/dart.dart`
 - `package:osrv/runtime/node.dart`
 - `package:osrv/runtime/bun.dart`
@@ -33,47 +32,33 @@ RequestContext
 ServerLifecycleContext
 Runtime
 RuntimeInfo
-RuntimeConfig
-serve
 Server
 ServerFetch
 ServerHook
 ServerErrorHook
 ```
 
-## `package:osrv/esm.dart`
-
-Stable exports:
-
-```dart
-defaultFetchEntryName
-defineFetchEntry
-FetchEntryRuntime
-```
-
-Use this entrypoint only for fetch-export runtimes.
-
 ## Runtime Family Entrypoints
 
 ### `package:osrv/runtime/dart.dart`
 
 ```dart
-DartRuntimeConfig
 DartRuntimeExtension
+serve
 ```
 
 ### `package:osrv/runtime/node.dart`
 
 ```dart
-NodeRuntimeConfig
 NodeRuntimeExtension
+serve
 ```
 
 ### `package:osrv/runtime/bun.dart`
 
 ```dart
-BunRuntimeConfig
 BunRuntimeExtension
+serve
 ```
 
 ### `package:osrv/runtime/cloudflare.dart`
@@ -82,6 +67,7 @@ BunRuntimeExtension
 CloudflareRuntimeExtension
 CloudflareExecutionContext
 cloudflareWaitUntil
+defineFetchExport
 ```
 
 ### `package:osrv/runtime/vercel.dart`
@@ -90,6 +76,7 @@ cloudflareWaitUntil
 VercelRuntimeExtension
 VercelFunctions
 VercelRuntimeCache
+defineFetchExport
 ```
 
 ## What Not To Import
@@ -115,7 +102,8 @@ import 'package:osrv/runtime/node.dart';
 Future<void> main() async {
   final runtime = await serve(
     server,
-    const NodeRuntimeConfig(host: '127.0.0.1', port: 3000),
+    host: '127.0.0.1',
+    port: 3000,
   );
 
   print(runtime.url);
@@ -126,12 +114,11 @@ Entry-export:
 
 ```dart
 import 'package:osrv/osrv.dart';
-import 'package:osrv/esm.dart';
+import 'package:osrv/runtime/cloudflare.dart';
 
 void main() {
-  defineFetchEntry(
+  defineFetchExport(
     server,
-    runtime: FetchEntryRuntime.cloudflare,
   );
 }
 ```

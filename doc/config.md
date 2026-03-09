@@ -3,17 +3,17 @@
 Runtime selection in `osrv` is always explicit.
 
 There are two ways to select a runtime:
-- pass a `RuntimeConfig` into `serve(...)`
-- choose a `FetchEntryRuntime` in `defineFetchEntry(...)`
+- call the runtime-specific `serve(...)` entrypoint with that runtime's platform parameters
+- call the runtime-specific `defineFetchExport(...)` entrypoint
 
 ## Serve-Based Runtimes
 
-These runtimes use `serve(server, runtimeConfig)`:
+These runtimes use runtime-specific `serve(server, {platform params})`:
 - `dart`
 - `node`
 - `bun`
 
-### `DartRuntimeConfig`
+### `package:osrv/runtime/dart.dart`
 
 Import:
 
@@ -36,7 +36,7 @@ Validation:
 - `port` must be between `0` and `65535`
 - `backlog` must not be negative
 
-### `NodeRuntimeConfig`
+### `package:osrv/runtime/node.dart`
 
 Import:
 
@@ -55,7 +55,7 @@ Validation:
 - `host` must not be empty
 - `port` must be between `0` and `65535`
 
-### `BunRuntimeConfig`
+### `package:osrv/runtime/bun.dart`
 
 Import:
 
@@ -76,25 +76,23 @@ Validation:
 
 ## Entry-Export Runtimes
 
-These runtimes do not use `RuntimeConfig` today:
+These runtimes do not use a listener config today:
 - `cloudflare`
 - `vercel`
 
 Use:
 
 ```dart
-defineFetchEntry(
+defineFetchExport(
   server,
-  runtime: FetchEntryRuntime.cloudflare,
 );
 ```
 
 Optional entry name override:
 
 ```dart
-defineFetchEntry(
+defineFetchExport(
   server,
-  runtime: FetchEntryRuntime.vercel,
   name: '__custom_fetch__',
 );
 ```
@@ -103,7 +101,7 @@ Validation:
 - `name` must not be empty or whitespace-only
 
 Default:
-- `defaultFetchEntryName == '__osrv_fetch__'`
+- `name` defaults to `'__osrv_fetch__'`
 
 ## Selection Examples
 
@@ -112,7 +110,8 @@ Serve-based:
 ```dart
 final runtime = await serve(
   server,
-  const NodeRuntimeConfig(host: '0.0.0.0', port: 3000),
+  host: '0.0.0.0',
+  port: 3000,
 );
 ```
 
@@ -120,9 +119,8 @@ Entry-export:
 
 ```dart
 void main() {
-  defineFetchEntry(
+  defineFetchExport(
     server,
-    runtime: FetchEntryRuntime.cloudflare,
   );
 }
 ```
@@ -134,4 +132,4 @@ Use runtime-family entrypoints:
 - `package:osrv/runtime/node.dart`
 - `package:osrv/runtime/bun.dart`
 
-Do not import `package:osrv/src/runtime/...` config files directly.
+Do not import `package:osrv/src/runtime/...` files directly.
