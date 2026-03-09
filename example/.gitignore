@@ -1,6 +1,7 @@
 .wrangler
 
-api/
+api/*
+!api/
 !api/index.mjs
 bun.lock
 cloudflare.dart.js*
