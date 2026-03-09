@@ -5,7 +5,7 @@
     "build:cloudflare": "dart compile js cloudflare.dart -o cloudflare.dart.js",
     "dev:cloudflare": "npm run build:cloudflare && wrangler dev",
     "deploy:cloudflare": "npm run build:cloudflare && wrangler deploy",
-    "build:vercel": "dart compile js vercel.dart -o vercel.dart.js"
+    "build:vercel": "mkdir -p api && dart compile js vercel.dart -o api/index.dart.js"
   },
   "dependencies": {
     "@vercel/functions": "^3.4.3"

@@ -1,6 +1,9 @@
 .wrangler
 
+api/
 bun.lock
 cloudflare.dart.js*
 vercel.dart.js*
 node_modules
+.vercel
+.env*.local
