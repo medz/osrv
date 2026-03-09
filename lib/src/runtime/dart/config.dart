@@ -1,7 +1,5 @@
-import '../../core/runtime_config.dart';
-
 /// Configures the native Dart `dart:io` runtime selected by [serve].
-final class DartRuntimeConfig implements RuntimeConfig {
+final class DartRuntimeConfig {
   /// Creates a Dart runtime configuration.
   const DartRuntimeConfig({
     this.host = '127.0.0.1',

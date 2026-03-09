@@ -49,7 +49,7 @@ Cloudflare currently uses the entry-export model.
 
 That means:
 - use `defineFetchExport(...)`
-- there is no `RuntimeConfig`
+- there is no listener config type
 - there is no running `Runtime` handle returned from `main()`
 
 ## Capabilities

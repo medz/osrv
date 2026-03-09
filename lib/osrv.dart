@@ -10,7 +10,5 @@ export 'src/core/extension.dart' show RuntimeExtension;
 export 'src/core/request_context.dart'
     show RequestContext, ServerLifecycleContext;
 export 'src/core/runtime.dart' show Runtime, RuntimeInfo;
-export 'src/core/runtime_config.dart' show RuntimeConfig;
-export 'src/core/serve.dart' show serve;
 export 'src/core/server.dart'
     show Server, ServerErrorHook, ServerFetch, ServerHook;

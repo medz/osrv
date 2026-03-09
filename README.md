@@ -28,7 +28,7 @@ Use `osrv` when you want:
 ## Features
 
 - Unified `Server` contract built around `Request`, `Response`, and `RequestContext`
-- Explicit runtime selection through `RuntimeConfig` or runtime-specific `defineFetchExport(...)`
+- Explicit runtime selection through runtime-specific `serve(...)` or `defineFetchExport(...)`
 - Runtime capability model via `RuntimeCapabilities`
 - Lifecycle hooks: `onStart`, `onStop`, and `onError`
 - Typed runtime-specific extension access
@@ -111,14 +111,12 @@ The public core entrypoint is `package:osrv/osrv.dart`.
 
 Main exported concepts:
 - `Server`
-- `serve(...)`
 - `Runtime`
-- `RuntimeConfig`
 - `RequestContext`
 - `RuntimeCapabilities`
 - `RuntimeExtension`
 
-For fetch-export runtimes, use the matching runtime entrypoint such as `package:osrv/runtime/cloudflare.dart` or `package:osrv/runtime/vercel.dart`.
+For runtime entry APIs, use the matching runtime entrypoint such as `package:osrv/runtime/dart.dart`, `package:osrv/runtime/node.dart`, `package:osrv/runtime/bun.dart`, `package:osrv/runtime/cloudflare.dart`, or `package:osrv/runtime/vercel.dart`.
 
 ## Documentation
 

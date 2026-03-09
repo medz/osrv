@@ -17,7 +17,7 @@ See [public surface](./public-surface.md) for the importable entrypoints.
 
 ### Serve-Based
 
-These runtimes use `serve(server, runtimeConfig)`:
+These runtimes use runtime-specific `serve(server, config)`:
 - `dart`
 - `node`
 - `bun`
@@ -34,7 +34,7 @@ They do not return a running `Runtime`.
 
 ## Runtime Config Input
 
-For serve-based runtimes, runtime choice is expressed through a `RuntimeConfig` implementation.
+For serve-based runtimes, runtime choice is expressed through the runtime family's own config type.
 
 Current public config types:
 - `DartRuntimeConfig`

@@ -1,7 +1,5 @@
-import '../../core/runtime_config.dart';
-
 /// Configures the Bun runtime host selected by [serve].
-final class BunRuntimeConfig implements RuntimeConfig {
+final class BunRuntimeConfig {
   /// Creates a Bun runtime configuration.
   const BunRuntimeConfig({this.host = '127.0.0.1', this.port = 3000});
 

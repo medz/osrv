@@ -15,9 +15,9 @@ It is not:
 - a framework router
 - a platform process object
 
-## RuntimeConfig
+## Runtime Config
 
-`RuntimeConfig` is the explicit input passed to `serve(...)` for serve-based runtimes.
+Runtime config is the explicit input passed to a serve-based runtime entrypoint.
 
 Current examples:
 - `DartRuntimeConfig`

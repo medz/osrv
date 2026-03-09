@@ -32,8 +32,6 @@ RequestContext
 ServerLifecycleContext
 Runtime
 RuntimeInfo
-RuntimeConfig
-serve
 Server
 ServerFetch
 ServerHook
@@ -47,6 +45,7 @@ ServerErrorHook
 ```dart
 DartRuntimeConfig
 DartRuntimeExtension
+serve
 ```
 
 ### `package:osrv/runtime/node.dart`
@@ -54,6 +53,7 @@ DartRuntimeExtension
 ```dart
 NodeRuntimeConfig
 NodeRuntimeExtension
+serve
 ```
 
 ### `package:osrv/runtime/bun.dart`
@@ -61,6 +61,7 @@ NodeRuntimeExtension
 ```dart
 BunRuntimeConfig
 BunRuntimeExtension
+serve
 ```
 
 ### `package:osrv/runtime/cloudflare.dart`

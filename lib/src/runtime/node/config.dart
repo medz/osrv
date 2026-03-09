@@ -1,7 +1,5 @@
-import '../../core/runtime_config.dart';
-
 /// Configures the Node runtime host selected by [serve].
-final class NodeRuntimeConfig implements RuntimeConfig {
+final class NodeRuntimeConfig {
   /// Creates a Node runtime configuration.
   const NodeRuntimeConfig({this.host = '127.0.0.1', this.port = 3000});
 

@@ -1,5 +1,7 @@
 ## Unreleased
 
+- Moved listener startup APIs into runtime-specific entrypoints and removed the shared `RuntimeConfig`/core `serve(...)` surface.
+
 ## 0.2.0
 
 - Unified core API around `Server`, `RequestContext`, `Runtime`, and `serve(...)`.

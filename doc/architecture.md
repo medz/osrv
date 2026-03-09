@@ -21,7 +21,7 @@ It does not give you:
 
 ### 1. Serve-Based Runtimes
 
-Use `serve(server, runtimeConfig)` when the host owns a long-lived listener.
+Use the runtime-specific `serve(server, config)` entrypoint when the host owns a long-lived listener.
 
 Current serve-based runtimes:
 - `dart`

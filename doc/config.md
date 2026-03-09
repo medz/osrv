@@ -3,12 +3,12 @@
 Runtime selection in `osrv` is always explicit.
 
 There are two ways to select a runtime:
-- pass a `RuntimeConfig` into `serve(...)`
+- call the runtime-specific `serve(...)` entrypoint with that runtime's config type
 - call the runtime-specific `defineFetchExport(...)` entrypoint
 
 ## Serve-Based Runtimes
 
-These runtimes use `serve(server, runtimeConfig)`:
+These runtimes use runtime-specific `serve(server, config)`:
 - `dart`
 - `node`
 - `bun`
@@ -76,7 +76,7 @@ Validation:
 
 ## Entry-Export Runtimes
 
-These runtimes do not use `RuntimeConfig` today:
+These runtimes do not use a listener config today:
 - `cloudflare`
 - `vercel`
 
