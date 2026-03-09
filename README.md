@@ -101,6 +101,11 @@ import './cloudflare.dart.js';
 export default { fetch: globalThis.__osrv_fetch__ };
 ```
 
+For Vercel, use a bootstrap entry that sets `globalThis.self ??= globalThis`
+before importing the compiled Dart module. The deploying project
+must also include `@vercel/functions`, use an ESM entry such as `.mjs`, and provide a minimal
+`vercel.json`. See [`doc/runtime/vercel.md`](./doc/runtime/vercel.md).
+
 ## Core API
 
 The public core entrypoint is `package:osrv/osrv.dart`.
