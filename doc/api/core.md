@@ -72,12 +72,12 @@ If `onError` returns `null`, the runtime writes a default internal-server-error 
 
 `package:osrv/osrv.dart` does not export runtime startup functions.
 
-Use runtime-family entrypoints for startup:
+Use runtime-family entrypoints:
 - `package:osrv/runtime/dart.dart` exports `serve(Server, {host, port, backlog, shared, v6Only})`
 - `package:osrv/runtime/node.dart` exports `serve(Server, {host, port})`
 - `package:osrv/runtime/bun.dart` exports `serve(Server, {host, port})`
-- `package:osrv/runtime/cloudflare.dart` exports `defineFetchExport(...)`
-- `package:osrv/runtime/vercel.dart` exports `defineFetchExport(...)`
+- `package:osrv/runtime/cloudflare.dart` exports `defineFetchExport(...)` for fetch-export runtimes
+- `package:osrv/runtime/vercel.dart` exports `defineFetchExport(...)` for fetch-export runtimes
 
 ## `Runtime`
 

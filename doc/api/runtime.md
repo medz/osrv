@@ -115,7 +115,7 @@ Current public runtime-specific types:
 ## Errors You Should Expect
 
 Typical runtime-related failures:
-- `RuntimeConfigurationError` for invalid serve config values
+- `RuntimeConfigurationError` for invalid serve parameter values such as `serve(server, host: ..., port: ...)`
 - `RuntimeStartupError` for listener startup failures
 - compile-time target errors when a JavaScript-only runtime entrypoint is built for a native target
 - `UnsupportedError` when a JavaScript-target build runs on a host that does not expose the required runtime APIs
