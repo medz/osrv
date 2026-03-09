@@ -78,11 +78,12 @@ BunRuntimePreflight preflightBunRuntime({
   int port = 3000,
   BunHostProbe? probe,
 }) {
-  _validateBunServeParameters(host: host, port: port);
+  final normalizedHost = host.trim();
+  _validateBunServeParameters(host: normalizedHost, port: port);
 
   final resolvedProbe = probe ?? probeBunHost();
   return BunRuntimePreflight(
-    host: host,
+    host: normalizedHost,
     port: port,
     info: const RuntimeInfo(name: 'bun', kind: 'javascript-host'),
     capabilities: bunRuntimePreflightCapabilities,
