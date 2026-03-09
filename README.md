@@ -50,6 +50,10 @@ dart pub add osrv
 | `cloudflare` | `defineFetchExport(server)` | `package:osrv/runtime/cloudflare.dart` |
 | `vercel` | `defineFetchExport(server)` | `package:osrv/runtime/vercel.dart` |
 
+Target notes:
+- `package:osrv/runtime/dart.dart` is the native Dart listener entry.
+- `package:osrv/runtime/node.dart`, `package:osrv/runtime/bun.dart`, `package:osrv/runtime/cloudflare.dart`, and `package:osrv/runtime/vercel.dart` are JavaScript-target runtime entries and intentionally do not compile to native executables.
+
 ## Quick Start
 
 ### Serve-Based Runtime

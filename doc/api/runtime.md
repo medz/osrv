@@ -117,9 +117,10 @@ Current public runtime-specific types:
 Typical runtime-related failures:
 - `RuntimeConfigurationError` for invalid serve config values
 - `RuntimeStartupError` for listener startup failures
-- `UnsupportedError` when a runtime is selected on an unsupported host
+- compile-time target errors when a JavaScript-only runtime entrypoint is built for a native target
+- `UnsupportedError` when a JavaScript-target build runs on a host that does not expose the required runtime APIs
 
 Examples:
-- `serve(server, host: ..., port: ...)` from `package:osrv/runtime/node.dart` on a non-JavaScript host
-- `serve(server, host: ..., port: ...)` from `package:osrv/runtime/bun.dart` outside Bun
-- `defineFetchExport(...)` on a non-JavaScript host
+- compiling `package:osrv/runtime/node.dart` or `package:osrv/runtime/cloudflare.dart` into a native executable
+- `serve(server, host: ..., port: ...)` from `package:osrv/runtime/node.dart` on a JavaScript host without Node APIs
+- `serve(server, host: ..., port: ...)` from `package:osrv/runtime/bun.dart` on a JavaScript host outside Bun

@@ -8,6 +8,7 @@ import 'dart:js_interop';
 import 'package:web/web.dart' as web;
 
 import '../../core/capabilities.dart';
+import '../../core/request_context.dart';
 import '../../core/runtime.dart';
 import '../../core/server.dart';
 import '../_internal/js/fetch_handler.dart';

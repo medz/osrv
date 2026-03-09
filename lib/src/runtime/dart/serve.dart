@@ -5,6 +5,7 @@ import 'dart:io';
 
 import '../../core/capabilities.dart';
 import '../../core/errors.dart';
+import '../../core/request_context.dart';
 import '../../core/runtime.dart';
 import '../../core/server.dart';
 import '../_internal/server/error_handler.dart';

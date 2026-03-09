@@ -1,4 +1,3 @@
-import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/dart.dart';
 
 import 'server.dart' as example;

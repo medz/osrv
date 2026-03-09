@@ -174,5 +174,5 @@ final server = Server(
 ## Current Limitations
 
 - websocket support is not implemented
-- `defineFetchExport(...)` requires a JavaScript host
+- the runtime entry is JavaScript-target only and does not compile to native executables
 - there is no listener-style `serve(...)` API for Vercel

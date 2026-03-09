@@ -6,6 +6,47 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 void main() {
+  test('dart runtime example still compiles to a native executable', () async {
+    final tempDir = await Directory.systemTemp.createTemp('osrv_dart_native_');
+    addTearDown(() => tempDir.delete(recursive: true));
+
+    final outputPath = '${tempDir.path}/dart_runtime';
+    final compile = await Process.run('dart', [
+      'compile',
+      'exe',
+      'example/dart.dart',
+      '-o',
+      outputPath,
+    ], workingDirectory: _workspacePath);
+
+    expect(compile.exitCode, 0, reason: '${compile.stdout}\n${compile.stderr}');
+  });
+
+  test(
+    'node runtime example does not compile to a native executable',
+    () async {
+      await _expectNativeCompileFailure('example/node.dart');
+    },
+  );
+
+  test('bun runtime example does not compile to a native executable', () async {
+    await _expectNativeCompileFailure('example/bun.dart');
+  });
+
+  test(
+    'cloudflare runtime example does not compile to a native executable',
+    () async {
+      await _expectNativeCompileFailure('example/cloudflare.dart');
+    },
+  );
+
+  test(
+    'vercel runtime example does not compile to a native executable',
+    () async {
+      await _expectNativeCompileFailure('example/vercel.dart');
+    },
+  );
+
   test(
     'cloudflare fetch export bundle does not include vercel helper imports',
     () async {
@@ -83,3 +124,28 @@ void main() {
 }
 
 final _workspacePath = Directory.current.path;
+
+Future<void> _expectNativeCompileFailure(String inputPath) async {
+  final tempDir = await Directory.systemTemp.createTemp(
+    'osrv_native_compile_failure_',
+  );
+  addTearDown(() => tempDir.delete(recursive: true));
+
+  final outputPath = '${tempDir.path}/runtime';
+  final compile = await Process.run('dart', [
+    'compile',
+    'exe',
+    inputPath,
+    '-o',
+    outputPath,
+  ], workingDirectory: _workspacePath);
+
+  expect(
+    compile.exitCode,
+    isNonZero,
+    reason: 'Expected native compilation of $inputPath to fail.',
+  );
+
+  final output = '${compile.stdout}\n${compile.stderr}';
+  expect(output, contains('dart:js_interop'));
+}

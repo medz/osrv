@@ -4,8 +4,6 @@ import 'package:ht/ht.dart' show Request, Response;
 
 import 'request_context.dart';
 
-export 'request_context.dart' show RequestContext, ServerLifecycleContext;
-
 /// Handles a single incoming request.
 typedef ServerFetch =
     FutureOr<Response> Function(Request request, RequestContext context);
