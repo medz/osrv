@@ -26,7 +26,7 @@ Future<Runtime> serveNodeRuntimeHost(
 
   final coordinator = ShutdownCoordinator();
   final startup = Completer<void>();
-  unawaited(startup.future.catchError((Object _, StackTrace __) {}));
+  unawaited(startup.future.catchError((Object _, StackTrace _) {}));
 
   late final NodeHttpServerHost hostServer;
   late final Uri runtimeUrl;
