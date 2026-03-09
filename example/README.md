@@ -56,7 +56,7 @@ dart compile js example/vercel.dart -o example/api/index.dart.js
 
 The JavaScript shims are:
 
-- [`cloudflare.js`](./cloudflare.js)
+- [`cloudflare.mjs`](./cloudflare.mjs)
 - [`api/index.mjs`](./api/index.mjs)
 
 ## Cloudflare Worker Example

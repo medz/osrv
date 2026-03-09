@@ -1,7 +1,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "osrv-example",
-  "main": "./cloudflare.js",
+  "main": "./cloudflare.mjs",
   "compatibility_date": "2026-03-06",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true
