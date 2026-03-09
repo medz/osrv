@@ -1,6 +1,6 @@
 name: osrv
 description: Unified Dart server runtime for Dart, Node, Bun, Cloudflare, and Vercel.
-version: 0.2.0
+version: 0.3.0
 homepage: https://github.com/medz/osrv
 repository: https://github.com/medz/osrv
 issue_tracker: https://github.com/medz/osrv/issues

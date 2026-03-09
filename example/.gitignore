@@ -1,6 +1,7 @@
 .wrangler
 
 api/
+!api/index.mjs
 bun.lock
 cloudflare.dart.js*
 vercel.dart.js*
