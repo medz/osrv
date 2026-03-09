@@ -31,8 +31,8 @@ It is input, not the running runtime handle.
 An entry export is a runtime entry that publishes a fetch handler without returning a running `Runtime`.
 
 Current examples:
-- `defineFetchEntry(server, runtime: FetchEntryRuntime.cloudflare)`
-- `defineFetchEntry(server, runtime: FetchEntryRuntime.vercel)`
+- `defineFetchExport(server)` from `package:osrv/runtime/cloudflare.dart`
+- `defineFetchExport(server)` from `package:osrv/runtime/vercel.dart`
 
 ## Runtime
 
@@ -110,7 +110,6 @@ Examples:
 
 For application code, prefer:
 - `package:osrv/osrv.dart`
-- `package:osrv/esm.dart`
 - `package:osrv/runtime/*.dart`
 
 Avoid `package:osrv/src/...` imports.

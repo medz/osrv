@@ -49,12 +49,11 @@ Future<void> main() async {
 
 ```dart
 import 'package:osrv/osrv.dart';
-import 'package:osrv/esm.dart';
 import 'package:osrv/runtime/cloudflare.dart';
 import 'package:web/web.dart' as web;
 
 void main() {
-  defineFetchEntry(
+  defineFetchExport(
     Server(
       fetch: (request, context) {
         final cf =
@@ -65,7 +64,6 @@ void main() {
         });
       },
     ),
-    runtime: FetchEntryRuntime.cloudflare,
   );
 }
 ```
@@ -74,12 +72,11 @@ void main() {
 
 ```dart
 import 'package:osrv/osrv.dart';
-import 'package:osrv/esm.dart';
 import 'package:osrv/runtime/vercel.dart';
 import 'package:web/web.dart' as web;
 
 void main() {
-  defineFetchEntry(
+  defineFetchExport(
     Server(
       fetch: (request, context) {
         final vercel = context.extension<VercelRuntimeExtension<web.Request>>();
@@ -89,7 +86,6 @@ void main() {
         });
       },
     ),
-    runtime: FetchEntryRuntime.vercel,
   );
 }
 ```

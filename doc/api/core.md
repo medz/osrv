@@ -83,7 +83,7 @@ Do not use `serve(...)` for:
 - `cloudflare`
 - `vercel`
 
-Those runtimes use `defineFetchEntry(...)` from `package:osrv/esm.dart`.
+Those runtimes use runtime-specific `defineFetchExport(...)` from `package:osrv/runtime/cloudflare.dart` or `package:osrv/runtime/vercel.dart`.
 
 ## `Runtime`
 

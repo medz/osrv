@@ -28,7 +28,7 @@ Use `osrv` when you want:
 ## Features
 
 - Unified `Server` contract built around `Request`, `Response`, and `RequestContext`
-- Explicit runtime selection through `RuntimeConfig` or `defineFetchEntry(...)`
+- Explicit runtime selection through `RuntimeConfig` or runtime-specific `defineFetchExport(...)`
 - Runtime capability model via `RuntimeCapabilities`
 - Lifecycle hooks: `onStart`, `onStop`, and `onError`
 - Typed runtime-specific extension access
@@ -47,8 +47,8 @@ dart pub add osrv
 | `dart` | `serve(server, DartRuntimeConfig(...))` | `package:osrv/runtime/dart.dart` |
 | `node` | `serve(server, NodeRuntimeConfig(...))` | `package:osrv/runtime/node.dart` |
 | `bun` | `serve(server, BunRuntimeConfig(...))` | `package:osrv/runtime/bun.dart` |
-| `cloudflare` | `defineFetchEntry(server, runtime: FetchEntryRuntime.cloudflare)` | `package:osrv/runtime/cloudflare.dart` + `package:osrv/esm.dart` |
-| `vercel` | `defineFetchEntry(server, runtime: FetchEntryRuntime.vercel)` | `package:osrv/runtime/vercel.dart` + `package:osrv/esm.dart` |
+| `cloudflare` | `defineFetchExport(server)` | `package:osrv/runtime/cloudflare.dart` |
+| `vercel` | `defineFetchExport(server)` | `package:osrv/runtime/vercel.dart` |
 
 ## Quick Start
 
@@ -81,14 +81,13 @@ Future<void> main() async {
 
 ```dart
 import 'package:osrv/osrv.dart';
-import 'package:osrv/esm.dart';
+import 'package:osrv/runtime/cloudflare.dart';
 
 void main() {
-  defineFetchEntry(
+  defineFetchExport(
     Server(
       fetch: (request, context) => Response.text('Hello from osrv'),
     ),
-    runtime: FetchEntryRuntime.cloudflare,
   );
 }
 ```
@@ -119,7 +118,7 @@ Main exported concepts:
 - `RuntimeCapabilities`
 - `RuntimeExtension`
 
-For fetch-export runtimes, use `package:osrv/esm.dart`.
+For fetch-export runtimes, use the matching runtime entrypoint such as `package:osrv/runtime/cloudflare.dart` or `package:osrv/runtime/vercel.dart`.
 
 ## Documentation
 

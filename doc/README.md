@@ -4,7 +4,7 @@
 
 It gives you one `Server` contract and two explicit host entry models:
 - `serve(server, RuntimeConfig)` for listener-style runtimes
-- `defineFetchEntry(server, runtime: ...)` for fetch-export runtimes
+- runtime-specific `defineFetchExport(server)` for fetch-export runtimes
 
 Current runtime families:
 - `dart`
@@ -37,7 +37,6 @@ Current global limitation:
 
 Application code should import only:
 - `package:osrv/osrv.dart`
-- `package:osrv/esm.dart`
 - `package:osrv/runtime/*.dart`
 
 Do not build against `package:osrv/src/...` paths.

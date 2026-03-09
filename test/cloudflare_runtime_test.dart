@@ -2,15 +2,15 @@
 library;
 
 import 'package:osrv/osrv.dart';
-import 'package:osrv/esm.dart';
+import 'package:osrv/runtime/cloudflare.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('defineFetchEntry is explicit about requiring a JavaScript host', () {
+  test('defineFetchExport is explicit about requiring a JavaScript host', () {
     final server = Server(fetch: (request, context) => Response.text('ok'));
 
     expect(
-      () => defineFetchEntry(server, runtime: FetchEntryRuntime.cloudflare),
+      () => defineFetchExport(server),
       throwsA(
         isA<UnsupportedError>().having(
           (error) => error.message,
@@ -21,15 +21,11 @@ void main() {
     );
   });
 
-  test('defineFetchEntry rejects an empty export name', () {
+  test('defineFetchExport rejects an empty export name', () {
     final server = Server(fetch: (request, context) => Response.text('ok'));
 
     expect(
-      () => defineFetchEntry(
-        server,
-        runtime: FetchEntryRuntime.cloudflare,
-        name: '  ',
-      ),
+      () => defineFetchExport(server, name: '  '),
       throwsA(isA<ArgumentError>()),
     );
   });

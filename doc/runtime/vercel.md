@@ -40,7 +40,6 @@ Example project files:
 
 ```dart
 import 'package:osrv/osrv.dart';
-import 'package:osrv/esm.dart';
 import 'package:osrv/runtime/vercel.dart';
 import 'package:web/web.dart' as web;
 ```
@@ -49,9 +48,8 @@ import 'package:web/web.dart' as web;
 
 ```dart
 void main() {
-  defineFetchEntry(
+  defineFetchExport(
     server,
-    runtime: FetchEntryRuntime.vercel,
   );
 }
 ```
@@ -59,9 +57,8 @@ void main() {
 Optional custom export name:
 
 ```dart
-defineFetchEntry(
+defineFetchExport(
   server,
-  runtime: FetchEntryRuntime.vercel,
   name: '__custom_fetch__',
 );
 ```
@@ -88,7 +85,7 @@ export default { fetch: globalThis.__osrv_fetch__ };
 
 Put that bootstrap in `api/index.mjs`.
 
-If you pass `name: '__custom_fetch__'` to `defineFetchEntry(...)`, export
+If you pass `name: '__custom_fetch__'` to `defineFetchExport(...)`, export
 `globalThis.__custom_fetch__` instead.
 
 `globalThis.self` must exist before the compiled Dart module evaluates.
@@ -102,7 +99,7 @@ Vercel currently uses the entry-export model.
 
 That means:
 
-- use `defineFetchEntry(...)`
+- use `defineFetchExport(...)`
 - there is no `RuntimeConfig`
 - there is no running `Runtime` handle returned from `main()`
 
@@ -177,5 +174,5 @@ final server = Server(
 ## Current Limitations
 
 - websocket support is not implemented
-- `defineFetchEntry(...)` requires a JavaScript host
+- `defineFetchExport(...)` requires a JavaScript host
 - there is no listener-style `serve(...)` API for Vercel

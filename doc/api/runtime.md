@@ -26,7 +26,7 @@ They return a running `Runtime` handle.
 
 ### Entry-Export
 
-These runtimes use `defineFetchEntry(server, runtime: ...)`:
+These runtimes use runtime-specific `defineFetchExport(server)`:
 - `cloudflare`
 - `vercel`
 
@@ -76,23 +76,21 @@ It is not:
 For Cloudflare and Vercel:
 
 ```dart
-defineFetchEntry(
+defineFetchExport(
   server,
-  runtime: FetchEntryRuntime.cloudflare,
 );
 ```
 
 Optional:
 
 ```dart
-defineFetchEntry(
+defineFetchExport(
   server,
-  runtime: FetchEntryRuntime.vercel,
   name: '__custom_fetch__',
 );
 ```
 
-This defines a JavaScript fetch export with the selected runtime family.
+This defines a JavaScript fetch export through the selected runtime family entrypoint.
 
 ## Runtime-Specific Extensions
 
@@ -115,8 +113,8 @@ Current public runtime-specific types:
 | `dart` | `package:osrv/runtime/dart.dart` | `serve(...)` | yes |
 | `node` | `package:osrv/runtime/node.dart` | `serve(...)` | yes |
 | `bun` | `package:osrv/runtime/bun.dart` | `serve(...)` | yes |
-| `cloudflare` | `package:osrv/runtime/cloudflare.dart` + `package:osrv/esm.dart` | `defineFetchEntry(...)` | no |
-| `vercel` | `package:osrv/runtime/vercel.dart` + `package:osrv/esm.dart` | `defineFetchEntry(...)` | no |
+| `cloudflare` | `package:osrv/runtime/cloudflare.dart` | `defineFetchExport(...)` | no |
+| `vercel` | `package:osrv/runtime/vercel.dart` | `defineFetchExport(...)` | no |
 
 ## Errors You Should Expect
 
@@ -128,4 +126,4 @@ Typical runtime-related failures:
 Examples:
 - `NodeRuntimeConfig` on a non-JavaScript host
 - `BunRuntimeConfig` outside Bun
-- `defineFetchEntry(...)` on a non-JavaScript host
+- `defineFetchExport(...)` on a non-JavaScript host

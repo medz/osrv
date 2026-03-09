@@ -6,7 +6,6 @@ Use the `cloudflare` runtime when you want to export a fetch handler for a Cloud
 
 ```dart
 import 'package:osrv/osrv.dart';
-import 'package:osrv/esm.dart';
 import 'package:osrv/runtime/cloudflare.dart';
 ```
 
@@ -14,9 +13,8 @@ import 'package:osrv/runtime/cloudflare.dart';
 
 ```dart
 void main() {
-  defineFetchEntry(
+  defineFetchExport(
     server,
-    runtime: FetchEntryRuntime.cloudflare,
   );
 }
 ```
@@ -24,9 +22,8 @@ void main() {
 Optional custom export name:
 
 ```dart
-defineFetchEntry(
+defineFetchExport(
   server,
-  runtime: FetchEntryRuntime.cloudflare,
   name: '__custom_fetch__',
 );
 ```
@@ -43,7 +40,7 @@ import './cloudflare.dart.js';
 export default { fetch: globalThis.__osrv_fetch__ };
 ```
 
-If you pass `name: '__custom_fetch__'` to `defineFetchEntry(...)`, re-export
+If you pass `name: '__custom_fetch__'` to `defineFetchExport(...)`, re-export
 `globalThis.__custom_fetch__` instead.
 
 ## Runtime Model
@@ -51,7 +48,7 @@ If you pass `name: '__custom_fetch__'` to `defineFetchEntry(...)`, re-export
 Cloudflare currently uses the entry-export model.
 
 That means:
-- use `defineFetchEntry(...)`
+- use `defineFetchExport(...)`
 - there is no `RuntimeConfig`
 - there is no running `Runtime` handle returned from `main()`
 
@@ -108,5 +105,5 @@ On Cloudflare, `osrv` forwards it to the worker execution context when available
 ## Current Limitations
 
 - websocket support is not implemented
-- `defineFetchEntry(...)` requires a JavaScript host
+- `defineFetchExport(...)` requires a JavaScript host
 - there is no listener-style `serve(...)` API for Cloudflare

@@ -42,7 +42,7 @@ final runtime = await serve(
 
 ### 2. Entry-Export Runtimes
 
-Use `defineFetchEntry(server, runtime: ...)` when the host expects a fetch handler export instead of a running listener.
+Use runtime-specific `defineFetchExport(server)` when the host expects a fetch handler export instead of a running listener.
 
 Current entry-export runtimes:
 - `cloudflare`
@@ -52,12 +52,11 @@ Example:
 
 ```dart
 import 'package:osrv/osrv.dart';
-import 'package:osrv/esm.dart';
+import 'package:osrv/runtime/cloudflare.dart';
 
 void main() {
-  defineFetchEntry(
+  defineFetchExport(
     server,
-    runtime: FetchEntryRuntime.cloudflare,
   );
 }
 ```
@@ -129,7 +128,6 @@ Extensions expose runtime-specific power without pushing host objects into the c
 
 Application code should import only:
 - `package:osrv/osrv.dart`
-- `package:osrv/esm.dart`
 - `package:osrv/runtime/*.dart`
 
 Do not import `package:osrv/src/...`.

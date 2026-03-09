@@ -4,7 +4,7 @@ Runtime selection in `osrv` is always explicit.
 
 There are two ways to select a runtime:
 - pass a `RuntimeConfig` into `serve(...)`
-- choose a `FetchEntryRuntime` in `defineFetchEntry(...)`
+- call the runtime-specific `defineFetchExport(...)` entrypoint
 
 ## Serve-Based Runtimes
 
@@ -83,18 +83,16 @@ These runtimes do not use `RuntimeConfig` today:
 Use:
 
 ```dart
-defineFetchEntry(
+defineFetchExport(
   server,
-  runtime: FetchEntryRuntime.cloudflare,
 );
 ```
 
 Optional entry name override:
 
 ```dart
-defineFetchEntry(
+defineFetchExport(
   server,
-  runtime: FetchEntryRuntime.vercel,
   name: '__custom_fetch__',
 );
 ```
@@ -103,7 +101,7 @@ Validation:
 - `name` must not be empty or whitespace-only
 
 Default:
-- `defaultFetchEntryName == '__osrv_fetch__'`
+- `name` defaults to `'__osrv_fetch__'`
 
 ## Selection Examples
 
@@ -120,9 +118,8 @@ Entry-export:
 
 ```dart
 void main() {
-  defineFetchEntry(
+  defineFetchExport(
     server,
-    runtime: FetchEntryRuntime.cloudflare,
   );
 }
 ```

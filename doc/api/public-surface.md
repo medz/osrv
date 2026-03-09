@@ -6,7 +6,6 @@ This page lists the stable package entrypoints and exports intended for applicat
 
 These are the supported public import paths:
 - `package:osrv/osrv.dart`
-- `package:osrv/esm.dart`
 - `package:osrv/runtime/dart.dart`
 - `package:osrv/runtime/node.dart`
 - `package:osrv/runtime/bun.dart`
@@ -41,18 +40,6 @@ ServerHook
 ServerErrorHook
 ```
 
-## `package:osrv/esm.dart`
-
-Stable exports:
-
-```dart
-defaultFetchEntryName
-defineFetchEntry
-FetchEntryRuntime
-```
-
-Use this entrypoint only for fetch-export runtimes.
-
 ## Runtime Family Entrypoints
 
 ### `package:osrv/runtime/dart.dart`
@@ -82,6 +69,7 @@ BunRuntimeExtension
 CloudflareRuntimeExtension
 CloudflareExecutionContext
 cloudflareWaitUntil
+defineFetchExport
 ```
 
 ### `package:osrv/runtime/vercel.dart`
@@ -90,6 +78,7 @@ cloudflareWaitUntil
 VercelRuntimeExtension
 VercelFunctions
 VercelRuntimeCache
+defineFetchExport
 ```
 
 ## What Not To Import
@@ -126,12 +115,11 @@ Entry-export:
 
 ```dart
 import 'package:osrv/osrv.dart';
-import 'package:osrv/esm.dart';
+import 'package:osrv/runtime/cloudflare.dart';
 
 void main() {
-  defineFetchEntry(
+  defineFetchExport(
     server,
-    runtime: FetchEntryRuntime.cloudflare,
   );
 }
 ```
