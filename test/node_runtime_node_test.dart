@@ -269,6 +269,105 @@ void main() {
   );
 
   test(
+    'node runtime maps body subscription pause and resume to the host request',
+    () async {
+      final firstChunk = Completer<void>();
+      final resumeBody = Completer<void>();
+      final pausedFlowing = Completer<bool?>();
+      final resumedFlowing = Completer<bool?>();
+
+      final runtime = await serve(
+        Server(
+          fetch: (request, context) async {
+            final extension = context.extension<NodeRuntimeExtension>()!;
+            final rawRequest = extension.request!;
+            final chunks = <String>[];
+            final done = Completer<void>();
+            late final StreamSubscription<Uint8List> subscription;
+
+            subscription = request.body!.listen(
+              (chunk) {
+                chunks.add(utf8.decode(chunk));
+                if (chunks.length != 1) {
+                  return;
+                }
+
+                subscription.pause();
+                if (!pausedFlowing.isCompleted) {
+                  scheduleMicrotask(() {
+                    if (!pausedFlowing.isCompleted) {
+                      pausedFlowing.complete(_nodeReadableFlowing(rawRequest));
+                    }
+                  });
+                }
+                if (!firstChunk.isCompleted) {
+                  firstChunk.complete();
+                }
+
+                unawaited(
+                  resumeBody.future.then((_) {
+                    subscription.resume();
+                    if (!resumedFlowing.isCompleted) {
+                      scheduleMicrotask(() {
+                        if (!resumedFlowing.isCompleted) {
+                          resumedFlowing.complete(
+                            _nodeReadableFlowing(rawRequest),
+                          );
+                        }
+                      });
+                    }
+                  }),
+                );
+              },
+              onDone: () {
+                if (!done.isCompleted) {
+                  done.complete();
+                }
+              },
+              onError: done.completeError,
+            );
+
+            await done.future;
+
+            return Response.json({
+              'body': chunks.join(),
+              'pausedFlowing': await pausedFlowing.future,
+              'resumedFlowing': await resumedFlowing.future,
+            });
+          },
+        ),
+        host: '127.0.0.1',
+        port: 0,
+      );
+
+      addTearDown(runtime.close);
+
+      final request = _openNodeStreamingRequest(
+        runtime.url!.resolve('/paused-resumed-body'),
+        method: 'POST',
+      );
+      final responseFuture = request.response;
+
+      request.flushHeaders();
+      request.write(utf8.encode('first-'));
+
+      await firstChunk.future;
+
+      request.write(utf8.encode('second'));
+      resumeBody.complete();
+      await request.end();
+
+      final response = await responseFuture;
+      expect(response.status, 200);
+      expect(jsonDecode(response.text), {
+        'body': 'first-second',
+        'pausedFlowing': false,
+        'resumedFlowing': true,
+      });
+    },
+  );
+
+  test(
     'node runtime does not route transport write failures into onError',
     () async {
       var onErrorCalls = 0;

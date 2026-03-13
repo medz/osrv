@@ -34,6 +34,8 @@ extension type NodeIncomingMessageHost._(JSObject _) implements JSObject {
   external JSFunction get once;
   @JS('removeListener')
   external JSFunction get removeListener;
+  external JSFunction get pause;
+  external JSFunction get resume;
 }
 
 extension type NodeServerResponseHost._(JSObject _) implements JSObject {
@@ -208,11 +210,26 @@ Stream<List<int>> nodeIncomingMessageBody(NodeIncomingMessageHost request) {
       request.on.callAsFunction(request, 'aborted'.toJS, onAborted);
       listening = true;
     },
+    onPause: () {
+      if (settled || !listening) {
+        return;
+      }
+      request.pause.callAsFunction(request);
+    },
+    onResume: () {
+      if (settled || !listening) {
+        return;
+      }
+      request.resume.callAsFunction(request);
+    },
     onCancel: () {
       if (settled) {
         return;
       }
 
+      if (listening) {
+        request.pause.callAsFunction(request);
+      }
       detachListeners();
       settled = true;
     },
