@@ -5,5 +5,4 @@ library;
 import 'package:ht/ht.dart' show Request;
 import 'package:web/web.dart' as web;
 
-Request htRequestFromWebRequest(web.Request request) =>
-    (Request as dynamic)(request) as Request;
+Request htRequestFromWebRequest(web.Request request) => Request(request);
