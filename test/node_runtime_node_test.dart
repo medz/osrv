@@ -194,72 +194,18 @@ void main() {
     ]);
   });
 
-  test('node runtime does not pre-read the request stream', () async {
-    final entered = Completer<void>();
-
-    final runtime = await serve(
-      Server(
-        fetch: (request, context) {
-          entered.complete();
-          return Response(request.method.value);
-        },
-      ),
-      host: '127.0.0.1',
-      port: 0,
-    );
-
-    addTearDown(runtime.close);
-
-    final request = _openNodeStreamingRequest(
-      runtime.url!.resolve('/stream-request'),
-      method: 'POST',
-    );
-    final responseFuture = request.response;
-
-    request.flushHeaders();
-
-    await entered.future.timeout(const Duration(milliseconds: 250));
-
-    request.write(utf8.encode('chunk'));
-    await request.end();
-
-    final response = await responseFuture;
-    expect(response.status, 200);
-    expect(response.text, 'POST');
-  });
+  for (final method in _nonPreReadRequestMethods) {
+    test('node runtime does not pre-read the $method request stream', () async {
+      await _expectNodeRuntimeDoesNotPreReadRequestStream(method);
+    });
+  }
 
   test(
-    'node runtime bridges request streams after headers are flushed',
+    'node runtime bridges POST request streams after headers are flushed',
     () async {
-      final received = Completer<String>();
-
-      final runtime = await serve(
-        Server(
-          fetch: (request, context) async {
-            received.complete(await request.text());
-            return Response('ok');
-          },
-        ),
-        host: '127.0.0.1',
-        port: 0,
+      await _expectNodeRuntimeBridgesRequestStreamAfterHeadersAreFlushed(
+        'POST',
       );
-
-      addTearDown(runtime.close);
-
-      final request = _openNodeStreamingRequest(
-        runtime.url!.resolve('/stream-body'),
-        method: 'POST',
-      );
-      final responseFuture = request.response;
-
-      request.flushHeaders();
-      request.write(utf8.encode('chunk'));
-      await request.end();
-
-      final response = await responseFuture;
-      expect(response.status, 200);
-      expect(response.text, 'ok');
-      expect(await received.future, 'chunk');
     },
   );
 
@@ -476,6 +422,96 @@ void main() {
     await closeFuture;
     expect(closeCompleted, isTrue);
   });
+}
+
+const _nonPreReadRequestMethods = ['POST', 'GET', 'HEAD'];
+
+Future<void> _expectNodeRuntimeDoesNotPreReadRequestStream(
+  String method,
+) async {
+  final entered = Completer<void>();
+  final releaseResponse = Completer<void>();
+
+  final runtime = await serve(
+    Server(
+      fetch: (request, context) async {
+        if (!entered.isCompleted) {
+          entered.complete();
+        }
+        await releaseResponse.future;
+        return Response(
+          null,
+          ResponseInit(
+            headers: Headers()..set('x-method', request.method.value),
+          ),
+        );
+      },
+    ),
+    host: '127.0.0.1',
+    port: 0,
+  );
+
+  addTearDown(runtime.close);
+
+  final request = _openNodeStreamingRequest(
+    runtime.url!.resolve('/stream-request'),
+    method: method,
+  );
+  final responseFuture = request.response;
+
+  request.flushHeaders();
+
+  await entered.future;
+  await request.end();
+  releaseResponse.complete();
+
+  final response = await responseFuture;
+  expect(response.status, 200);
+  expect(response.text, isEmpty);
+  expect(response.rawHeaderValues('x-method'), [method]);
+}
+
+Future<void> _expectNodeRuntimeBridgesRequestStreamAfterHeadersAreFlushed(
+  String method,
+) async {
+  final received = Completer<String>();
+
+  final runtime = await serve(
+    Server(
+      fetch: (request, context) async {
+        final body = await request.text();
+        if (!received.isCompleted) {
+          received.complete(body);
+        }
+        return Response(
+          null,
+          ResponseInit(
+            headers: Headers()..set('x-method', request.method.value),
+          ),
+        );
+      },
+    ),
+    host: '127.0.0.1',
+    port: 0,
+  );
+
+  addTearDown(runtime.close);
+
+  final request = _openNodeStreamingRequest(
+    runtime.url!.resolve('/stream-body'),
+    method: method,
+  );
+  final responseFuture = request.response;
+
+  request.flushHeaders();
+  request.write(utf8.encode('chunk'));
+  await request.end();
+
+  final response = await responseFuture;
+  expect(response.status, 200);
+  expect(response.text, isEmpty);
+  expect(response.rawHeaderValues('x-method'), [method]);
+  expect(await received.future, 'chunk');
 }
 
 Future<_FetchResult> _fetchText(
