@@ -661,8 +661,23 @@ _NodeStreamingRequest _openNodeStreamingRequest(
             );
             clientResponse.on.callAsFunction(
               clientResponse,
+              'error'.toJS,
+              ((JSAny? error) {
+                if (response.isCompleted) {
+                  return;
+                }
+                response.completeError(
+                  StateError(error?.dartify().toString() ?? 'response failed'),
+                );
+              }).toJS,
+            );
+            clientResponse.on.callAsFunction(
+              clientResponse,
               'end'.toJS,
               (() {
+                if (response.isCompleted) {
+                  return;
+                }
                 response.complete(
                   _FetchResult(
                     status: (clientResponse.statusCode as JSNumber).toDartInt,
