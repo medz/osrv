@@ -108,22 +108,11 @@ Object? nodeIncomingMessageHeaders(NodeIncomingMessageHost request) {
   return headers?.dartify();
 }
 
-Object? nodeIncomingMessageBody(NodeIncomingMessageHost request) {
-  return null;
-}
-
-Future<Object?> readNodeIncomingMessageBody(
-  NodeIncomingMessageHost request,
-) async {
+Stream<List<int>> nodeIncomingMessageBody(NodeIncomingMessageHost request) {
   final controller = StreamController<List<int>>(sync: true);
-  final result = Completer<Object?>();
-  var hasBody = false;
   var settled = false;
 
   void settleError(Object error) {
-    if (!result.isCompleted) {
-      result.completeError(error);
-    }
     if (!controller.isClosed) {
       controller.addError(error);
       controller.close();
@@ -144,12 +133,6 @@ Future<Object?> readNodeIncomingMessageBody(
         return;
       }
 
-      if (!hasBody) {
-        hasBody = true;
-        if (!result.isCompleted) {
-          result.complete(controller.stream);
-        }
-      }
       controller.add(bytes);
     }).toJS,
   );
@@ -160,9 +143,6 @@ Future<Object?> readNodeIncomingMessageBody(
     (() {
       if (settled) {
         return;
-      }
-      if (!result.isCompleted) {
-        result.complete(hasBody ? controller.stream : null);
       }
       if (!controller.isClosed) {
         controller.close();
@@ -187,7 +167,7 @@ Future<Object?> readNodeIncomingMessageBody(
     }).toJS,
   );
 
-  return result.future;
+  return controller.stream;
 }
 
 NodeHttpServerHost createNodeHttpServer(

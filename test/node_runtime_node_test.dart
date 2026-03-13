@@ -5,14 +5,41 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/node.dart';
+import 'package:osrv/src/runtime/_internal/js/web_stream_bridge.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 
 @JS('fetch')
 external JSPromise<web.Response> _fetch(JSAny input, [web.RequestInit init]);
+
+@JS('require')
+external JSFunction? get _require;
+
+extension type _NodeHttpModule._(JSObject _) implements JSObject {
+  @JS('request')
+  external JSFunction get request;
+}
+
+extension type _NodeClientRequest._(JSObject _) implements JSObject {
+  @JS('flushHeaders')
+  external JSFunction get flushHeaders;
+
+  external JSFunction get write;
+  external JSFunction get end;
+  external JSFunction get on;
+}
+
+extension type _NodeClientResponse._(JSObject _) implements JSObject {
+  external JSAny? get statusCode;
+  external JSFunction get on;
+
+  @JS('setEncoding')
+  external JSFunction get setEncoding;
+}
 
 void main() {
   test('node runtime serves requests over node:http', () async {
@@ -135,6 +162,75 @@ void main() {
     expect(response.text, 'hello stream');
     expect(response.header('x-stream'), 'yes');
   });
+
+  test('node runtime does not pre-read the request stream', () async {
+    final entered = Completer<void>();
+
+    final runtime = await serve(
+      Server(
+        fetch: (request, context) {
+          entered.complete();
+          return Response(request.method.value);
+        },
+      ),
+      host: '127.0.0.1',
+      port: 0,
+    );
+
+    addTearDown(runtime.close);
+
+    final request = _openNodeStreamingRequest(
+      runtime.url!.resolve('/stream-request'),
+      method: 'POST',
+    );
+    final responseFuture = request.response;
+
+    request.flushHeaders();
+
+    await entered.future.timeout(const Duration(milliseconds: 250));
+
+    request.write(utf8.encode('chunk'));
+    await request.end();
+
+    final response = await responseFuture;
+    expect(response.status, 200);
+    expect(response.text, 'POST');
+  });
+
+  test(
+    'node runtime bridges request streams after headers are flushed',
+    () async {
+      final received = Completer<String>();
+
+      final runtime = await serve(
+        Server(
+          fetch: (request, context) async {
+            received.complete(await request.text());
+            return Response('ok');
+          },
+        ),
+        host: '127.0.0.1',
+        port: 0,
+      );
+
+      addTearDown(runtime.close);
+
+      final request = _openNodeStreamingRequest(
+        runtime.url!.resolve('/stream-body'),
+        method: 'POST',
+      );
+      final responseFuture = request.response;
+
+      request.flushHeaders();
+      request.write(utf8.encode('chunk'));
+      await request.end();
+
+      final response = await responseFuture;
+      expect(response.status, 200);
+      expect(response.text, 'ok');
+      expect(await received.future, 'chunk');
+    },
+  );
 
   test(
     'node runtime does not route transport write failures into onError',
@@ -364,6 +460,10 @@ Future<_FetchResult> _fetchText(
           body: body?.toJS,
           headers: headers.jsify()! as web.HeadersInit,
         );
+  return _fetchResponse(uri, init);
+}
+
+Future<_FetchResult> _fetchResponse(Uri uri, web.RequestInit init) async {
   final response = await _fetch(uri.toString().toJS, init).toDart;
   return _FetchResult(
     status: response.status,
@@ -384,4 +484,99 @@ final class _FetchResult {
   final web.Headers headers;
 
   String? header(String name) => headers.get(name);
+}
+
+_NodeStreamingRequest _openNodeStreamingRequest(
+  Uri uri, {
+  String method = 'POST',
+}) {
+  final module = _NodeHttpModule._(
+    _require!.callAsFunction(null, 'node:http'.toJS)! as JSObject,
+  );
+  final response = Completer<_FetchResult>();
+  final path = uri.hasQuery ? '${uri.path}?${uri.query}' : uri.path;
+
+  final request = _NodeClientRequest._(
+    module.request.callAsFunction(
+          module,
+          {
+                'method': method,
+                'hostname': uri.host,
+                'port': uri.port,
+                'path': path,
+              }.jsify()!
+              as JSObject,
+          ((JSObject rawResponse) {
+            final clientResponse = _NodeClientResponse._(rawResponse);
+            final buffer = StringBuffer();
+
+            clientResponse.setEncoding.callAsFunction(
+              clientResponse,
+              'utf8'.toJS,
+            );
+            clientResponse.on.callAsFunction(
+              clientResponse,
+              'data'.toJS,
+              ((JSString chunk) {
+                buffer.write(chunk.toDart);
+              }).toJS,
+            );
+            clientResponse.on.callAsFunction(
+              clientResponse,
+              'end'.toJS,
+              (() {
+                response.complete(
+                  _FetchResult(
+                    status: (clientResponse.statusCode as JSNumber).toDartInt,
+                    text: buffer.toString(),
+                    headers: web.Headers(),
+                  ),
+                );
+              }).toJS,
+            );
+          }).toJS,
+        )!
+        as JSObject,
+  );
+
+  request.on.callAsFunction(
+    request,
+    'error'.toJS,
+    ((JSAny? error) {
+      if (response.isCompleted) {
+        return;
+      }
+      response.completeError(
+        StateError(error?.dartify().toString() ?? 'request failed'),
+      );
+    }).toJS,
+  );
+
+  return _NodeStreamingRequest(request: request, response: response.future);
+}
+
+final class _NodeStreamingRequest {
+  const _NodeStreamingRequest({required this.request, required this.response});
+
+  final _NodeClientRequest request;
+  final Future<_FetchResult> response;
+
+  void flushHeaders() {
+    request.flushHeaders.callAsFunction(request);
+  }
+
+  void write(List<int> chunk) {
+    request.write.callAsFunction(request, Uint8List.fromList(chunk).toJS);
+  }
+
+  Future<void> end() {
+    final completer = Completer<void>();
+    request.end.callAsFunction(
+      request,
+      (() {
+        completer.complete();
+      }).toJS,
+    );
+    return completer.future;
+  }
 }
