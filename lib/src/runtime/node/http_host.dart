@@ -30,6 +30,7 @@ extension type NodeIncomingMessageHost._(JSObject _) implements JSObject {
   external JSAny? get method;
   external JSAny? get url;
   external JSAny? get headers;
+  external JSAny? get readableEnded;
   external JSFunction get on;
   external JSFunction get once;
   @JS('removeListener')
@@ -123,7 +124,7 @@ Stream<List<int>> nodeIncomingMessageBody(NodeIncomingMessageHost request) {
   JSFunction? onData;
   JSFunction? onEnd;
   JSFunction? onError;
-  JSFunction? onAborted;
+  JSFunction? onClose;
 
   void removeListener(String event, JSFunction? listener) {
     if (listener == null) {
@@ -149,12 +150,12 @@ Stream<List<int>> nodeIncomingMessageBody(NodeIncomingMessageHost request) {
     removeListener('data', onData);
     removeListener('end', onEnd);
     removeListener('error', onError);
-    removeListener('aborted', onAborted);
+    removeListener('close', onClose);
 
     onData = null;
     onEnd = null;
     onError = null;
-    onAborted = null;
+    onClose = null;
     listening = false;
   }
 
@@ -222,14 +223,19 @@ Stream<List<int>> nodeIncomingMessageBody(NodeIncomingMessageHost request) {
       onError = ((JSAny? error) {
         settleError(StateError(_describeJsError(error)));
       }).toJS;
-      onAborted = (() {
+      onClose = (() {
+        if (nodeIncomingMessageReadableEnded(request)) {
+          settleDone();
+          return;
+        }
+
         settleError(StateError('Node request body was aborted.'));
       }).toJS;
 
       request.on.callAsFunction(request, 'data'.toJS, onData);
       request.on.callAsFunction(request, 'end'.toJS, onEnd);
       request.on.callAsFunction(request, 'error'.toJS, onError);
-      request.on.callAsFunction(request, 'aborted'.toJS, onAborted);
+      request.on.callAsFunction(request, 'close'.toJS, onClose);
       listening = true;
     },
     onPause: () {
@@ -261,6 +267,11 @@ Stream<List<int>> nodeIncomingMessageBody(NodeIncomingMessageHost request) {
   );
 
   return controller.stream;
+}
+
+bool nodeIncomingMessageReadableEnded(NodeIncomingMessageHost request) {
+  final readableEnded = request.readableEnded;
+  return readableEnded?.dartify() == true;
 }
 
 NodeHttpServerHost createNodeHttpServer(
