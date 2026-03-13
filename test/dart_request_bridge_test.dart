@@ -42,9 +42,8 @@ void main() {
     expect(await clone.text(), 'hello world');
     expect(request.bodyUsed, isTrue);
 
-    httpRequest.response
-      ..statusCode = HttpStatus.noContent
-      ..close();
+    httpRequest.response.statusCode = HttpStatus.noContent;
+    await httpRequest.response.close();
 
     final clientResponse = await clientResponseFuture;
     await clientResponse.drain<void>();

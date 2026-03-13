@@ -1,6 +1,7 @@
 // ignore_for_file: public_member_api_docs
 
-import 'package:ht/ht.dart' show Headers, HttpMethod, Request, RequestInit;
+import 'package:ht/ht.dart'
+    show Headers, HttpMethod, Request, RequestInit, RequestInput;
 
 import 'http_host.dart';
 
@@ -49,7 +50,7 @@ Request nodeRequestFromHeadSnapshot(
   final uri = origin.resolve(rawUrl);
 
   return Request(
-    uri,
+    RequestInput.uri(uri),
     RequestInit(
       method: HttpMethod.parse(snapshot.method ?? 'GET'),
       headers: _headersFromRaw(snapshot.rawHeaders),

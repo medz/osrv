@@ -5,4 +5,4 @@ import 'dart:io';
 import 'package:ht/ht.dart' show Request;
 
 Future<Request> dartRequestFromHttpRequest(HttpRequest request) async =>
-    Request(request);
+    (Request as dynamic)(request) as Request;

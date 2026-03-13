@@ -9,7 +9,6 @@ import 'dart:typed_data';
 
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/node.dart';
-import 'package:osrv/src/runtime/_internal/js/web_stream_bridge.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 

@@ -237,7 +237,7 @@ Future<void> closeNodeHttpServer(NodeHttpServerHost server) async {
         return;
       }
 
-      if (error != null && error.isDefinedAndNotNull) {
+      if (error?.isDefinedAndNotNull ?? false) {
         completer.completeError(StateError(_describeJsError(error)));
         return;
       }
@@ -277,9 +277,7 @@ void nodeServerResponseWriteHead(
   List<String>? rawHeaders,
 }) {
   final jsStatus = status.toJS;
-  final jsRawHeaders = rawHeaders == null
-      ? null
-      : rawHeaders.map((entry) => entry.toJS).toList().toJS;
+  final jsRawHeaders = rawHeaders?.map((entry) => entry.toJS).toList().toJS;
 
   if (statusText != null && statusText.isNotEmpty) {
     if (jsRawHeaders != null) {
