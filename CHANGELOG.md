@@ -1,5 +1,37 @@
 ## Unreleased
 
+## 0.4.0
+
+### Breaking Changes
+
+- Adopted `ht ^0.3.1` across `osrv` and aligned the exported fetch surface with
+  the `ht 0.3.x` request/response model.
+- Re-exported `HttpMethod`, `RequestInit`, and `ResponseInit` from
+  `package:osrv/osrv.dart`; downstream code should now use the `ht 0.3.x`
+  construction patterns for `Request` and `Response`.
+- Updated examples and runtime paths to use the new `Response(body, init)`
+  semantics instead of the older helper-style response construction.
+
+### Runtime
+
+- Reworked Dart and web-family request entry paths to use runtime-backed
+  `Request(...)` construction instead of eager bridge materialization.
+- Reworked the Node request bridge so requests enter `Server.fetch` as soon as
+  headers are available, while preserving streaming request bodies.
+- Tightened Node request body streaming with lazy listener attachment,
+  pause/resume backpressure propagation, discard-on-cancel draining, and
+  non-deprecated abort detection.
+- Streamlined Dart and Node response header writes, including repeated
+  `set-cookie` preservation.
+- Fixed fetch-export response bridging to preserve `Response.error()` semantics.
+
+### Testing
+
+- Added direct request-bridge coverage for Dart and web request hosts.
+- Expanded Node runtime coverage for early request entry, streaming request
+  bodies, request backpressure, cancel/discard behavior, and response header
+  preservation.
+
 ## 0.3.0
 
 ### Breaking Changes
