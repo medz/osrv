@@ -183,6 +183,21 @@ void main() {
     expect((await response.text().toDart).toDart, 'Internal Server Error');
   });
 
+  test('defineFetchExport preserves Response.error semantics', () async {
+    defineFetchExport(Server(fetch: (request, context) => Response.error()));
+
+    final response = await _callWorkerFetch(
+      _currentFetchHandler(),
+      web.Request('https://example.com/error-response'.toJS),
+      JSObject(),
+      createJSInteropWrapper(_TestExecutionContext()),
+    );
+
+    expect(response.type, 'error');
+    expect(response.status, 0);
+    expect(response.ok, isFalse);
+  });
+
   test('defineFetchExport respects a custom export name', () async {
     defineFetchExport(
       Server(
