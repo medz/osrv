@@ -15,24 +15,19 @@ Future<void> writeHtResponseToNodeServerResponse(
   NodeServerResponseHost target,
 ) async {
   try {
-    nodeServerResponseSetStatus(
+    final rawHeaders = <String>[];
+    for (final MapEntry(:key, :value) in source.headers.entries()) {
+      rawHeaders
+        ..add(key)
+        ..add(value);
+    }
+
+    nodeServerResponseWriteHead(
       target,
       status: source.status,
       statusText: source.statusText,
+      rawHeaders: rawHeaders.isEmpty ? null : rawHeaders,
     );
-
-    final headerValues = <String, List<String>>{};
-    for (final MapEntry(:key, :value) in source.headers.entries()) {
-      headerValues.putIfAbsent(key, () => <String>[]).add(value);
-    }
-
-    for (final MapEntry(:key, value: values) in headerValues.entries) {
-      nodeServerResponseSetHeader(
-        target,
-        key,
-        values.length == 1 ? values.single : values,
-      );
-    }
 
     final body = source.body;
     if (body == null) {

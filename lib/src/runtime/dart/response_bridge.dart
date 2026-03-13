@@ -13,13 +13,8 @@ Future<void> writeHtResponseToDartHttpResponse(
     target.reasonPhrase = source.statusText;
   }
 
-  final headerValues = <String, List<String>>{};
   for (final MapEntry(:key, :value) in source.headers.entries()) {
-    headerValues.putIfAbsent(key, () => <String>[]).add(value);
-  }
-
-  for (final MapEntry(:key, value: values) in headerValues.entries) {
-    target.headers.set(key, values);
+    target.headers.add(key, value);
   }
 
   final body = source.body;

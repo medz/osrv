@@ -38,6 +38,9 @@ extension type NodeServerResponseHost._(JSObject _) implements JSObject {
   external set statusCode(JSAny? value);
   external set statusMessage(JSAny? value);
 
+  @JS('writeHead')
+  external JSFunction get writeHead;
+
   @JS('setHeader')
   external JSFunction get setHeader;
 
@@ -265,6 +268,40 @@ void nodeServerResponseSetHeader(
     List<String>() => value.map((entry) => entry.toJS).toList().toJS,
     _ => value.jsify(),
   });
+}
+
+void nodeServerResponseWriteHead(
+  NodeServerResponseHost response, {
+  required int status,
+  String? statusText,
+  List<String>? rawHeaders,
+}) {
+  final jsStatus = status.toJS;
+  final jsRawHeaders = rawHeaders == null
+      ? null
+      : rawHeaders.map((entry) => entry.toJS).toList().toJS;
+
+  if (statusText != null && statusText.isNotEmpty) {
+    if (jsRawHeaders != null) {
+      response.writeHead.callAsFunction(
+        response,
+        jsStatus,
+        statusText.toJS,
+        jsRawHeaders,
+      );
+      return;
+    }
+
+    response.writeHead.callAsFunction(response, jsStatus, statusText.toJS);
+    return;
+  }
+
+  if (jsRawHeaders != null) {
+    response.writeHead.callAsFunction(response, jsStatus, jsRawHeaders);
+    return;
+  }
+
+  response.writeHead.callAsFunction(response, jsStatus);
 }
 
 Future<void> nodeServerResponseWrite(

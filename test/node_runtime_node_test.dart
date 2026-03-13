@@ -35,6 +35,7 @@ extension type _NodeClientRequest._(JSObject _) implements JSObject {
 
 extension type _NodeClientResponse._(JSObject _) implements JSObject {
   external JSAny? get statusCode;
+  external JSAny? get rawHeaders;
   external JSFunction get on;
 
   @JS('setEncoding')
@@ -161,6 +162,37 @@ void main() {
     expect(response.status, 200);
     expect(response.text, 'hello stream');
     expect(response.header('x-stream'), 'yes');
+  });
+
+  test('node runtime preserves repeated set-cookie headers', () async {
+    final runtime = await serve(
+      Server(
+        fetch: (request, context) {
+          final headers = Headers()
+            ..append('set-cookie', 'a=1; Path=/')
+            ..append('set-cookie', 'b=2; Path=/');
+          return Response('cookies', ResponseInit(headers: headers));
+        },
+      ),
+      host: '127.0.0.1',
+      port: 0,
+    );
+
+    addTearDown(runtime.close);
+
+    final request = _openNodeStreamingRequest(
+      runtime.url!.resolve('/cookies'),
+      method: 'GET',
+    );
+    final responseFuture = request.response;
+    await request.end();
+    final response = await responseFuture;
+
+    expect(response.status, 200);
+    expect(response.rawHeaderValues('set-cookie'), [
+      'a=1; Path=/',
+      'b=2; Path=/',
+    ]);
   });
 
   test('node runtime does not pre-read the request stream', () async {
@@ -477,13 +509,25 @@ final class _FetchResult {
     required this.status,
     required this.text,
     required this.headers,
+    this.rawHeaders = const <String>[],
   });
 
   final int status;
   final String text;
   final web.Headers headers;
+  final List<String> rawHeaders;
 
   String? header(String name) => headers.get(name);
+
+  List<String> rawHeaderValues(String name) {
+    final values = <String>[];
+    for (var index = 0; index + 1 < rawHeaders.length; index += 2) {
+      if (rawHeaders[index].toLowerCase() == name.toLowerCase()) {
+        values.add(rawHeaders[index + 1]);
+      }
+    }
+    return values;
+  }
 }
 
 _NodeStreamingRequest _openNodeStreamingRequest(
@@ -530,6 +574,7 @@ _NodeStreamingRequest _openNodeStreamingRequest(
                     status: (clientResponse.statusCode as JSNumber).toDartInt,
                     text: buffer.toString(),
                     headers: web.Headers(),
+                    rawHeaders: _rawHeadersFromNodeResponse(clientResponse),
                   ),
                 );
               }).toJS,
@@ -553,6 +598,15 @@ _NodeStreamingRequest _openNodeStreamingRequest(
   );
 
   return _NodeStreamingRequest(request: request, response: response.future);
+}
+
+List<String> _rawHeadersFromNodeResponse(_NodeClientResponse response) {
+  final rawHeaders = response.rawHeaders?.dartify();
+  if (rawHeaders is! List) {
+    return const <String>[];
+  }
+
+  return rawHeaders.whereType<String>().toList(growable: false);
 }
 
 final class _NodeStreamingRequest {
