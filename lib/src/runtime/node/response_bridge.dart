@@ -21,15 +21,15 @@ Future<void> writeHtResponseToNodeServerResponse(
       statusText: source.statusText,
     );
 
-    for (final name in source.headers.names()) {
-      final values = source.headers.getAll(name);
-      if (values.isEmpty) {
-        continue;
-      }
+    final headerValues = <String, List<String>>{};
+    for (final MapEntry(:key, :value) in source.headers.entries()) {
+      headerValues.putIfAbsent(key, () => <String>[]).add(value);
+    }
 
+    for (final MapEntry(:key, value: values) in headerValues.entries) {
       nodeServerResponseSetHeader(
         target,
-        name,
+        key,
         values.length == 1 ? values.single : values,
       );
     }

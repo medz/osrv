@@ -18,9 +18,11 @@ void main() {
   test('node runtime serves requests over node:http', () async {
     final runtime = await serve(
       Server(
-        fetch: (request, context) => Response.text(
+        fetch: (request, context) => Response(
           'hello from ${context.runtime.name}',
-          headers: Headers()..set('x-runtime', context.runtime.name),
+          ResponseInit(
+            headers: Headers()..set('x-runtime', context.runtime.name),
+          ),
         ),
       ),
       host: '127.0.0.1',
@@ -46,10 +48,11 @@ void main() {
         Server(
           fetch: (request, context) async {
             final extension = context.extension<NodeRuntimeExtension>();
+            final uri = Uri.parse(request.url);
             return Response.json({
-              'method': request.method,
-              'path': request.url.path,
-              'query': request.url.queryParameters['mode'],
+              'method': request.method.value,
+              'path': uri.path,
+              'query': uri.queryParameters['mode'],
               'header': request.headers.get('x-test'),
               'body': await request.text(),
               'hasNodeRequest': extension?.request != null,
@@ -88,9 +91,9 @@ void main() {
         Server(
           fetch: (request, context) => throw StateError('boom'),
           onError: (error, stackTrace, context) {
-            return Response.text(
+            return Response(
               'handled ${context.runtime.name}',
-              status: 418,
+              ResponseInit(status: 418),
             );
           },
         ),
@@ -111,11 +114,11 @@ void main() {
       Server(
         fetch: (request, context) {
           return Response(
-            body: Stream<List<int>>.fromIterable([
+            Stream<List<int>>.fromIterable([
               utf8.encode('hello '),
               utf8.encode('stream'),
             ]),
-            headers: Headers()..set('x-stream', 'yes'),
+            ResponseInit(headers: Headers()..set('x-stream', 'yes')),
           );
         },
       ),
@@ -149,11 +152,11 @@ void main() {
             scheduleMicrotask(() async {
               await controller.close();
             });
-            return Response(body: controller.stream);
+            return Response(controller.stream);
           },
           onError: (error, stackTrace, context) {
             onErrorCalls++;
-            return Response.text('handled node', status: 418);
+            return Response('handled node', ResponseInit(status: 418));
           },
         ),
         host: '127.0.0.1',
@@ -174,7 +177,7 @@ void main() {
       () => serve(
         Server(
           onStart: (context) => throw StateError('boom'),
-          fetch: (request, context) => Response.text('ok'),
+          fetch: (request, context) => Response('ok'),
         ),
         host: '127.0.0.1',
         port: 0,
@@ -205,7 +208,7 @@ void main() {
           },
           fetch: (request, context) {
             fetchCalls++;
-            return Response.text('started');
+            return Response('started');
           },
         ),
         host: '127.0.0.1',
@@ -242,7 +245,7 @@ void main() {
       Server(
         fetch: (request, context) {
           context.waitUntil(waitUntilCompleter.future);
-          return Response.text('ok');
+          return Response('ok');
         },
         onStop: (context) async {
           stopCalled = true;
@@ -276,7 +279,7 @@ void main() {
   test('node runtime.closed and close surface onStop errors', () async {
     final runtime = await serve(
       Server(
-        fetch: (request, context) => Response.text('ok'),
+        fetch: (request, context) => Response('ok'),
         onStop: (context) => throw StateError('stop failed'),
       ),
       host: '127.0.0.1',
@@ -319,7 +322,7 @@ void main() {
             requestStarted.complete();
           }
           await responseCompleter.future;
-          return Response.text('late');
+          return Response('late');
         },
       ),
       host: '127.0.0.1',

@@ -10,7 +10,7 @@ environment:
   sdk: ^3.10.0
 
 dependencies:
-  ht: ^0.2.0
+  ht: ^0.3.0
   web: ^1.1.1
 
 dev_dependencies:

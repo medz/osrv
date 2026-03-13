@@ -9,15 +9,17 @@ Future<void> writeHtResponseToDartHttpResponse(
   HttpResponse target,
 ) async {
   target.statusCode = source.status;
-  target.reasonPhrase = source.statusText;
+  if (source.statusText.isNotEmpty) {
+    target.reasonPhrase = source.statusText;
+  }
 
-  for (final name in source.headers.names()) {
-    final values = source.headers.getAll(name);
-    if (values.isEmpty) {
-      continue;
-    }
+  final headerValues = <String, List<String>>{};
+  for (final MapEntry(:key, :value) in source.headers.entries()) {
+    headerValues.putIfAbsent(key, () => <String>[]).add(value);
+  }
 
-    target.headers.set(name, values);
+  for (final MapEntry(:key, value: values) in headerValues.entries) {
+    target.headers.set(key, values);
   }
 
   final body = source.body;

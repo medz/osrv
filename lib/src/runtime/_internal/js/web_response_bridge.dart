@@ -7,11 +7,8 @@ import 'web_stream_bridge.dart';
 
 web.Response webResponseFromHtResponse(Response source) {
   final headers = web.Headers();
-  for (final name in source.headers.names()) {
-    final values = source.headers.getAll(name);
-    for (final value in values) {
-      headers.append(name, value);
-    }
+  for (final MapEntry(:key, :value) in source.headers.entries()) {
+    headers.append(key, value);
   }
 
   return web.Response(

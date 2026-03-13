@@ -35,7 +35,7 @@ void main() {
   test('defineFetchExport validates the export name', () {
     expect(
       () => defineFetchExport(
-        Server(fetch: (request, context) => Response.text('ok')),
+        Server(fetch: (request, context) => Response('ok')),
         name: ' ',
       ),
       throwsA(isA<ArgumentError>()),
@@ -49,11 +49,12 @@ void main() {
           final cf = context
               .extension<CloudflareRuntimeExtension<JSObject, web.Request>>();
           final name = cf?.env?.getProperty<JSString?>('name'.toJS)?.toDart;
-          final requestPath = cf?.request?.url ?? request.url.toString();
+          final uri = Uri.parse(request.url);
+          final requestPath = cf?.request?.url ?? request.url;
 
           return Response.json({
             'runtime': context.runtime.name,
-            'path': request.url.path,
+            'path': uri.path,
             'request': requestPath,
             'name': name,
             'streaming': context.capabilities.streaming,
@@ -94,7 +95,7 @@ void main() {
       Server(
         fetch: (request, context) {
           context.waitUntil(waitUntilCompleter.future);
-          return Response.text('ok');
+          return Response('ok');
         },
       ),
     );
@@ -118,7 +119,10 @@ void main() {
       Server(
         fetch: (request, context) => throw StateError('boom'),
         onError: (error, stackTrace, context) {
-          return Response.text('handled ${context.runtime.name}', status: 418);
+          return Response(
+            'handled ${context.runtime.name}',
+            ResponseInit(status: 418),
+          );
         },
       ),
     );
@@ -141,7 +145,7 @@ void main() {
         onStart: (context) {
           starts++;
         },
-        fetch: (request, context) => Response.text('ok'),
+        fetch: (request, context) => Response('ok'),
       ),
     );
 
@@ -181,7 +185,9 @@ void main() {
 
   test('defineFetchExport respects a custom export name', () async {
     defineFetchExport(
-      Server(fetch: (request, context) => Response.text(request.url.path)),
+      Server(
+        fetch: (request, context) => Response(Uri.parse(request.url).path),
+      ),
       name: '__custom_osrv_fetch__',
     );
 
@@ -204,7 +210,7 @@ void main() {
       Server(
         fetch: (request, context) {
           entered.complete();
-          return Response.text(request.method);
+          return Response(request.method.value);
         },
       ),
     );
@@ -240,8 +246,8 @@ void main() {
       Server(
         fetch: (request, context) {
           return Response(
-            body: body.stream,
-            headers: Headers()..set('content-type', 'text/plain'),
+            body.stream,
+            ResponseInit(headers: Headers()..set('content-type', 'text/plain')),
           );
         },
       ),

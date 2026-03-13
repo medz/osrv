@@ -9,12 +9,14 @@ Future<void> main() async {
 
   final server = Server(
     fetch: (request, context) async {
-      switch (request.url.path) {
+      final uri = Uri.parse(request.url);
+
+      switch (uri.path) {
         case '/echo':
           return Response.json({
-            'method': request.method,
-            'path': request.url.path,
-            'query': request.url.queryParameters['mode'],
+            'method': request.method.value,
+            'path': uri.path,
+            'query': uri.queryParameters['mode'],
             'header': request.headers.get('x-test'),
             'body': await request.text(),
             'hasBunRequest':
@@ -22,11 +24,11 @@ Future<void> main() async {
           });
         case '/stream':
           return Response(
-            body: Stream<List<int>>.fromIterable([
+            Stream<List<int>>.fromIterable([
               utf8.encode('hello '),
               utf8.encode('bun'),
             ]),
-            headers: Headers()..set('x-stream', 'yes'),
+            ResponseInit(headers: Headers()..set('x-stream', 'yes')),
           );
         case '/error':
           throw StateError('boom');
@@ -40,16 +42,21 @@ Future<void> main() async {
               await runtime.close();
             }),
           );
-          return Response.text('closing');
+          return Response('closing');
         default:
-          return Response.text(
+          return Response(
             'hello from ${context.runtime.name}',
-            headers: Headers()..set('x-runtime', context.runtime.name),
+            ResponseInit(
+              headers: Headers()..set('x-runtime', context.runtime.name),
+            ),
           );
       }
     },
     onError: (error, stackTrace, context) {
-      return Response.text('handled ${context.runtime.name}', status: 418);
+      return Response(
+        'handled ${context.runtime.name}',
+        ResponseInit(status: 418),
+      );
     },
   );
 
