@@ -3,14 +3,13 @@ library;
 
 import 'dart:js_interop';
 
-import 'package:ht/ht.dart' show HttpMethod;
-import 'package:osrv/src/runtime/_internal/js/web_request_bridge.dart';
+import 'package:ht/ht.dart' show HttpMethod, Request;
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 
 void main() {
   test('web request bridge keeps web.Request host-backed semantics', () async {
-    final request = htRequestFromWebRequest(
+    final request = Request(
       web.Request(
         'https://example.com/upload?q=1'.toJS,
         web.RequestInit(method: 'POST', body: 'hello world'.toJS),

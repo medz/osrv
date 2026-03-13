@@ -5,6 +5,7 @@ library;
 
 import 'dart:js_interop';
 
+import 'package:ht/ht.dart' show Request;
 import 'package:web/web.dart' as web;
 
 import '../../core/capabilities.dart';
@@ -12,7 +13,6 @@ import '../../core/request_context.dart';
 import '../../core/runtime.dart';
 import '../../core/server.dart';
 import '../_internal/js/fetch_handler.dart';
-import '../_internal/js/web_request_bridge.dart';
 import '../_internal/js/web_response_bridge.dart';
 import 'extension.dart';
 import 'host.dart';
@@ -59,7 +59,7 @@ JSExportedDartFunction createCloudflareFetchEntry(Server server) {
           request,
           lifecycleContext: lifecycleContext,
           requestContext: requestContext,
-          toHtRequest: htRequestFromWebRequest,
+          toHtRequest: (request) => Request(request),
           fromHtResponse: webResponseFromHtResponse,
         )
         .toJS;

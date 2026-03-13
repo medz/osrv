@@ -3,8 +3,7 @@ library;
 
 import 'dart:io';
 
-import 'package:ht/ht.dart' show HttpMethod;
-import 'package:osrv/src/runtime/dart/request_bridge.dart';
+import 'package:ht/ht.dart' show HttpMethod, Request;
 import 'package:test/test.dart';
 
 void main() {
@@ -29,7 +28,7 @@ void main() {
     final clientResponseFuture = clientRequest.close();
 
     final httpRequest = await requestFuture;
-    final request = await dartRequestFromHttpRequest(httpRequest);
+    final request = Request(httpRequest);
     final clone = request.clone();
 
     expect(request.method, HttpMethod.post);
