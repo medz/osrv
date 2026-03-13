@@ -9,6 +9,8 @@ import 'dart:typed_data';
 
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/node.dart';
+import 'package:osrv/src/runtime/node/http_host.dart'
+    show NodeIncomingMessageHost;
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 
@@ -39,6 +41,11 @@ extension type _NodeClientResponse._(JSObject _) implements JSObject {
 
   @JS('setEncoding')
   external JSFunction get setEncoding;
+}
+
+extension type _NodeIncomingMessageReadableState._(JSObject _)
+    implements JSObject {
+  external JSAny? get readableFlowing;
 }
 
 void main() {
@@ -206,6 +213,58 @@ void main() {
       await _expectNodeRuntimeBridgesRequestStreamAfterHeadersAreFlushed(
         'POST',
       );
+    },
+  );
+
+  test(
+    'node runtime keeps the host request paused until body consumption starts',
+    () async {
+      final entered = Completer<bool?>();
+      final releaseBodyRead = Completer<void>();
+      final received = Completer<String>();
+
+      final runtime = await serve(
+        Server(
+          fetch: (request, context) async {
+            final extension = context.extension<NodeRuntimeExtension>();
+            if (!entered.isCompleted) {
+              entered.complete(_nodeReadableFlowing(extension!.request!));
+            }
+
+            await releaseBodyRead.future;
+
+            final body = await request.text();
+            if (!received.isCompleted) {
+              received.complete(body);
+            }
+
+            return Response('ok');
+          },
+        ),
+        host: '127.0.0.1',
+        port: 0,
+      );
+
+      addTearDown(runtime.close);
+
+      final request = _openNodeStreamingRequest(
+        runtime.url!.resolve('/paused-body'),
+        method: 'POST',
+      );
+      final responseFuture = request.response;
+
+      request.flushHeaders();
+
+      expect(await entered.future, isNot(true));
+
+      request.write(utf8.encode('chunk'));
+      await request.end();
+      releaseBodyRead.complete();
+
+      final response = await responseFuture;
+      expect(response.status, 200);
+      expect(response.text, 'ok');
+      expect(await received.future, 'chunk');
     },
   );
 
@@ -668,4 +727,11 @@ final class _NodeStreamingRequest {
     );
     return completer.future;
   }
+}
+
+bool? _nodeReadableFlowing(NodeIncomingMessageHost request) {
+  final value = _NodeIncomingMessageReadableState._(
+    request as JSObject,
+  ).readableFlowing;
+  return value?.dartify() as bool?;
 }

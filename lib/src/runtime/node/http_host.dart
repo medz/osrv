@@ -32,6 +32,8 @@ extension type NodeIncomingMessageHost._(JSObject _) implements JSObject {
   external JSAny? get headers;
   external JSFunction get on;
   external JSFunction get once;
+  @JS('removeListener')
+  external JSFunction get removeListener;
 }
 
 extension type NodeServerResponseHost._(JSObject _) implements JSObject {
@@ -112,10 +114,58 @@ Object? nodeIncomingMessageHeaders(NodeIncomingMessageHost request) {
 }
 
 Stream<List<int>> nodeIncomingMessageBody(NodeIncomingMessageHost request) {
-  final controller = StreamController<List<int>>(sync: true);
+  late final StreamController<List<int>> controller;
   var settled = false;
+  var listening = false;
+  JSFunction? onData;
+  JSFunction? onEnd;
+  JSFunction? onError;
+  JSFunction? onAborted;
+
+  void detachListeners() {
+    if (!listening) {
+      return;
+    }
+
+    void remove(String event, JSFunction? listener) {
+      if (listener == null) {
+        return;
+      }
+      request.removeListener.callAsFunction(request, event.toJS, listener);
+    }
+
+    remove('data', onData);
+    remove('end', onEnd);
+    remove('error', onError);
+    remove('aborted', onAborted);
+
+    onData = null;
+    onEnd = null;
+    onError = null;
+    onAborted = null;
+    listening = false;
+  }
+
+  void settleDone() {
+    if (settled) {
+      return;
+    }
+
+    detachListeners();
+
+    if (!controller.isClosed) {
+      controller.close();
+    }
+    settled = true;
+  }
 
   void settleError(Object error) {
+    if (settled) {
+      return;
+    }
+
+    detachListeners();
+
     if (!controller.isClosed) {
       controller.addError(error);
       controller.close();
@@ -123,51 +173,49 @@ Stream<List<int>> nodeIncomingMessageBody(NodeIncomingMessageHost request) {
     settled = true;
   }
 
-  request.on.callAsFunction(
-    request,
-    'data'.toJS,
-    ((JSAny? chunk) {
-      if (chunk == null) {
+  controller = StreamController<List<int>>(
+    sync: true,
+    onListen: () {
+      if (settled || listening) {
         return;
       }
 
-      final bytes = _bytesFromNodeChunk(chunk);
-      if (bytes == null) {
-        return;
-      }
+      onData = ((JSAny? chunk) {
+        if (settled || chunk == null) {
+          return;
+        }
 
-      controller.add(bytes);
-    }).toJS,
-  );
+        final bytes = _bytesFromNodeChunk(chunk);
+        if (bytes == null) {
+          return;
+        }
 
-  request.once.callAsFunction(
-    request,
-    'end'.toJS,
-    (() {
+        controller.add(bytes);
+      }).toJS;
+      onEnd = (() {
+        settleDone();
+      }).toJS;
+      onError = ((JSAny? error) {
+        settleError(StateError(_describeJsError(error)));
+      }).toJS;
+      onAborted = (() {
+        settleError(StateError('Node request body was aborted.'));
+      }).toJS;
+
+      request.on.callAsFunction(request, 'data'.toJS, onData);
+      request.on.callAsFunction(request, 'end'.toJS, onEnd);
+      request.on.callAsFunction(request, 'error'.toJS, onError);
+      request.on.callAsFunction(request, 'aborted'.toJS, onAborted);
+      listening = true;
+    },
+    onCancel: () {
       if (settled) {
         return;
       }
-      if (!controller.isClosed) {
-        controller.close();
-      }
+
+      detachListeners();
       settled = true;
-    }).toJS,
-  );
-
-  request.once.callAsFunction(
-    request,
-    'error'.toJS,
-    ((JSAny? error) {
-      settleError(StateError(_describeJsError(error)));
-    }).toJS,
-  );
-
-  request.once.callAsFunction(
-    request,
-    'aborted'.toJS,
-    (() {
-      settleError(StateError('Node request body was aborted.'));
-    }).toJS,
+    },
   );
 
   return controller.stream;
