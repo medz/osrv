@@ -118,28 +118,38 @@ Object? nodeIncomingMessageHeaders(NodeIncomingMessageHost request) {
 Stream<List<int>> nodeIncomingMessageBody(NodeIncomingMessageHost request) {
   late final StreamController<List<int>> controller;
   var settled = false;
+  var canceled = false;
   var listening = false;
   JSFunction? onData;
   JSFunction? onEnd;
   JSFunction? onError;
   JSFunction? onAborted;
 
+  void removeListener(String event, JSFunction? listener) {
+    if (listener == null) {
+      return;
+    }
+    request.removeListener.callAsFunction(request, event.toJS, listener);
+  }
+
+  void detachDataListener() {
+    if (!listening || onData == null) {
+      return;
+    }
+
+    removeListener('data', onData);
+    onData = null;
+  }
+
   void detachListeners() {
     if (!listening) {
       return;
     }
 
-    void remove(String event, JSFunction? listener) {
-      if (listener == null) {
-        return;
-      }
-      request.removeListener.callAsFunction(request, event.toJS, listener);
-    }
-
-    remove('data', onData);
-    remove('end', onEnd);
-    remove('error', onError);
-    remove('aborted', onAborted);
+    removeListener('data', onData);
+    removeListener('end', onEnd);
+    removeListener('error', onError);
+    removeListener('aborted', onAborted);
 
     onData = null;
     onEnd = null;
@@ -150,6 +160,12 @@ Stream<List<int>> nodeIncomingMessageBody(NodeIncomingMessageHost request) {
 
   void settleDone() {
     if (settled) {
+      return;
+    }
+
+    if (canceled) {
+      detachListeners();
+      settled = true;
       return;
     }
 
@@ -166,6 +182,12 @@ Stream<List<int>> nodeIncomingMessageBody(NodeIncomingMessageHost request) {
       return;
     }
 
+    if (canceled) {
+      detachListeners();
+      settled = true;
+      return;
+    }
+
     detachListeners();
 
     if (!controller.isClosed) {
@@ -178,12 +200,12 @@ Stream<List<int>> nodeIncomingMessageBody(NodeIncomingMessageHost request) {
   controller = StreamController<List<int>>(
     sync: true,
     onListen: () {
-      if (settled || listening) {
+      if (settled || canceled || listening) {
         return;
       }
 
       onData = ((JSAny? chunk) {
-        if (settled || chunk == null) {
+        if (settled || canceled || chunk == null) {
           return;
         }
 
@@ -211,27 +233,30 @@ Stream<List<int>> nodeIncomingMessageBody(NodeIncomingMessageHost request) {
       listening = true;
     },
     onPause: () {
-      if (settled || !listening) {
+      if (settled || canceled || !listening) {
         return;
       }
       request.pause.callAsFunction(request);
     },
     onResume: () {
-      if (settled || !listening) {
+      if (settled || canceled || !listening) {
         return;
       }
       request.resume.callAsFunction(request);
     },
     onCancel: () {
-      if (settled) {
+      if (settled || canceled) {
         return;
       }
 
+      canceled = true;
+
+      // Server-side request body cancellation should discard the unread bytes
+      // without aborting the socket so the response path can still complete.
+      detachDataListener();
       if (listening) {
-        request.pause.callAsFunction(request);
+        request.resume.callAsFunction(request);
       }
-      detachListeners();
-      settled = true;
     },
   );
 

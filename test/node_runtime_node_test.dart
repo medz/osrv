@@ -368,6 +368,73 @@ void main() {
   );
 
   test(
+    'node runtime drains discarded request bodies after body subscription cancel',
+    () async {
+      final canceledFlowing = Completer<bool?>();
+      final canceled = Completer<void>();
+
+      final runtime = await serve(
+        Server(
+          fetch: (request, context) async {
+            final extension = context.extension<NodeRuntimeExtension>()!;
+            final rawRequest = extension.request!;
+            late final StreamSubscription<Uint8List> subscription;
+
+            subscription = request.body!.listen((chunk) {
+              if (canceled.isCompleted) {
+                return;
+              }
+
+              unawaited(
+                subscription.cancel().then((_) {
+                  scheduleMicrotask(() {
+                    if (!canceledFlowing.isCompleted) {
+                      canceledFlowing.complete(
+                        _nodeReadableFlowing(rawRequest),
+                      );
+                    }
+                    if (!canceled.isCompleted) {
+                      canceled.complete();
+                    }
+                  });
+                }),
+              );
+            });
+
+            await canceled.future;
+
+            return Response.json({
+              'canceledFlowing': await canceledFlowing.future,
+            });
+          },
+        ),
+        host: '127.0.0.1',
+        port: 0,
+      );
+
+      addTearDown(runtime.close);
+
+      final request = _openNodeStreamingRequest(
+        runtime.url!.resolve('/discarded-body'),
+        method: 'POST',
+      );
+      final responseFuture = request.response;
+
+      request.flushHeaders();
+      request.write(utf8.encode('first-'));
+
+      await canceled.future;
+
+      request.write(utf8.encode('second'));
+      await request.end();
+
+      final response = await responseFuture;
+      expect(response.status, 200);
+      expect(jsonDecode(response.text), {'canceledFlowing': true});
+    },
+  );
+
+  test(
     'node runtime does not route transport write failures into onError',
     () async {
       var onErrorCalls = 0;
@@ -470,6 +537,7 @@ void main() {
   test('node runtime.close waits for waitUntil tasks and onStop', () async {
     final waitUntilCompleter = Completer<void>();
     final stopCompleter = Completer<void>();
+    final stopEntered = Completer<void>();
     var stopCalled = false;
 
     final runtime = await serve(
@@ -480,6 +548,9 @@ void main() {
         },
         onStop: (context) async {
           stopCalled = true;
+          if (!stopEntered.isCompleted) {
+            stopEntered.complete();
+          }
           await stopCompleter.future;
         },
       ),
@@ -494,7 +565,7 @@ void main() {
       closed = true;
     });
 
-    await Future<void>.delayed(Duration.zero);
+    await stopEntered.future;
     expect(stopCalled, isTrue);
     expect(closed, isFalse);
 
