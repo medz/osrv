@@ -1,18 +1,16 @@
 // ignore_for_file: public_member_api_docs
 
-import 'package:ht/ht.dart' show Response;
+import 'package:ht/ht.dart' show Response, ResponseType;
 import 'package:web/web.dart' as web;
 
 import 'web_stream_bridge.dart';
 
 web.Response webResponseFromHtResponse(Response source) {
-  final headers = web.Headers();
-  for (final name in source.headers.names()) {
-    final values = source.headers.getAll(name);
-    for (final value in values) {
-      headers.append(name, value);
-    }
+  if (source.type == ResponseType.error) {
+    return web.Response.error();
   }
+
+  final headers = _copyHeaders(source);
 
   return web.Response(
     source.body == null
@@ -24,4 +22,12 @@ web.Response webResponseFromHtResponse(Response source) {
       headers: headers,
     ),
   );
+}
+
+web.Headers _copyHeaders(Response source) {
+  final headers = web.Headers();
+  for (final MapEntry(:key, :value) in source.headers.entries()) {
+    headers.append(key, value);
+  }
+  return headers;
 }

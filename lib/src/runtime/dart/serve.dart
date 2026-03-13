@@ -3,6 +3,8 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:ht/ht.dart' show Request;
+
 import '../../core/capabilities.dart';
 import '../../core/errors.dart';
 import '../../core/request_context.dart';
@@ -11,7 +13,6 @@ import '../../core/server.dart';
 import '../_internal/server/error_handler.dart';
 import '../_internal/server/shutdown_coordinator.dart';
 import 'extension.dart';
-import 'request_bridge.dart';
 import 'response_bridge.dart';
 import '../_internal/server/runtime_handle.dart';
 
@@ -77,7 +78,7 @@ Future<Runtime> serveDartRuntime(
         );
 
         try {
-          final htRequest = await dartRequestFromHttpRequest(request);
+          final htRequest = Request(request);
           final response = await server.fetch(htRequest, context);
           await writeHtResponseToDartHttpResponse(response, request.response);
         } catch (error, stackTrace) {

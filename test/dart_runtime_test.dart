@@ -19,7 +19,7 @@ void main() {
         expect(ext!.request, isNotNull);
         expect(ext.response, isNotNull);
         expect(ext.server.port, greaterThanOrEqualTo(0));
-        return Response.text('hello ${request.url.path}');
+        return Response('hello ${Uri.parse(request.url).path}');
       },
     );
 
@@ -42,7 +42,7 @@ void main() {
   });
 
   test('serve rejects invalid dart runtime config', () async {
-    final server = Server(fetch: (request, context) => Response.text('ok'));
+    final server = Server(fetch: (request, context) => Response('ok'));
 
     expect(
       () => serve(server, host: '', port: 3000),
@@ -55,7 +55,7 @@ void main() {
       onStart: (_) {
         throw StateError('boom');
       },
-      fetch: (request, context) => Response.text('ok'),
+      fetch: (request, context) => Response('ok'),
     );
 
     await expectLater(
@@ -69,7 +69,7 @@ void main() {
       onError: (error, stackTrace, context) {
         expect(error, isA<StateError>());
         expect(context.runtime.name, 'dart');
-        return Response.text('handled', status: 418);
+        return Response('handled', ResponseInit(status: 418));
       },
       fetch: (request, context) {
         throw StateError('boom');
@@ -122,14 +122,15 @@ void main() {
   test('request bridge preserves method, query, headers, and body', () async {
     final server = Server(
       fetch: (request, context) async {
-        expect(request.method, 'POST');
-        expect(request.url.path, '/echo');
-        expect(request.url.queryParameters['x'], '1');
+        final uri = Uri.parse(request.url);
+        expect(request.method, HttpMethod.post);
+        expect(uri.path, '/echo');
+        expect(uri.queryParameters['x'], '1');
         expect(request.headers.get('x-test-header'), 'yes');
         expect(await request.text(), 'payload');
         return Response.json({
-          'method': request.method,
-          'query': request.url.queryParameters['x'],
+          'method': request.method.value,
+          'query': uri.queryParameters['x'],
           'header': request.headers.get('x-test-header'),
         });
       },
@@ -167,10 +168,12 @@ void main() {
         ]);
 
         return Response(
-          body: stream,
-          status: HttpStatus.accepted,
-          statusText: 'Accepted Custom',
-          headers: Headers.fromEntries([const MapEntry('x-stream', 'yes')]),
+          stream,
+          ResponseInit(
+            status: HttpStatus.accepted,
+            statusText: 'Accepted Custom',
+            headers: Headers({'x-stream': 'yes'}),
+          ),
         );
       },
     );
@@ -201,7 +204,7 @@ void main() {
         final headers = Headers()
           ..append('set-cookie', 'a=1; Path=/')
           ..append('set-cookie', 'b=2; Path=/');
-        return Response.text('cookies', headers: headers);
+        return Response('cookies', ResponseInit(headers: headers));
       },
     );
 
@@ -234,7 +237,7 @@ void main() {
       onStop: (_) => onStop.future,
       fetch: (request, context) async {
         context.waitUntil(backgroundTask.future);
-        return Response.text('ok');
+        return Response('ok');
       },
     );
 
@@ -286,7 +289,7 @@ void main() {
       onStop: (_) {
         throw StateError('stop failed');
       },
-      fetch: (request, context) => Response.text('ok'),
+      fetch: (request, context) => Response('ok'),
     );
 
     final runtime = await serve(server, host: '127.0.0.1', port: 0);

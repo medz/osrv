@@ -30,13 +30,21 @@ extension type NodeIncomingMessageHost._(JSObject _) implements JSObject {
   external JSAny? get method;
   external JSAny? get url;
   external JSAny? get headers;
+  external JSAny? get readableEnded;
   external JSFunction get on;
   external JSFunction get once;
+  @JS('removeListener')
+  external JSFunction get removeListener;
+  external JSFunction get pause;
+  external JSFunction get resume;
 }
 
 extension type NodeServerResponseHost._(JSObject _) implements JSObject {
   external set statusCode(JSAny? value);
   external set statusMessage(JSAny? value);
+
+  @JS('writeHead')
+  external JSFunction get writeHead;
 
   @JS('setHeader')
   external JSFunction get setHeader;
@@ -108,22 +116,81 @@ Object? nodeIncomingMessageHeaders(NodeIncomingMessageHost request) {
   return headers?.dartify();
 }
 
-Object? nodeIncomingMessageBody(NodeIncomingMessageHost request) {
-  return null;
-}
-
-Future<Object?> readNodeIncomingMessageBody(
-  NodeIncomingMessageHost request,
-) async {
-  final controller = StreamController<List<int>>(sync: true);
-  final result = Completer<Object?>();
-  var hasBody = false;
+Stream<List<int>> nodeIncomingMessageBody(NodeIncomingMessageHost request) {
+  late final StreamController<List<int>> controller;
   var settled = false;
+  var canceled = false;
+  var listening = false;
+  JSFunction? onData;
+  JSFunction? onEnd;
+  JSFunction? onError;
+  JSFunction? onClose;
+
+  void removeListener(String event, JSFunction? listener) {
+    if (listener == null) {
+      return;
+    }
+    request.removeListener.callAsFunction(request, event.toJS, listener);
+  }
+
+  void detachDataListener() {
+    if (!listening || onData == null) {
+      return;
+    }
+
+    removeListener('data', onData);
+    onData = null;
+  }
+
+  void detachListeners() {
+    if (!listening) {
+      return;
+    }
+
+    removeListener('data', onData);
+    removeListener('end', onEnd);
+    removeListener('error', onError);
+    removeListener('close', onClose);
+
+    onData = null;
+    onEnd = null;
+    onError = null;
+    onClose = null;
+    listening = false;
+  }
+
+  void settleDone() {
+    if (settled) {
+      return;
+    }
+
+    if (canceled) {
+      detachListeners();
+      settled = true;
+      return;
+    }
+
+    detachListeners();
+
+    if (!controller.isClosed) {
+      controller.close();
+    }
+    settled = true;
+  }
 
   void settleError(Object error) {
-    if (!result.isCompleted) {
-      result.completeError(error);
+    if (settled) {
+      return;
     }
+
+    if (canceled) {
+      detachListeners();
+      settled = true;
+      return;
+    }
+
+    detachListeners();
+
     if (!controller.isClosed) {
       controller.addError(error);
       controller.close();
@@ -131,63 +198,80 @@ Future<Object?> readNodeIncomingMessageBody(
     settled = true;
   }
 
-  request.on.callAsFunction(
-    request,
-    'data'.toJS,
-    ((JSAny? chunk) {
-      if (chunk == null) {
+  controller = StreamController<List<int>>(
+    sync: true,
+    onListen: () {
+      if (settled || canceled || listening) {
         return;
       }
 
-      final bytes = _bytesFromNodeChunk(chunk);
-      if (bytes == null) {
-        return;
-      }
-
-      if (!hasBody) {
-        hasBody = true;
-        if (!result.isCompleted) {
-          result.complete(controller.stream);
+      onData = ((JSAny? chunk) {
+        if (settled || canceled || chunk == null) {
+          return;
         }
-      }
-      controller.add(bytes);
-    }).toJS,
-  );
 
-  request.once.callAsFunction(
-    request,
-    'end'.toJS,
-    (() {
-      if (settled) {
+        final bytes = _bytesFromNodeChunk(chunk);
+        if (bytes == null) {
+          return;
+        }
+
+        controller.add(bytes);
+      }).toJS;
+      onEnd = (() {
+        settleDone();
+      }).toJS;
+      onError = ((JSAny? error) {
+        settleError(StateError(_describeJsError(error)));
+      }).toJS;
+      onClose = (() {
+        if (nodeIncomingMessageReadableEnded(request)) {
+          settleDone();
+          return;
+        }
+
+        settleError(StateError('Node request body was aborted.'));
+      }).toJS;
+
+      request.on.callAsFunction(request, 'data'.toJS, onData);
+      request.on.callAsFunction(request, 'end'.toJS, onEnd);
+      request.on.callAsFunction(request, 'error'.toJS, onError);
+      request.on.callAsFunction(request, 'close'.toJS, onClose);
+      listening = true;
+    },
+    onPause: () {
+      if (settled || canceled || !listening) {
         return;
       }
-      if (!result.isCompleted) {
-        result.complete(hasBody ? controller.stream : null);
+      request.pause.callAsFunction(request);
+    },
+    onResume: () {
+      if (settled || canceled || !listening) {
+        return;
       }
-      if (!controller.isClosed) {
-        controller.close();
+      request.resume.callAsFunction(request);
+    },
+    onCancel: () {
+      if (settled || canceled) {
+        return;
       }
-      settled = true;
-    }).toJS,
+
+      canceled = true;
+
+      // Server-side request body cancellation should discard the unread bytes
+      // without aborting the socket so the response path can still complete.
+      detachDataListener();
+      if (listening) {
+        request.resume.callAsFunction(request);
+      }
+    },
   );
 
-  request.once.callAsFunction(
-    request,
-    'error'.toJS,
-    ((JSAny? error) {
-      settleError(StateError(_describeJsError(error)));
-    }).toJS,
-  );
+  return controller.stream;
+}
 
-  request.once.callAsFunction(
-    request,
-    'aborted'.toJS,
-    (() {
-      settleError(StateError('Node request body was aborted.'));
-    }).toJS,
-  );
-
-  return result.future;
+bool nodeIncomingMessageReadableEnded(NodeIncomingMessageHost request) {
+  final readableEnded = request.readableEnded;
+  return readableEnded?.dartify() == true;
 }
 
 NodeHttpServerHost createNodeHttpServer(
@@ -254,7 +338,7 @@ Future<void> closeNodeHttpServer(NodeHttpServerHost server) async {
         return;
       }
 
-      if (error != null && error.isDefinedAndNotNull) {
+      if (error?.isDefinedAndNotNull ?? false) {
         completer.completeError(StateError(_describeJsError(error)));
         return;
       }
@@ -285,6 +369,38 @@ void nodeServerResponseSetHeader(
     List<String>() => value.map((entry) => entry.toJS).toList().toJS,
     _ => value.jsify(),
   });
+}
+
+void nodeServerResponseWriteHead(
+  NodeServerResponseHost response, {
+  required int status,
+  String? statusText,
+  List<String>? rawHeaders,
+}) {
+  final jsStatus = status.toJS;
+  final jsRawHeaders = rawHeaders?.map((entry) => entry.toJS).toList().toJS;
+
+  if (statusText != null && statusText.isNotEmpty) {
+    if (jsRawHeaders != null) {
+      response.writeHead.callAsFunction(
+        response,
+        jsStatus,
+        statusText.toJS,
+        jsRawHeaders,
+      );
+      return;
+    }
+
+    response.writeHead.callAsFunction(response, jsStatus, statusText.toJS);
+    return;
+  }
+
+  if (jsRawHeaders != null) {
+    response.writeHead.callAsFunction(response, jsStatus, jsRawHeaders);
+    return;
+  }
+
+  response.writeHead.callAsFunction(response, jsStatus);
 }
 
 Future<void> nodeServerResponseWrite(

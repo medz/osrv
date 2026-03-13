@@ -139,7 +139,7 @@ Future<void> _handleNodeRequest({
   );
 
   try {
-    final htRequest = await nodeRequestFromHost(request, origin: origin);
+    final htRequest = nodeRequestFromHost(request, origin: origin);
     final htResponse = await server.fetch(htRequest, context);
     await writeHtResponseToNodeServerResponse(htResponse, response);
   } catch (error, stackTrace) {

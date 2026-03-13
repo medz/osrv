@@ -1,6 +1,6 @@
 // ignore_for_file: public_member_api_docs
 
-import 'package:ht/ht.dart' show Response;
+import 'package:ht/ht.dart' show Response, ResponseInit;
 
 import '../../../core/request_context.dart';
 import '../../../core/server.dart';
@@ -19,5 +19,5 @@ Future<Response> handleServerError({
     }
   }
 
-  return Response.text('Internal Server Error', status: defaultStatus);
+  return Response('Internal Server Error', ResponseInit(status: defaultStatus));
 }

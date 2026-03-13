@@ -1,4 +1,5 @@
-export 'package:ht/ht.dart' show Headers, Request, Response;
+export 'package:ht/ht.dart'
+    show Headers, HttpMethod, Request, RequestInit, Response, ResponseInit;
 
 export 'src/core/capabilities.dart' show RuntimeCapabilities;
 export 'src/core/errors.dart'

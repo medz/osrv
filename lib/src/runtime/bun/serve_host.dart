@@ -6,6 +6,7 @@ library;
 import 'dart:async';
 import 'dart:js_interop';
 
+import 'package:ht/ht.dart' show Request;
 import '../../core/capabilities.dart';
 import 'package:web/web.dart' as web;
 
@@ -16,7 +17,6 @@ import '../../core/server.dart';
 import '../_internal/server/error_handler.dart';
 import '../_internal/server/runtime_handle.dart';
 import '../_internal/server/shutdown_coordinator.dart';
-import '../_internal/js/web_request_bridge.dart';
 import '../_internal/js/web_response_bridge.dart';
 import 'extension.dart';
 import 'interop.dart';
@@ -148,7 +148,7 @@ Future<web.Response> _handleBunRequest({
   );
 
   try {
-    final htRequest = htRequestFromWebRequest(request);
+    final htRequest = Request(request);
     final htResponse = await server.fetch(htRequest, context);
     return webResponseFromHtResponse(htResponse);
   } catch (error, stackTrace) {

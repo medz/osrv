@@ -1,6 +1,6 @@
 // ignore_for_file: public_member_api_docs
 
-import 'package:ht/ht.dart' show Headers, Request;
+import 'package:ht/ht.dart' show Headers, HttpMethod, Request, RequestInit;
 
 import 'http_host.dart';
 
@@ -21,30 +21,25 @@ final class NodeRequestHeadSnapshot {
 NodeRequestHeadSnapshot nodeRequestHeadFromHost(
   NodeIncomingMessageHost request,
 ) {
+  final method = nodeIncomingMessageMethod(request);
+  final rawHeaders = nodeIncomingMessageHeaders(request);
   return NodeRequestHeadSnapshot(
-    method: nodeIncomingMessageMethod(request),
+    method: method,
     url: nodeIncomingMessageUrl(request),
-    rawHeaders: nodeIncomingMessageHeaders(request),
-    rawBody: nodeIncomingMessageBody(request),
+    rawHeaders: rawHeaders,
+    rawBody: _shouldBridgeBody(method: method)
+        ? nodeIncomingMessageBody(request)
+        : null,
   );
 }
 
-Future<Request> nodeRequestFromHost(
+Request nodeRequestFromHost(
   NodeIncomingMessageHost request, {
   required Uri origin,
-}) async {
-  final head = nodeRequestHeadFromHost(request);
-  final body = await readNodeIncomingMessageBody(request);
-  return nodeRequestFromHeadSnapshot(
-    NodeRequestHeadSnapshot(
-      method: head.method,
-      url: head.url,
-      rawHeaders: head.rawHeaders,
-      rawBody: body ?? head.rawBody,
-    ),
-    origin: origin,
-  );
-}
+}) => nodeRequestFromHeadSnapshot(
+  nodeRequestHeadFromHost(request),
+  origin: origin,
+);
 
 Request nodeRequestFromHeadSnapshot(
   NodeRequestHeadSnapshot snapshot, {
@@ -55,9 +50,11 @@ Request nodeRequestFromHeadSnapshot(
 
   return Request(
     uri,
-    method: snapshot.method ?? 'GET',
-    headers: _headersFromRaw(snapshot.rawHeaders),
-    body: _bodyFromRaw(snapshot.rawBody),
+    RequestInit(
+      method: HttpMethod.parse(snapshot.method ?? 'GET'),
+      headers: _headersFromRaw(snapshot.rawHeaders),
+      body: _bodyFromRaw(snapshot.rawBody),
+    ),
   );
 }
 
@@ -98,4 +95,12 @@ Object? _bodyFromRaw(Object? rawBody) {
     List<int>() => rawBody,
     _ => null,
   };
+}
+
+bool _shouldBridgeBody({required String? method}) {
+  final resolvedMethod = switch (method) {
+    null => HttpMethod.get,
+    _ => HttpMethod.parse(method),
+  };
+  return resolvedMethod.allowsRequestBody;
 }

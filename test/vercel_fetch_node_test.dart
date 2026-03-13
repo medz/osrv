@@ -30,11 +30,12 @@ void main() {
           final vercel = context
               .extension<VercelRuntimeExtension<web.Request>>();
           final functions = vercel?.functions;
+          final uri = Uri.parse(request.url);
 
           return Response.json({
             'runtime': context.runtime.name,
-            'path': request.url.path,
-            'request': vercel?.request?.url ?? request.url.toString(),
+            'path': uri.path,
+            'request': vercel?.request?.url ?? request.url,
             'streaming': context.capabilities.streaming,
             'backgroundTask': context.capabilities.backgroundTask,
             'nodeCompat': context.capabilities.nodeCompat,
@@ -78,7 +79,7 @@ void main() {
       Server(
         fetch: (request, context) {
           context.waitUntil(waitUntilCompleter.future);
-          return Response.text('ok');
+          return Response('ok');
         },
       ),
     );
@@ -101,7 +102,10 @@ void main() {
       Server(
         fetch: (request, context) => throw StateError('boom'),
         onError: (error, stackTrace, context) {
-          return Response.text('handled ${context.runtime.name}', status: 418);
+          return Response(
+            'handled ${context.runtime.name}',
+            ResponseInit(status: 418),
+          );
         },
       ),
     );
@@ -123,7 +127,7 @@ void main() {
         onStart: (context) {
           starts++;
         },
-        fetch: (request, context) => Response.text('ok'),
+        fetch: (request, context) => Response('ok'),
       ),
     );
 
@@ -159,7 +163,9 @@ void main() {
 
   test('defineFetchExport respects a custom export name', () async {
     defineFetchExport(
-      Server(fetch: (request, context) => Response.text(request.url.path)),
+      Server(
+        fetch: (request, context) => Response(Uri.parse(request.url).path),
+      ),
       name: '__custom_osrv_fetch__',
     );
 
@@ -181,7 +187,7 @@ void main() {
       Server(
         fetch: (request, context) {
           entered.complete();
-          return Response.text(request.method);
+          return Response(request.method.value);
         },
       ),
     );
@@ -216,8 +222,8 @@ void main() {
       Server(
         fetch: (request, context) {
           return Response(
-            body: body.stream,
-            headers: Headers()..set('content-type', 'text/plain'),
+            body.stream,
+            ResponseInit(headers: Headers()..set('content-type', 'text/plain')),
           );
         },
       ),
