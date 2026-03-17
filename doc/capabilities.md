@@ -31,6 +31,7 @@ final class RuntimeCapabilities {
 | `bun` | `serve(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
 | `cloudflare` | `defineFetchExport(...)` | `true` | `false` | `false` | `true` | `false` | `true` |
 | `vercel` | `defineFetchExport(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
+| `netlify` | `defineFetchExport(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
 
 ## What Each Field Means
 

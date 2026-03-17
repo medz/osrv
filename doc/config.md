@@ -79,6 +79,7 @@ Validation:
 These runtimes do not use a listener config today:
 - `cloudflare`
 - `vercel`
+- `netlify`
 
 Use:
 
@@ -102,6 +103,10 @@ Validation:
 
 Default:
 - `name` defaults to `'__osrv_fetch__'`
+
+Runtime-specific notes:
+- `netlify` in `osrv` means Netlify Functions running on Netlify's Node.js function host
+- if you need Netlify route config such as `path`, define it in the JavaScript shim through `export const config = {...}`
 
 ## Selection Examples
 

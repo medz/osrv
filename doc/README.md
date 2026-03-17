@@ -12,6 +12,7 @@ Current runtime families:
 - `bun`
 - `cloudflare`
 - `vercel`
+- `netlify`
 
 Current global limitation:
 - websocket support is not implemented yet, so `runtime.capabilities.websocket` is `false` everywhere

@@ -11,6 +11,7 @@ Use this directory to choose a runtime family and see its real setup, capabiliti
 | `bun` | `package:osrv/runtime/bun.dart` | `serve(...)` | yes | `BunRuntimeExtension` |
 | `cloudflare` | `package:osrv/runtime/cloudflare.dart` | `defineFetchExport(...)` | no | `CloudflareRuntimeExtension<Env, Request>` |
 | `vercel` | `package:osrv/runtime/vercel.dart` | `defineFetchExport(...)` | no | `VercelRuntimeExtension<Request>` |
+| `netlify` | `package:osrv/runtime/netlify.dart` | `defineFetchExport(...)` | no | `NetlifyRuntimeExtension<Request>` |
 
 ## Runtime Pages
 
@@ -19,6 +20,7 @@ Use this directory to choose a runtime family and see its real setup, capabiliti
 - [bun](./bun.md)
 - [cloudflare](./cloudflare.md)
 - [vercel](./vercel.md)
+- [netlify](./netlify.md)
 
 ## Related Docs
 

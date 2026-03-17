@@ -1,11 +1,8 @@
 .wrangler
-
-api/*
-!api/
-!api/index.mjs
-bun.lock
-cloudflare.dart.js*
-vercel.dart.js*
-node_modules
 .vercel
 .env*.local
+
+cloudflare.dart.js*
+
+bun.lock
+node_modules

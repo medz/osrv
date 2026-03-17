@@ -33,6 +33,7 @@ An entry export is a runtime entry that publishes a fetch handler without return
 Current examples:
 - `defineFetchExport(server)` from `package:osrv/runtime/cloudflare.dart`
 - `defineFetchExport(server)` from `package:osrv/runtime/vercel.dart`
+- `defineFetchExport(server)` from `package:osrv/runtime/netlify.dart`
 
 ## Runtime
 
@@ -92,6 +93,7 @@ Examples:
 - `BunRuntimeExtension`
 - `CloudflareRuntimeExtension<Env, Request>`
 - `VercelRuntimeExtension<Request>`
+- `NetlifyRuntimeExtension<Request>`
 
 Use runtime extensions for host-specific access that does not belong in the common core API.
 
@@ -105,6 +107,7 @@ Examples:
 - Bun
 - Cloudflare Workers
 - Vercel
+- Netlify Functions
 
 ## Import Rule
 

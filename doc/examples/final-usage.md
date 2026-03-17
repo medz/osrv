@@ -92,6 +92,29 @@ void main() {
 }
 ```
 
+## Netlify Fetch Entry
+
+```dart
+import 'package:osrv/osrv.dart';
+import 'package:osrv/runtime/netlify.dart';
+import 'package:web/web.dart' as web;
+
+void main() {
+  defineFetchExport(
+    Server(
+      fetch: (request, context) {
+        final netlify =
+            context.extension<NetlifyRuntimeExtension<web.Request>>();
+        return Response.json({
+          'runtime': context.runtime.name,
+          'requestId': netlify?.context?.requestId,
+        });
+      },
+    ),
+  );
+}
+```
+
 ## Capability Check
 
 ```dart

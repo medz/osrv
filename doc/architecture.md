@@ -48,6 +48,7 @@ Use runtime-specific `defineFetchExport(server)` when the host expects a fetch h
 Current entry-export runtimes:
 - `cloudflare`
 - `vercel`
+- `netlify`
 
 Example:
 
@@ -122,6 +123,7 @@ Examples:
 - `BunRuntimeExtension`
 - `CloudflareRuntimeExtension<Env, Request>`
 - `VercelRuntimeExtension<Request>`
+- `NetlifyRuntimeExtension<Request>`
 
 Extensions expose runtime-specific power without pushing host objects into the common core API.
 

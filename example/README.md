@@ -10,6 +10,7 @@ Included entries:
 - `bun.dart`
 - `cloudflare.dart`
 - `vercel.dart`
+- `netlify.dart`
 
 All entries share the same [`server.dart`](./server.dart) definition.
 That server only returns:
@@ -52,12 +53,15 @@ Compile the entry to JavaScript, then use the matching shim:
 dart compile js example/cloudflare.dart -o example/cloudflare.dart.js
 mkdir -p example/api
 dart compile js example/vercel.dart -o example/api/index.dart.js
+mkdir -p example/netlify/functions
+dart compile js example/netlify.dart -o example/netlify/functions/index.dart.js
 ```
 
 The JavaScript shims are:
 
 - [`cloudflare.mjs`](./cloudflare.mjs)
 - [`api/index.mjs`](./api/index.mjs)
+- [`netlify/functions/index.mjs`](./netlify/functions/index.mjs)
 
 ## Cloudflare Worker Example
 
@@ -92,3 +96,21 @@ vercel dev
 
 `api/index.mjs` sets `globalThis.self` before loading the compiled Dart module.
 That bootstrap must happen in JavaScript; doing it from Dart interop is too late.
+
+## Netlify Function Example
+
+This directory also includes:
+
+- [`netlify/functions/index.mjs`](./netlify/functions/index.mjs)
+
+Build the Dart bundle from inside `example/`:
+
+```bash
+npm run build:netlify
+```
+
+Then serve it with the Netlify CLI if you have it installed:
+
+```bash
+netlify dev
+```

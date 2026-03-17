@@ -48,6 +48,13 @@ void main() {
   );
 
   test(
+    'netlify runtime example does not compile to a native executable',
+    () async {
+      await _expectNativeCompileFailure('example/netlify.dart');
+    },
+  );
+
+  test(
     'cloudflare fetch export bundle does not include vercel helper imports',
     () async {
       final tempDir = await Directory.systemTemp.createTemp(
@@ -60,6 +67,36 @@ void main() {
         'compile',
         'js',
         'example/cloudflare.dart',
+        '-o',
+        outputPath,
+      ], workingDirectory: _workspacePath);
+
+      expect(
+        compile.exitCode,
+        0,
+        reason: '${compile.stdout}\n${compile.stderr}',
+      );
+
+      final output = await File(outputPath).readAsString();
+      expect(output, isNot(contains('@vercel/functions')));
+      expect(output, isNot(contains('createVercelFetchEntry')));
+      expect(output, isNot(contains('loadVercelFunctionHelpers')));
+    },
+  );
+
+  test(
+    'netlify fetch export bundle does not include vercel helper imports',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'osrv_netlify_export_',
+      );
+      addTearDown(() => tempDir.delete(recursive: true));
+
+      final outputPath = '${tempDir.path}/netlify.js';
+      final compile = await Process.run('dart', [
+        'compile',
+        'js',
+        'example/netlify.dart',
         '-o',
         outputPath,
       ], workingDirectory: _workspacePath);
