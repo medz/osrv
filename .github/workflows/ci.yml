@@ -41,8 +41,6 @@ jobs:
 
       - name: Setup Deno
         uses: denoland/setup-deno@v2
-        with:
-          deno-version: stable
 
       - name: Install dependencies
         run: dart pub get
@@ -62,8 +60,6 @@ jobs:
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
-        with:
-          node-version: 22
 
       - name: Install dependencies
         run: dart pub get
