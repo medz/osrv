@@ -12,8 +12,10 @@ It provides one portable `Server` contract and explicit runtime entrypoints for:
 - `dart`
 - `node`
 - `bun`
+- `deno`
 - `cloudflare`
 - `vercel`
+- `netlify`
 
 `osrv` is a runtime layer focused on running the same server contract across different host families, while keeping runtime capabilities and host-specific extensions explicit.
 
@@ -47,12 +49,14 @@ dart pub add osrv
 | `dart` | `serve(server, host: ..., port: ...)` | `package:osrv/runtime/dart.dart` |
 | `node` | `serve(server, host: ..., port: ...)` | `package:osrv/runtime/node.dart` |
 | `bun` | `serve(server, host: ..., port: ...)` | `package:osrv/runtime/bun.dart` |
+| `deno` | `serve(server, host: ..., port: ...)` | `package:osrv/runtime/deno.dart` |
 | `cloudflare` | `defineFetchExport(server)` | `package:osrv/runtime/cloudflare.dart` |
 | `vercel` | `defineFetchExport(server)` | `package:osrv/runtime/vercel.dart` |
+| `netlify` | `defineFetchExport(server)` | `package:osrv/runtime/netlify.dart` |
 
 Target notes:
 - `package:osrv/runtime/dart.dart` is the native Dart listener entry.
-- `package:osrv/runtime/node.dart`, `package:osrv/runtime/bun.dart`, `package:osrv/runtime/cloudflare.dart`, and `package:osrv/runtime/vercel.dart` are JavaScript-target runtime entries and intentionally do not compile to native executables.
+- `package:osrv/runtime/node.dart`, `package:osrv/runtime/bun.dart`, `package:osrv/runtime/deno.dart`, `package:osrv/runtime/cloudflare.dart`, `package:osrv/runtime/vercel.dart`, and `package:osrv/runtime/netlify.dart` are JavaScript-target runtime entries and intentionally do not compile to native executables.
 
 ## Quick Start
 

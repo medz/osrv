@@ -1,5 +1,22 @@
 ## Unreleased
 
+## 0.5.0
+
+### Runtime
+
+- Added the `deno` listener runtime entrypoint with `Deno.serve(...)` hosting,
+  runtime preflight checks, typed `DenoRuntimeExtension` access, and a runnable
+  Deno example.
+- Added the `netlify` fetch-export runtime entrypoint with typed
+  `NetlifyRuntimeExtension` access and Netlify request context integration.
+- Expanded the documented runtime surface and examples to cover the new Deno and
+  Netlify runtime families.
+
+### Testing
+
+- Added compile, host-preflight, and process coverage for the new Deno runtime.
+- Added fetch-export coverage for the Netlify runtime entrypoint.
+
 ## 0.4.0
 
 ### Breaking Changes
