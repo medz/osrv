@@ -27,6 +27,7 @@ Current serve-based runtimes:
 - `dart`
 - `node`
 - `bun`
+- `deno`
 
 Example:
 
@@ -119,6 +120,7 @@ When you need host-specific behavior, use a typed runtime extension from the req
 
 Examples:
 - `DartRuntimeExtension`
+- `DenoRuntimeExtension`
 - `NodeRuntimeExtension`
 - `BunRuntimeExtension`
 - `CloudflareRuntimeExtension<Env, Request>`

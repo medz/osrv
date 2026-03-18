@@ -9,6 +9,7 @@ These are the supported public import paths:
 - `package:osrv/runtime/dart.dart`
 - `package:osrv/runtime/node.dart`
 - `package:osrv/runtime/bun.dart`
+- `package:osrv/runtime/deno.dart`
 - `package:osrv/runtime/cloudflare.dart`
 - `package:osrv/runtime/vercel.dart`
 - `package:osrv/runtime/netlify.dart`
@@ -59,6 +60,13 @@ serve
 
 ```dart
 BunRuntimeExtension
+serve
+```
+
+### `package:osrv/runtime/deno.dart`
+
+```dart
+DenoRuntimeExtension
 serve
 ```
 

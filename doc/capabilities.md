@@ -29,6 +29,7 @@ final class RuntimeCapabilities {
 | `dart` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `false` |
 | `node` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `true` |
 | `bun` | `serve(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
+| `deno` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `true` |
 | `cloudflare` | `defineFetchExport(...)` | `true` | `false` | `false` | `true` | `false` | `true` |
 | `vercel` | `defineFetchExport(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
 | `netlify` | `defineFetchExport(...)` | `true` | `false` | `true` | `request-dependent` | `false` | `true` |

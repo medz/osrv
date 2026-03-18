@@ -10,6 +10,7 @@ Current runtime families:
 - `dart`
 - `node`
 - `bun`
+- `deno`
 - `cloudflare`
 - `vercel`
 - `netlify`

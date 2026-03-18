@@ -6,10 +6,11 @@ See [public surface](./public-surface.md) for the importable entrypoints.
 
 ## Runtime Families
 
-`osrv` currently ships six official runtime families:
+`osrv` currently ships seven official runtime families:
 - `dart`
 - `node`
 - `bun`
+- `deno`
 - `cloudflare`
 - `vercel`
 - `netlify`
@@ -22,6 +23,7 @@ These runtimes use runtime-specific `serve(server, {platform params})`:
 - `dart`
 - `node`
 - `bun`
+- `deno`
 
 They return a running `Runtime` handle.
 
@@ -96,6 +98,7 @@ Runtime-specific power is exposed through context extensions, not through the `R
 
 Current public runtime-specific types:
 - `DartRuntimeExtension`
+- `DenoRuntimeExtension`
 - `NodeRuntimeExtension`
 - `BunRuntimeExtension`
 - `CloudflareRuntimeExtension<Env, Request>`
@@ -113,6 +116,7 @@ Current public runtime-specific types:
 | `dart` | `package:osrv/runtime/dart.dart` | `serve(...)` | yes |
 | `node` | `package:osrv/runtime/node.dart` | `serve(...)` | yes |
 | `bun` | `package:osrv/runtime/bun.dart` | `serve(...)` | yes |
+| `deno` | `package:osrv/runtime/deno.dart` | `serve(...)` | yes |
 | `cloudflare` | `package:osrv/runtime/cloudflare.dart` | `defineFetchExport(...)` | no |
 | `vercel` | `package:osrv/runtime/vercel.dart` | `defineFetchExport(...)` | no |
 | `netlify` | `package:osrv/runtime/netlify.dart` | `defineFetchExport(...)` | no |
@@ -127,5 +131,7 @@ Typical runtime-related failures:
 
 Examples:
 - compiling `package:osrv/runtime/node.dart` or `package:osrv/runtime/cloudflare.dart` into a native executable
+- compiling `package:osrv/runtime/deno.dart` into a native executable
 - `serve(server, host: ..., port: ...)` from `package:osrv/runtime/node.dart` on a JavaScript host without Node APIs
 - `serve(server, host: ..., port: ...)` from `package:osrv/runtime/bun.dart` on a JavaScript host outside Bun
+- `serve(server, host: ..., port: ...)` from `package:osrv/runtime/deno.dart` on a JavaScript host outside Deno

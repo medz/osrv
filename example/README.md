@@ -8,6 +8,7 @@ Included entries:
 - `dart.dart`
 - `node.dart`
 - `bun.dart`
+- `deno.dart`
 - `cloudflare.dart`
 - `vercel.dart`
 - `netlify.dart`
@@ -27,15 +28,16 @@ Run the Dart-hosted example directly from the package root:
 dart run example/dart.dart
 ```
 
-## Node and Bun Runtimes
+## Node, Bun, and Deno Runtimes
 
-The `node` and `bun` examples must run on their target JavaScript hosts.
+The `node`, `bun`, and `deno` examples must run on their target JavaScript hosts.
 
 Compile them first:
 
 ```bash
 dart compile js example/node.dart -o example/node.dart.js
 dart compile js example/bun.dart -o example/bun.dart.js
+dart compile js example/deno.dart -o example/deno.dart.js
 ```
 
 Then run them with their matching hosts:
@@ -43,6 +45,7 @@ Then run them with their matching hosts:
 ```bash
 node example/node.dart.js
 bun example/bun.dart.js
+deno run --allow-net example/deno.dart.js
 ```
 
 ## Fetch-Export Hosts
