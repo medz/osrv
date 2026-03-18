@@ -10,6 +10,15 @@ See [public surface](./public-surface.md) for the full export list.
 import 'package:osrv/osrv.dart';
 ```
 
+When you use websocket-specific APIs, prefer adding:
+
+```dart
+import 'package:osrv/websocket.dart';
+```
+
+That entrypoint re-exports the websocket event/socket types used by `osrv`'s
+websocket surface.
+
 ## Core Request Types
 
 `osrv` re-exports these request primitives from `package:ht/ht.dart`:
@@ -168,6 +177,8 @@ See [capabilities](../capabilities.md) for the current matrix.
 Use `context.extension<T>()` to retrieve one.
 
 ## `WebSocketRequest`
+
+`WebSocketRequest` is exported from `package:osrv/websocket.dart`.
 
 When websocket handling is supported by the active runtime family, `RequestContext.webSocket` exposes:
 - `isUpgradeRequest`

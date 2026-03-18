@@ -138,6 +138,7 @@ Extensions expose runtime-specific power without pushing host objects into the c
 
 Application code should import only:
 - `package:osrv/osrv.dart`
+- `package:osrv/websocket.dart`
 - `package:osrv/runtime/*.dart`
 
 Do not import `package:osrv/src/...`.

@@ -116,6 +116,7 @@ Examples:
 
 For application code, prefer:
 - `package:osrv/osrv.dart`
+- `package:osrv/websocket.dart`
 - `package:osrv/runtime/*.dart`
 
 Avoid `package:osrv/src/...` imports.

@@ -116,7 +116,9 @@ must also include `@vercel/functions`, use an ESM entry such as `.mjs`, and prov
 
 ## Core API
 
-The public core entrypoint is `package:osrv/osrv.dart`.
+The public core entrypoints are:
+- `package:osrv/osrv.dart`
+- `package:osrv/websocket.dart` for websocket-specific types
 
 Main exported concepts:
 - `Server`

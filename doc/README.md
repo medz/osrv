@@ -45,6 +45,7 @@ Current websocket status:
 
 Application code should import only:
 - `package:osrv/osrv.dart`
+- `package:osrv/websocket.dart`
 - `package:osrv/runtime/*.dart`
 
 Do not build against `package:osrv/src/...` paths.

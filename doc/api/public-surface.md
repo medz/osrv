@@ -6,6 +6,7 @@ This page lists the stable package entrypoints and exports intended for applicat
 
 These are the supported public import paths:
 - `package:osrv/osrv.dart`
+- `package:osrv/websocket.dart`
 - `package:osrv/runtime/dart.dart`
 - `package:osrv/runtime/node.dart`
 - `package:osrv/runtime/bun.dart`
@@ -38,6 +39,20 @@ Server
 ServerFetch
 ServerHook
 ServerErrorHook
+```
+
+## `package:osrv/websocket.dart`
+
+Stable exports:
+
+```dart
+WebSocket
+WebSocketEvent
+WebSocketException
+WebSocketConnectionClosed
+TextDataReceived
+BinaryDataReceived
+CloseReceived
 WebSocketHandler
 WebSocketRequest
 ```

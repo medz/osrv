@@ -13,4 +13,3 @@ export 'src/core/request_context.dart'
 export 'src/core/runtime.dart' show Runtime, RuntimeInfo;
 export 'src/core/server.dart'
     show Server, ServerErrorHook, ServerFetch, ServerHook;
-export 'src/core/websocket.dart' show WebSocketHandler, WebSocketRequest;

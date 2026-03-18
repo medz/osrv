@@ -69,9 +69,9 @@ Draft public shape:
 import 'dart:async';
 
 import 'package:ht/ht.dart' show Response;
-import 'package:web_socket/web_socket.dart' as ws;
+import 'package:osrv/websocket.dart';
 
-typedef WebSocketHandler = FutureOr<void> Function(ws.WebSocket socket);
+typedef WebSocketHandler = FutureOr<void> Function(WebSocket socket);
 
 base class RequestContext extends ServerLifecycleContext {
   WebSocketRequest? get webSocket;
@@ -316,7 +316,6 @@ Rejected for phase 1 because:
 
 ## Open Questions
 
-- Should `osrv` re-export selected `package:web_socket` types, or should users continue importing `web_socket` directly?
 - Should `WebSocketRequest.accept(...)` support only one selected protocol or a richer negotiation callback?
 - Does the first implementation prove that a `Response`-compatible upgrade outcome is sufficient, or do we eventually need a first-class union result type?
 - What exact post-upgrade error hook, if any, should `osrv` expose beyond ambient runtime error reporting?
