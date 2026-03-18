@@ -38,6 +38,8 @@ jobs:
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
+        with:
+          node-version: '25'
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -63,6 +65,8 @@ jobs:
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
+        with:
+          node-version: '25'
 
       - name: Install dependencies
         run: dart pub get

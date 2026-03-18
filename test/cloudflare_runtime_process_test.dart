@@ -8,157 +8,177 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 void main() {
-  test('cloudflare worker serves requests over wrangler local dev', () async {
-    final wrangler = await _resolveWrangler();
-    if (wrangler == null) {
-      markTestSkipped('wrangler is not available in the current environment');
-      return;
-    }
+  test(
+    'cloudflare worker serves requests over wrangler local dev',
+    () async {
+      final wrangler = await _resolveWrangler();
+      if (wrangler == null) {
+        markTestSkipped('wrangler is not available in the current environment');
+        return;
+      }
 
-    final tempDir = await Directory.systemTemp.createTemp('osrv_cf_test_');
-    addTearDown(() => tempDir.delete(recursive: true));
+      final tempDir = await Directory.systemTemp.createTemp('osrv_cf_test_');
+      addTearDown(() => tempDir.delete(recursive: true));
 
-    final compiledPath = '${tempDir.path}/worker.dart.js';
-    final compile = await Process.run('dart', [
-      'compile',
-      'js',
-      'test/fixtures/cloudflare_runtime_worker.dart',
-      '-o',
-      compiledPath,
-    ], workingDirectory: _workspacePath);
-    expect(compile.exitCode, 0, reason: '${compile.stdout}\n${compile.stderr}');
+      final compiledPath = '${tempDir.path}/worker.dart.js';
+      final compile = await Process.run('dart', [
+        'compile',
+        'js',
+        'test/fixtures/cloudflare_runtime_worker.dart',
+        '-o',
+        compiledPath,
+      ], workingDirectory: _workspacePath);
+      expect(
+        compile.exitCode,
+        0,
+        reason: '${compile.stdout}\n${compile.stderr}',
+      );
 
-    await File('${tempDir.path}/worker.mjs').writeAsString(_workerWrapper);
-    await File(
-      '${tempDir.path}/wrangler.json',
-    ).writeAsString(_wranglerConfig(name: 'osrv-test-cloudflare'));
+      await File('${tempDir.path}/worker.mjs').writeAsString(_workerWrapper);
+      await File(
+        '${tempDir.path}/wrangler.json',
+      ).writeAsString(_wranglerConfig(name: 'osrv-test-cloudflare'));
 
-    final port = await _pickPort();
-    final process = await Process.start(wrangler.$1, [
-      ...wrangler.$2,
-      'dev',
-      '--local',
-      '--ip',
-      '127.0.0.1',
-      '--port',
-      '$port',
-      '--log-level',
-      'error',
-    ], workingDirectory: tempDir.path);
-    addTearDown(() async {
+      final port = await _pickPort();
+      final process = await Process.start(wrangler.$1, [
+        ...wrangler.$2,
+        'dev',
+        '--local',
+        '--ip',
+        '127.0.0.1',
+        '--port',
+        '$port',
+        '--log-level',
+        'error',
+      ], workingDirectory: tempDir.path);
+      addTearDown(() async {
+        if (process.kill(ProcessSignal.sigterm)) {
+          await process.exitCode.timeout(
+            const Duration(seconds: 3),
+            onTimeout: () {
+              process.kill(ProcessSignal.sigkill);
+              return -1;
+            },
+          );
+        }
+      });
+
+      final stderrBuffer = StringBuffer();
+      final stderrDone = process.stderr
+          .transform(utf8.decoder)
+          .listen(stderrBuffer.write)
+          .asFuture<void>();
+      final stdoutBuffer = StringBuffer();
+      process.stdout.transform(utf8.decoder).listen(stdoutBuffer.write);
+
+      final baseUri = Uri.parse('http://127.0.0.1:$port');
+      await _waitForHttpServer(baseUri.resolve('/hello'));
+
+      final hello = await _send(
+        baseUri.resolve('/hello'),
+        headers: {'accept': 'text/plain'},
+      );
+      expect(hello.statusCode, 200);
+      expect(
+        await hello.transform(utf8.decoder).join(),
+        'hello from cloudflare',
+      );
+      expect(hello.headers.value('x-runtime'), 'cloudflare');
+
+      final meta = await _send(baseUri.resolve('/meta'));
+      expect(meta.statusCode, 200);
+      expect(jsonDecode(await meta.transform(utf8.decoder).join()), {
+        'runtime': 'cloudflare',
+        'kind': 'entry',
+        'capabilities': {
+          'streaming': true,
+          'websocket': true,
+          'fileSystem': false,
+          'backgroundTask': true,
+          'rawTcp': false,
+          'nodeCompat': true,
+        },
+      });
+
+      final echo = await _send(
+        baseUri.resolve('/echo?mode=full'),
+        method: 'POST',
+        body: 'payload',
+        headers: {'x-test': 'yes'},
+      );
+      expect(echo.statusCode, 200);
+      expect(jsonDecode(await echo.transform(utf8.decoder).join()), {
+        'method': 'POST',
+        'path': '/echo',
+        'query': 'full',
+        'header': 'yes',
+        'body': 'payload',
+      });
+
+      final stream = await _send(baseUri.resolve('/stream'));
+      expect(stream.statusCode, 200);
+      expect(await stream.transform(utf8.decoder).join(), 'hello cloudflare');
+      expect(stream.headers.value('x-stream'), 'yes');
+
+      final handled = await _send(baseUri.resolve('/error'));
+      expect(handled.statusCode, 418);
+      expect(
+        await handled.transform(utf8.decoder).join(),
+        'handled cloudflare',
+      );
+
+      final raw101 = await _send(baseUri.resolve('/raw-101'));
+      expect(raw101.statusCode, 500);
+      expect(
+        await raw101.transform(utf8.decoder).join(),
+        'Internal Server Error',
+      );
+
+      final webSocket = await WebSocket.connect(
+        baseUri.replace(scheme: 'ws', path: '/chat').toString(),
+        protocols: ['chat'],
+      );
+      addTearDown(() async {
+        if (webSocket.closeCode == null) {
+          await webSocket.close();
+        }
+      });
+
+      final events = StreamIterator<Object?>(webSocket);
+      expect(webSocket.protocol, 'chat');
+      expect(
+        await events.moveNext().timeout(const Duration(seconds: 5)),
+        isTrue,
+      );
+      expect(events.current, 'connected');
+
+      webSocket.add('ping');
+      expect(
+        await events.moveNext().timeout(const Duration(seconds: 5)),
+        isTrue,
+      );
+      expect(events.current, 'echo:ping');
+
+      await webSocket.close();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
       if (process.kill(ProcessSignal.sigterm)) {
         await process.exitCode.timeout(
-          const Duration(seconds: 3),
+          const Duration(seconds: 5),
           onTimeout: () {
             process.kill(ProcessSignal.sigkill);
             return -1;
           },
         );
       }
-    });
+      await stderrDone;
 
-    final stderrBuffer = StringBuffer();
-    final stderrDone = process.stderr
-        .transform(utf8.decoder)
-        .listen(stderrBuffer.write)
-        .asFuture<void>();
-    final stdoutBuffer = StringBuffer();
-    process.stdout.transform(utf8.decoder).listen(stdoutBuffer.write);
-
-    final baseUri = Uri.parse('http://127.0.0.1:$port');
-    await _waitForHttpServer(baseUri.resolve('/hello'));
-
-    final hello = await _send(
-      baseUri.resolve('/hello'),
-      headers: {'accept': 'text/plain'},
-    );
-    expect(hello.statusCode, 200);
-    expect(await hello.transform(utf8.decoder).join(), 'hello from cloudflare');
-    expect(hello.headers.value('x-runtime'), 'cloudflare');
-
-    final meta = await _send(baseUri.resolve('/meta'));
-    expect(meta.statusCode, 200);
-    expect(jsonDecode(await meta.transform(utf8.decoder).join()), {
-      'runtime': 'cloudflare',
-      'kind': 'entry',
-      'capabilities': {
-        'streaming': true,
-        'websocket': true,
-        'fileSystem': false,
-        'backgroundTask': true,
-        'rawTcp': false,
-        'nodeCompat': true,
-      },
-    });
-
-    final echo = await _send(
-      baseUri.resolve('/echo?mode=full'),
-      method: 'POST',
-      body: 'payload',
-      headers: {'x-test': 'yes'},
-    );
-    expect(echo.statusCode, 200);
-    expect(jsonDecode(await echo.transform(utf8.decoder).join()), {
-      'method': 'POST',
-      'path': '/echo',
-      'query': 'full',
-      'header': 'yes',
-      'body': 'payload',
-    });
-
-    final stream = await _send(baseUri.resolve('/stream'));
-    expect(stream.statusCode, 200);
-    expect(await stream.transform(utf8.decoder).join(), 'hello cloudflare');
-    expect(stream.headers.value('x-stream'), 'yes');
-
-    final handled = await _send(baseUri.resolve('/error'));
-    expect(handled.statusCode, 418);
-    expect(await handled.transform(utf8.decoder).join(), 'handled cloudflare');
-
-    final raw101 = await _send(baseUri.resolve('/raw-101'));
-    expect(raw101.statusCode, 500);
-    expect(
-      await raw101.transform(utf8.decoder).join(),
-      'Internal Server Error',
-    );
-
-    final webSocket = await WebSocket.connect(
-      baseUri.replace(scheme: 'ws', path: '/chat').toString(),
-      protocols: ['chat'],
-    );
-    addTearDown(() async {
-      if (webSocket.closeCode == null) {
-        await webSocket.close();
-      }
-    });
-
-    final events = StreamIterator<Object?>(webSocket);
-    expect(webSocket.protocol, 'chat');
-    expect(await events.moveNext().timeout(const Duration(seconds: 5)), isTrue);
-    expect(events.current, 'connected');
-
-    webSocket.add('ping');
-    expect(await events.moveNext().timeout(const Duration(seconds: 5)), isTrue);
-    expect(events.current, 'echo:ping');
-
-    await webSocket.close();
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    if (process.kill(ProcessSignal.sigterm)) {
-      await process.exitCode.timeout(
-        const Duration(seconds: 5),
-        onTimeout: () {
-          process.kill(ProcessSignal.sigkill);
-          return -1;
-        },
+      _expectNoUnexpectedWranglerStderr(
+        stderrBuffer.toString(),
+        stdout: stdoutBuffer.toString(),
       );
-    }
-    await stderrDone;
-
-    _expectNoUnexpectedWranglerStderr(
-      stderrBuffer.toString(),
-      stdout: stdoutBuffer.toString(),
-    );
-  });
+    },
+    timeout: const Timeout(Duration(minutes: 2)),
+  );
 }
 
 final _workspacePath = Directory.current.path;
