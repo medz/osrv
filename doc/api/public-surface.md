@@ -38,6 +38,8 @@ Server
 ServerFetch
 ServerHook
 ServerErrorHook
+WebSocketHandler
+WebSocketRequest
 ```
 
 ## Runtime Family Entrypoints

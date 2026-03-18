@@ -123,6 +123,7 @@ It provides:
 - `runtime`
 - `capabilities`
 - `waitUntil(Future<void> task)`
+- `webSocket`
 - `extension<T extends RuntimeExtension>()`
 
 Example:
@@ -165,6 +166,15 @@ See [capabilities](../capabilities.md) for the current matrix.
 `RuntimeExtension` is the marker interface used for runtime-specific extensions.
 
 Use `context.extension<T>()` to retrieve one.
+
+## `WebSocketRequest`
+
+When websocket handling is supported by the active runtime family, `RequestContext.webSocket` exposes:
+- `isUpgradeRequest`
+- `requestedProtocols`
+- `accept(WebSocketHandler handler, {String? protocol})`
+
+`accept(...)` returns a response-compatible websocket upgrade outcome for `Server.fetch(...)`.
 
 Examples:
 - `DartRuntimeExtension`
