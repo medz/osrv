@@ -58,7 +58,7 @@ run_native() {
   dart pub get
   dart format --output=none --set-exit-if-changed .
   dart analyze
-  dart test -p vm
+  dart test -p vm test integration_test
   dart test -p node \
     test/node_runtime_node_test.dart \
     test/cloudflare_worker_node_test.dart \

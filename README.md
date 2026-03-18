@@ -167,6 +167,10 @@ Useful variants:
 `--native` skips `act` and runs the CI-equivalent commands directly. This is
 useful when you want fast local verification or do not have `act` installed.
 
+The repository keeps black-box runtime checks under `integration_test/`.
+Those are still plain `package:test` suites for this pure Dart package, and
+the local runner / CI invoke them explicitly.
+
 ## Examples
 
 The [`example`](./example) directory contains runnable minimal entries for:
