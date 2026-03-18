@@ -25,8 +25,12 @@ final class DenoWebSocketRequest implements WebSocketRequest {
   bool get isUpgradeRequest {
     final upgrade = _request.headers.get('upgrade');
     final connection = _request.headers.get('connection');
-    return upgrade?.toLowerCase() == 'websocket' &&
-        connection?.toLowerCase().contains('upgrade') == true;
+    final connectionTokens = connection
+        ?.split(',')
+        .map((value) => value.trim().toLowerCase());
+    return _request.method.toUpperCase() == 'GET' &&
+        upgrade?.toLowerCase() == 'websocket' &&
+        (connectionTokens?.contains('upgrade') ?? false);
   }
 
   @override
@@ -68,8 +72,6 @@ final class DenoWebSocketRequest implements WebSocketRequest {
   DenoAcceptedWebSocketUpgrade? takeAcceptedUpgrade(Response response) {
     final upgrade = _acceptedUpgrade;
     final acceptedResponse = _acceptedResponse;
-    _acceptedUpgrade = null;
-    _acceptedResponse = null;
 
     if (!identical(response, acceptedResponse)) {
       if (response.status == 101) {
@@ -86,11 +88,14 @@ final class DenoWebSocketRequest implements WebSocketRequest {
       );
     }
 
+    _acceptedUpgrade = null;
+    _acceptedResponse = null;
+
     return upgrade;
   }
 
   bool hasAcceptedUpgrade(Response response) {
-    return _acceptedUpgrade != null && identical(response, _acceptedResponse);
+    return identical(response, _acceptedResponse);
   }
 }
 

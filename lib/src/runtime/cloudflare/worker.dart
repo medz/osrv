@@ -73,7 +73,7 @@ JSExportedDartFunction createCloudflareFetchEntry(Server server) {
           final handled = await server.onError!(
             error,
             stackTrace,
-            lifecycleContext,
+            requestContext,
           );
           if (handled != null) {
             return _responseFromCloudflareFetchOutcome(

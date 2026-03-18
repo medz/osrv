@@ -10,6 +10,7 @@ import 'dart:typed_data';
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/cloudflare.dart';
 import 'package:osrv/src/runtime/_internal/js/web_stream_bridge.dart';
+import 'package:osrv/src/runtime/cloudflare/websocket_request.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 
@@ -161,13 +162,58 @@ void main() {
       'upgrade': false,
       'protocols': <String>[],
     });
+
+    final postUpgradeResponse = await _callWorkerFetch(
+      _currentFetchHandler(),
+      web.Request(
+        'https://example.com/chat'.toJS,
+        web.RequestInit(method: 'POST', headers: upgradeHeaders),
+      ),
+      JSObject(),
+      createJSInteropWrapper(_TestExecutionContext()),
+    );
+    expect(postUpgradeResponse.status, 200);
+    expect(jsonDecode((await postUpgradeResponse.text().toDart).toDart), {
+      'hasWebSocket': true,
+      'upgrade': false,
+      'protocols': ['chat', 'superchat'],
+    });
   });
 
+  test(
+    'cloudflare websocket request keeps accepted upgrade until matching response is consumed',
+    () {
+      final headers = web.Headers();
+      headers.set('upgrade', 'websocket');
+      headers.set('connection', 'Upgrade');
+
+      final request = CloudflareWebSocketRequest(
+        web.Request(
+          'https://example.com/chat'.toJS,
+          web.RequestInit(headers: headers),
+        ),
+      );
+
+      final accepted = request.accept((socket) async {});
+      expect(request.takeAcceptedUpgrade(Response('nope')), isNull);
+      expect(request.hasAcceptedUpgrade(accepted), isTrue);
+      expect(request.takeAcceptedUpgrade(accepted), isNotNull);
+      expect(request.hasAcceptedUpgrade(accepted), isFalse);
+    },
+  );
+
   test('defineFetchExport uses onError to translate fetch failures', () async {
+    CloudflareRuntimeExtension<JSObject, web.Request>? errorExtension;
+    RequestContext? errorRequestContext;
     defineFetchExport(
       Server(
         fetch: (request, context) => throw StateError('boom'),
         onError: (error, stackTrace, context) {
+          errorExtension = context
+              .extension<CloudflareRuntimeExtension<JSObject, web.Request>>();
+          if (context is RequestContext) {
+            errorRequestContext = context;
+          }
           return Response(
             'handled ${context.runtime.name}',
             ResponseInit(status: 418),
@@ -185,6 +231,11 @@ void main() {
 
     expect(response.status, 418);
     expect((await response.text().toDart).toDart, 'handled cloudflare');
+    expect(errorExtension, isNotNull);
+    expect(errorExtension!.request, isNotNull);
+    expect(errorRequestContext, isNotNull);
+    expect(errorRequestContext!.webSocket, isNotNull);
+    expect(errorRequestContext!.webSocket!.isUpgradeRequest, isFalse);
   });
 
   test('defineFetchExport rejects raw 101 responses from onError', () async {

@@ -121,10 +121,12 @@ void main() {
   test(
     'node runtime onError can translate failures into a custom response',
     () async {
+      NodeRuntimeExtension? errorExtension;
       final runtime = await serve(
         Server(
           fetch: (request, context) => throw StateError('boom'),
           onError: (error, stackTrace, context) {
+            errorExtension = context.extension<NodeRuntimeExtension>();
             return Response(
               'handled ${context.runtime.name}',
               ResponseInit(status: 418),
@@ -140,6 +142,8 @@ void main() {
       final response = await _fetchText(runtime.url!.resolve('/fails'));
       expect(response.status, 418);
       expect(response.text, 'handled node');
+      expect(errorExtension, isNotNull);
+      expect(errorExtension!.request, isNotNull);
     },
   );
 

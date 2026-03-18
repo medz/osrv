@@ -9,6 +9,8 @@ import 'package:web_socket/web_socket.dart' as ws;
 import 'http_host.dart';
 
 final class NodeServerWebSocketAdapter implements ws.WebSocket {
+  static const int _maxBufferedFrameBytes = 1 << 20;
+
   NodeServerWebSocketAdapter({
     required NodeSocketHost socket,
     required Stream<List<int>> incoming,
@@ -37,18 +39,13 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
   @override
   void sendText(String s) {
     _ensureOpen();
-    unawaited(
-      nodeSocketWrite(
-        _socket,
-        _encodeFrame(opcode: 0x1, payload: utf8.encode(s)),
-      ),
-    );
+    _sendFrame(0x1, utf8.encode(s));
   }
 
   @override
   void sendBytes(Uint8List b) {
     _ensureOpen();
-    unawaited(nodeSocketWrite(_socket, _encodeFrame(opcode: 0x2, payload: b)));
+    _sendFrame(0x2, b);
   }
 
   @override
@@ -110,8 +107,27 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
     }
   }
 
+  void _sendFrame(int opcode, List<int> payload) {
+    unawaited(
+      nodeSocketWrite(
+        _socket,
+        _encodeFrame(opcode: opcode, payload: payload),
+      ).catchError((Object error, StackTrace stackTrace) {
+        _onError(error, stackTrace);
+      }),
+    );
+  }
+
   void _onData(List<int> chunk) {
     if (_closed || chunk.isEmpty) {
+      return;
+    }
+
+    if (_buffer.length + chunk.length > _maxBufferedFrameBytes) {
+      _protocolError(
+        'WebSocket frame exceeds the $_maxBufferedFrameBytes-byte buffer limit.',
+        code: 1009,
+      );
       return;
     }
 
@@ -206,7 +222,13 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
           return false;
         }
 
-        final close = _decodeClose(frame.payload);
+        ({int? code, String reason}) close;
+        try {
+          close = _decodeClose(frame.payload);
+        } on FormatException {
+          _protocolError('Invalid UTF-8 in close reason.', code: 1007);
+          return false;
+        }
         _closeReceived = true;
         _events.add(ws.CloseReceived(close.code, close.reason));
         unawaited(nodeSocketEnd(_socket));
@@ -215,12 +237,7 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
         _completeClosed();
         return true;
       case 0x9:
-        unawaited(
-          nodeSocketWrite(
-            _socket,
-            _encodeFrame(opcode: 0xA, payload: frame.payload),
-          ),
-        );
+        _sendFrame(0xA, frame.payload);
         return true;
       case 0xA:
         return true;
@@ -281,9 +298,9 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
     }
   }
 
-  void _protocolError(String reason) {
+  void _protocolError(String reason, {int code = 1002}) {
     nodeSocketDestroy(_socket);
-    unawaited(dispose(1002, reason));
+    unawaited(dispose(code, reason));
   }
 }
 
@@ -313,6 +330,9 @@ Uint8List _encodeFrame({required int opcode, required List<int> payload}) {
 Uint8List _closePayload(int? code, String? reason) {
   if (code == null && (reason == null || reason.isEmpty)) {
     return Uint8List(0);
+  }
+  if (code == null && reason != null && reason.isNotEmpty) {
+    code = 1000;
   }
 
   final builder = BytesBuilder(copy: false);

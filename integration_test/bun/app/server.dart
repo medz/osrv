@@ -13,6 +13,24 @@ Future<void> main() async {
       final uri = Uri.parse(request.url);
 
       switch (uri.path) {
+        case '/meta':
+          final webSocket = context.webSocket;
+          return Response.json({
+            'runtime': context.runtime.name,
+            'kind': context.runtime.kind,
+            'capabilities': {
+              'streaming': context.capabilities.streaming,
+              'websocket': context.capabilities.websocket,
+              'fileSystem': context.capabilities.fileSystem,
+              'backgroundTask': context.capabilities.backgroundTask,
+              'rawTcp': context.capabilities.rawTcp,
+              'nodeCompat': context.capabilities.nodeCompat,
+            },
+            'request': {
+              'hasWebSocket': webSocket != null,
+              'upgrade': webSocket?.isUpgradeRequest ?? false,
+            },
+          });
         case '/chat':
           final webSocket = context.webSocket;
           if (webSocket == null || !webSocket.isUpgradeRequest) {

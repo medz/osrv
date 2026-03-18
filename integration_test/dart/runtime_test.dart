@@ -70,6 +70,10 @@ void main() {
       onError: (error, stackTrace, context) {
         expect(error, isA<StateError>());
         expect(context.runtime.name, 'dart');
+        final ext = context.extension<DartRuntimeExtension>();
+        expect(ext, isNotNull);
+        expect(ext!.request, isNotNull);
+        expect(ext.response, isNotNull);
         return Response('handled', ResponseInit(status: 418));
       },
       fetch: (request, context) {
@@ -93,6 +97,37 @@ void main() {
 
     expect(response.statusCode, 418);
     expect(body, 'handled');
+  });
+
+  test('raw 101 responses from onError are rejected', () async {
+    final server = Server(
+      fetch: (request, context) => throw StateError('boom'),
+      onError: (error, stackTrace, context) {
+        return Response(
+          null,
+          const ResponseInit(status: HttpStatus.switchingProtocols),
+        );
+      },
+    );
+
+    final runtime = await serve(server, host: '127.0.0.1', port: 0);
+
+    addTearDown(() async {
+      await runtime.close();
+      await runtime.closed;
+    });
+
+    final client = HttpClient();
+    addTearDown(client.close);
+
+    final request = await client.getUrl(
+      runtime.url!.resolve('/raw-101-onerror'),
+    );
+    final response = await request.close();
+    final body = await response.transform(utf8.decoder).join();
+
+    expect(response.statusCode, HttpStatus.internalServerError);
+    expect(body, 'Internal Server Error');
   });
 
   test('unhandled fetch failures produce default 500 response', () async {
@@ -331,6 +366,56 @@ void main() {
       expect(events.current, 'echo:ping');
     },
   );
+
+  test('dart websocket requests reject multiple accept calls', () async {
+    Object? secondAcceptError;
+
+    final server = Server(
+      fetch: (request, context) {
+        final webSocket = context.webSocket;
+        if (webSocket == null || !webSocket.isUpgradeRequest) {
+          return Response('plain');
+        }
+
+        final response = webSocket.accept((socket) async {
+          socket.sendText('connected');
+          await socket.events.drain<void>();
+        });
+
+        try {
+          webSocket.accept((socket) async {});
+        } catch (error) {
+          secondAcceptError = error;
+        }
+
+        return response;
+      },
+    );
+
+    final runtime = await serve(server, host: '127.0.0.1', port: 0);
+
+    addTearDown(() async {
+      await runtime.close();
+      await runtime.closed;
+    });
+
+    final webSocket = await WebSocket.connect(
+      runtime.url!
+          .replace(scheme: 'ws', path: '/chat', query: '', fragment: '')
+          .toString(),
+    );
+    addTearDown(() async {
+      if (webSocket.closeCode == null) {
+        await webSocket.close();
+      }
+    });
+
+    expect(
+      await webSocket.first.timeout(const Duration(seconds: 5)),
+      'connected',
+    );
+    expect(secondAcceptError, isA<StateError>());
+  });
 
   test('runtime.close waits for active websocket sessions', () async {
     final sessionClosed = Completer<void>();

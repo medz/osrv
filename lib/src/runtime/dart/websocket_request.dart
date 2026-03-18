@@ -20,6 +20,7 @@ final class DartWebSocketRequest implements WebSocketRequest {
   final HttpRequest _request;
   final List<String> _requestedProtocols;
   DartAcceptedWebSocketUpgrade? _acceptedUpgrade;
+  Response? _acceptedResponse;
 
   @override
   bool get isUpgradeRequest => WebSocketTransformer.isUpgradeRequest(_request);
@@ -44,37 +45,50 @@ final class DartWebSocketRequest implements WebSocketRequest {
       );
     }
 
+    if (_acceptedUpgrade != null) {
+      throw StateError('A websocket upgrade has already been accepted.');
+    }
+
     _acceptedUpgrade = DartAcceptedWebSocketUpgrade(
       handler: handler,
       protocol: protocol,
     );
 
-    return Response(
+    final response = Response(
       null,
       const ResponseInit(status: HttpStatus.switchingProtocols),
     );
+    _acceptedResponse = response;
+    return response;
   }
 
   DartAcceptedWebSocketUpgrade? takeAcceptedUpgrade(Response response) {
     final upgrade = _acceptedUpgrade;
-    _acceptedUpgrade = null;
+    final acceptedResponse = _acceptedResponse;
 
-    if (response.status != HttpStatus.switchingProtocols) {
+    if (!identical(response, acceptedResponse)) {
+      if (response.status == HttpStatus.switchingProtocols) {
+        throw StateError(
+          'HTTP 101 responses are reserved for context.webSocket.accept(...).',
+        );
+      }
       return null;
     }
 
-    if (upgrade == null) {
+    if (upgrade == null || acceptedResponse == null) {
       throw StateError(
         'HTTP 101 responses are reserved for context.webSocket.accept(...).',
       );
     }
 
+    _acceptedUpgrade = null;
+    _acceptedResponse = null;
+
     return upgrade;
   }
 
   bool hasAcceptedUpgrade(Response response) {
-    return response.status == HttpStatus.switchingProtocols &&
-        _acceptedUpgrade != null;
+    return identical(response, _acceptedResponse);
   }
 }
 

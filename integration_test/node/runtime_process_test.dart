@@ -44,6 +44,30 @@ void main() {
         'request': {'hasWebSocket': true, 'upgrade': false},
       });
 
+      final postMeta = await send(
+        uri.resolve('/meta'),
+        method: 'POST',
+        headers: {
+          'connection': 'keep-alive, Upgrade',
+          'upgrade': 'websocket',
+          'sec-websocket-protocol': 'chat, superchat',
+        },
+      );
+      expect(postMeta.statusCode, 200);
+      expect(jsonDecode(await postMeta.transform(utf8.decoder).join()), {
+        'runtime': 'node',
+        'kind': 'server',
+        'capabilities': {
+          'streaming': true,
+          'websocket': true,
+          'fileSystem': true,
+          'backgroundTask': true,
+          'rawTcp': true,
+          'nodeCompat': true,
+        },
+        'request': {'hasWebSocket': true, 'upgrade': false},
+      });
+
       await expectHelloEndpoint(
         uri,
         expectedBody: 'hello from node',

@@ -31,6 +31,46 @@ void main() {
       expectedRuntimeHeader: 'bun',
     );
 
+    final meta = await send(uri.resolve('/meta'));
+    expect(meta.statusCode, 200);
+    expect(jsonDecode(await meta.transform(utf8.decoder).join()), {
+      'runtime': 'bun',
+      'kind': 'server',
+      'capabilities': {
+        'streaming': true,
+        'websocket': true,
+        'fileSystem': true,
+        'backgroundTask': true,
+        'rawTcp': false,
+        'nodeCompat': true,
+      },
+      'request': {'hasWebSocket': true, 'upgrade': false},
+    });
+
+    final postMeta = await send(
+      uri.resolve('/meta'),
+      method: 'POST',
+      headers: {
+        'connection': 'keep-alive, Upgrade',
+        'upgrade': 'websocket',
+        'sec-websocket-protocol': 'chat, superchat',
+      },
+    );
+    expect(postMeta.statusCode, 200);
+    expect(jsonDecode(await postMeta.transform(utf8.decoder).join()), {
+      'runtime': 'bun',
+      'kind': 'server',
+      'capabilities': {
+        'streaming': true,
+        'websocket': true,
+        'fileSystem': true,
+        'backgroundTask': true,
+        'rawTcp': false,
+        'nodeCompat': true,
+      },
+      'request': {'hasWebSocket': true, 'upgrade': false},
+    });
+
     final echo = await send(
       uri.resolve('/echo?mode=full'),
       method: 'POST',
@@ -79,7 +119,10 @@ void main() {
     final process = await _startBunRuntime();
 
     final stderrBuffer = StringBuffer();
-    process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+    final stderrDone = process.stderr
+        .transform(utf8.decoder)
+        .listen(stderrBuffer.write)
+        .asFuture<void>();
     final uri = await waitForRuntimeUrl(stdoutLines(process));
 
     await expectHelloEndpoint(
@@ -88,7 +131,13 @@ void main() {
       expectedRuntimeHeader: 'bun',
     );
     await expectWebSocketEcho(uri);
+    final closing = await send(uri.resolve('/wait-close'));
+    expect(closing.statusCode, 200);
+    expect(await closing.transform(utf8.decoder).join(), 'closing');
+    final exitCode = await process.exitCode.timeout(const Duration(seconds: 5));
+    await stderrDone;
 
+    expect(exitCode, 0, reason: stderrBuffer.toString());
     expect(stderrBuffer.toString(), isEmpty);
   });
 }

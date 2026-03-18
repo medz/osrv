@@ -59,8 +59,6 @@ final class NodeWebSocketRequest implements WebSocketRequest {
   NodeAcceptedWebSocketUpgrade? takeAcceptedUpgrade(Response response) {
     final upgrade = _acceptedUpgrade;
     final acceptedResponse = _acceptedResponse;
-    _acceptedUpgrade = null;
-    _acceptedResponse = null;
 
     if (!identical(response, acceptedResponse)) {
       if (response.status == 101) {
@@ -77,10 +75,13 @@ final class NodeWebSocketRequest implements WebSocketRequest {
       );
     }
 
+    _acceptedUpgrade = null;
+    _acceptedResponse = null;
+
     return upgrade;
   }
 
   bool hasAcceptedUpgrade(Response response) {
-    return _acceptedUpgrade != null && identical(response, _acceptedResponse);
+    return identical(response, _acceptedResponse);
   }
 }

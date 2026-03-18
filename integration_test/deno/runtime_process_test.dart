@@ -49,6 +49,31 @@ void main() {
         'nodeCompat': true,
       },
       'lifecycle': {'onStartHasDeno': true, 'onStartHasServer': true},
+      'request': {'hasWebSocket': true, 'upgrade': false},
+    });
+
+    final postMeta = await send(
+      uri.resolve('/meta'),
+      method: 'POST',
+      headers: {
+        'connection': 'keep-alive, Upgrade',
+        'upgrade': 'websocket',
+        'sec-websocket-protocol': 'chat, superchat',
+      },
+    );
+    expect(jsonDecode(await postMeta.transform(utf8.decoder).join()), {
+      'runtime': 'deno',
+      'kind': 'server',
+      'capabilities': {
+        'streaming': true,
+        'websocket': true,
+        'fileSystem': true,
+        'backgroundTask': true,
+        'rawTcp': true,
+        'nodeCompat': true,
+      },
+      'lifecycle': {'onStartHasDeno': true, 'onStartHasServer': true},
+      'request': {'hasWebSocket': true, 'upgrade': false},
     });
 
     final echo = await send(
@@ -101,7 +126,10 @@ void main() {
     final process = await _startDenoRuntime();
 
     final stderrBuffer = StringBuffer();
-    process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+    final stderrDone = process.stderr
+        .transform(utf8.decoder)
+        .listen(stderrBuffer.write)
+        .asFuture<void>();
     final lines = stdoutLines(process);
 
     final uri = await waitForRuntimeUrl(lines);
@@ -112,7 +140,13 @@ void main() {
       expectedRuntimeHeader: 'deno',
     );
     await expectWebSocketEcho(uri);
+    final closing = await send(uri.resolve('/wait-close'));
+    expect(closing.statusCode, 200);
+    expect(await closing.transform(utf8.decoder).join(), 'closing');
+    final exitCode = await process.exitCode.timeout(const Duration(seconds: 5));
+    await stderrDone;
 
+    expect(exitCode, 0, reason: stderrBuffer.toString());
     expect(stderrBuffer.toString(), isEmpty);
   });
 }

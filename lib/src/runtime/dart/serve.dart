@@ -156,7 +156,7 @@ Future<void> _handleDartRequest({
       server: server,
       error: error,
       stackTrace: stackTrace,
-      context: lifecycleContext,
+      context: context,
       defaultStatus: HttpStatus.internalServerError,
     );
     await _writeDartFetchResponse(

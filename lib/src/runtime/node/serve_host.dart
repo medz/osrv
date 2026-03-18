@@ -169,14 +169,6 @@ Future<void> _handleNodeRequest({
     extension: extension,
     webSocket: webSocket,
   );
-  final lifecycleContext = ServerLifecycleContext(
-    runtime: context.runtime,
-    capabilities: context.capabilities,
-    extension: NodeRuntimeExtension(
-      process: preflight.extension.process,
-      server: hostServer,
-    ),
-  );
 
   try {
     final htRequest = nodeRequestFromHost(request, origin: origin);
@@ -197,7 +189,7 @@ Future<void> _handleNodeRequest({
       server: server,
       error: error,
       stackTrace: stackTrace,
-      context: lifecycleContext,
+      context: context,
     );
 
     try {
@@ -224,7 +216,10 @@ Future<void> _handleNodeUpgrade({
 }) async {
   final snapshot = nodeRequestHeadFromHost(request);
   final webSocket = NodeWebSocketRequest(
-    isUpgradeRequest: _isNodeUpgradeRequest(snapshot.rawHeaders),
+    isUpgradeRequest: _isNodeUpgradeRequest(
+      method: snapshot.method,
+      rawHeaders: snapshot.rawHeaders,
+    ),
     requestedProtocols: _requestedNodeProtocols(snapshot.rawHeaders),
   );
   final context = RequestContext(
@@ -237,14 +232,6 @@ Future<void> _handleNodeUpgrade({
       request: request,
     ),
     webSocket: webSocket,
-  );
-  final lifecycleContext = ServerLifecycleContext(
-    runtime: context.runtime,
-    capabilities: context.capabilities,
-    extension: NodeRuntimeExtension(
-      process: preflight.extension.process,
-      server: hostServer,
-    ),
   );
 
   try {
@@ -289,7 +276,7 @@ Future<void> _handleNodeUpgrade({
       server: server,
       error: error,
       stackTrace: stackTrace,
-      context: lifecycleContext,
+      context: context,
     );
     await _writeNodeUpgradeHttpResponse(
       socket,
@@ -433,11 +420,18 @@ bool _canCommitNodeWebSocketUpgrade(NodeRequestHeadSnapshot snapshot) {
   return version == '13';
 }
 
-bool _isNodeUpgradeRequest(Object? rawHeaders) {
+bool _isNodeUpgradeRequest({
+  required String? method,
+  required Object? rawHeaders,
+}) {
   final upgrade = _headerValue(rawHeaders, 'upgrade');
   final connection = _headerValue(rawHeaders, 'connection');
-  return upgrade?.toLowerCase() == 'websocket' &&
-      connection?.toLowerCase().contains('upgrade') == true;
+  final connectionTokens = connection
+      ?.split(',')
+      .map((value) => value.trim().toLowerCase());
+  return method?.toUpperCase() == 'GET' &&
+      upgrade?.toLowerCase() == 'websocket' &&
+      (connectionTokens?.contains('upgrade') ?? false);
 }
 
 List<String> _requestedNodeProtocols(Object? rawHeaders) {
@@ -458,8 +452,9 @@ String? _headerValue(Object? rawHeaders, String name) {
     return null;
   }
 
+  final lowerName = name.toLowerCase();
   for (final entry in rawHeaders.entries) {
-    if (entry.key?.toString().toLowerCase() != name) {
+    if (entry.key?.toString().toLowerCase() != lowerName) {
       continue;
     }
 

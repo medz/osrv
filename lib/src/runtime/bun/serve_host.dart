@@ -263,7 +263,7 @@ Future<web.Response?> _handleBunRequest({
       server: server,
       error: error,
       stackTrace: stackTrace,
-      context: lifecycleContext,
+      context: context,
     );
     return _responseFromBunFetchOutcome(
       _sanitizeBunErrorResponse(handled, webSocket: webSocket),

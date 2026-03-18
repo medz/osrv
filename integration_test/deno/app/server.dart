@@ -18,6 +18,7 @@ Future<void> main() async {
 
       switch (uri.path) {
         case '/meta':
+          final webSocket = context.webSocket;
           return Response.json({
             'runtime': context.runtime.name,
             'kind': context.runtime.kind,
@@ -32,6 +33,10 @@ Future<void> main() async {
             'lifecycle': {
               'onStartHasDeno': onStartHasDeno,
               'onStartHasServer': onStartHasServer,
+            },
+            'request': {
+              'hasWebSocket': webSocket != null,
+              'upgrade': webSocket?.isUpgradeRequest ?? false,
             },
           });
         case '/echo':

@@ -155,7 +155,9 @@ Future<web.Response> _handleDenoRequest({
     server: hostServer,
     request: requestHost,
   );
-  final webSocket = DenoWebSocketRequest(request);
+  final webSocket = capabilities.websocket
+      ? DenoWebSocketRequest(request)
+      : null;
   final context = RequestContext(
     runtime: runtimeInfo,
     capabilities: capabilities,
@@ -180,7 +182,7 @@ Future<web.Response> _handleDenoRequest({
       server: server,
       error: error,
       stackTrace: stackTrace,
-      context: lifecycleContext,
+      context: context,
     );
     return await _responseFromDenoFetchOutcome(
       _sanitizeDenoErrorResponse(handled, webSocket: webSocket),
@@ -197,11 +199,11 @@ Future<web.Response> _responseFromDenoFetchOutcome(
   Response response, {
   required DenoGlobal? deno,
   required web.Request request,
-  required DenoWebSocketRequest webSocket,
+  required DenoWebSocketRequest? webSocket,
   required void Function(Future<void> task) trackFuture,
   required Set<DenoServerWebSocketAdapter> activeSockets,
 }) async {
-  final upgrade = webSocket.takeAcceptedUpgrade(response);
+  final upgrade = webSocket?.takeAcceptedUpgrade(response);
   if (upgrade != null) {
     if (deno == null) {
       return _denoUpgradeFailureResponse();
@@ -266,9 +268,10 @@ Future<void> _closeActiveDenoWebSockets(
 
 Response _sanitizeDenoErrorResponse(
   Response response, {
-  required DenoWebSocketRequest webSocket,
+  required DenoWebSocketRequest? webSocket,
 }) {
-  if (response.status != 101 || webSocket.hasAcceptedUpgrade(response)) {
+  if (response.status != 101 ||
+      (webSocket?.hasAcceptedUpgrade(response) ?? false)) {
     return response;
   }
 

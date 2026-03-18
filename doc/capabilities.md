@@ -29,7 +29,7 @@ final class RuntimeCapabilities {
 | `dart` | `serve(...)` | `true` | `true` | `true` | `true` | `true` | `false` |
 | `node` | `serve(...)` | `true` | `true` | `true` | `true` | `true` | `true` |
 | `bun` | `serve(...)` | `true` | `true` | `true` | `true` | `false` | `true` |
-| `deno` | `serve(...)` | `true` | `true` | `true` | `true` | `true` | `true` |
+| `deno` | `serve(...)` | `true` | `host-dependent` | `true` | `true` | `true` | `true` |
 | `cloudflare` | `defineFetchExport(...)` | `true` | `true` | `false` | `true` | `false` | `true` |
 | `vercel` | `defineFetchExport(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
 | `netlify` | `defineFetchExport(...)` | `true` | `false` | `true` | `request-dependent` | `false` | `true` |
@@ -48,9 +48,13 @@ Current status:
 - `true` for `dart`
 - `true` for `node`
 - `true` for `bun`
-- `true` for `deno`
+- `host-dependent` for `deno`
 - `true` for `cloudflare`
 - `false` for every other runtime family
+
+For `deno`, websocket support depends on whether the current host exposes
+`Deno.upgradeWebSocket(...)`. `RuntimeCapabilities.websocket` reflects that
+runtime check.
 
 ### `fileSystem`
 
