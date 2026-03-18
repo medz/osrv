@@ -47,6 +47,23 @@ Future<void> main() async {
 }
 ```
 
+## Basic `deno` Server
+
+```dart
+import 'package:osrv/osrv.dart';
+import 'package:osrv/runtime/deno.dart';
+
+Future<void> main() async {
+  final runtime = await serve(
+    Server(fetch: (request, context) => Response.text('hello from deno')),
+    host: '127.0.0.1',
+    port: 3000,
+  );
+
+  print(runtime.url);
+}
+```
+
 ## Cloudflare Fetch Entry
 
 ```dart

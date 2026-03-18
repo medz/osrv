@@ -23,6 +23,7 @@ Current examples:
 - `serve(server, host: ..., port: ...)` from `package:osrv/runtime/dart.dart`
 - `serve(server, host: ..., port: ...)` from `package:osrv/runtime/node.dart`
 - `serve(server, host: ..., port: ...)` from `package:osrv/runtime/bun.dart`
+- `serve(server, host: ..., port: ...)` from `package:osrv/runtime/deno.dart`
 
 It is input, not the running runtime handle.
 
@@ -89,6 +90,7 @@ Capabilities are host truth, not a promise that every runtime behaves the same w
 
 Examples:
 - `DartRuntimeExtension`
+- `DenoRuntimeExtension`
 - `NodeRuntimeExtension`
 - `BunRuntimeExtension`
 - `CloudflareRuntimeExtension<Env, Request>`
@@ -105,6 +107,7 @@ Examples:
 - Dart VM
 - Node.js
 - Bun
+- Deno
 - Cloudflare Workers
 - Vercel
 - Netlify Functions

@@ -12,6 +12,7 @@ These runtimes use runtime-specific `serve(server, {platform params})`:
 - `dart`
 - `node`
 - `bun`
+- `deno`
 
 ### `package:osrv/runtime/dart.dart`
 
@@ -68,6 +69,25 @@ Fields:
 | Field | Default | Meaning |
 | --- | --- | --- |
 | `host` | `'127.0.0.1'` | Host interface passed to `Bun.serve` |
+| `port` | `3000` | Listener port |
+
+Validation:
+- `host` must not be empty
+- `port` must be between `0` and `65535`
+
+### `package:osrv/runtime/deno.dart`
+
+Import:
+
+```dart
+import 'package:osrv/runtime/deno.dart';
+```
+
+Fields:
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `host` | `'127.0.0.1'` | Host interface passed to `Deno.serve` |
 | `port` | `3000` | Listener port |
 
 Validation:
@@ -136,5 +156,6 @@ Use runtime-family entrypoints:
 - `package:osrv/runtime/dart.dart`
 - `package:osrv/runtime/node.dart`
 - `package:osrv/runtime/bun.dart`
+- `package:osrv/runtime/deno.dart`
 
 Do not import `package:osrv/src/runtime/...` files directly.

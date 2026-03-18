@@ -9,6 +9,7 @@ Use this directory to choose a runtime family and see its real setup, capabiliti
 | `dart` | `package:osrv/runtime/dart.dart` | `serve(...)` | yes | `DartRuntimeExtension` |
 | `node` | `package:osrv/runtime/node.dart` | `serve(...)` | yes | `NodeRuntimeExtension` |
 | `bun` | `package:osrv/runtime/bun.dart` | `serve(...)` | yes | `BunRuntimeExtension` |
+| `deno` | `package:osrv/runtime/deno.dart` | `serve(...)` | yes | `DenoRuntimeExtension` |
 | `cloudflare` | `package:osrv/runtime/cloudflare.dart` | `defineFetchExport(...)` | no | `CloudflareRuntimeExtension<Env, Request>` |
 | `vercel` | `package:osrv/runtime/vercel.dart` | `defineFetchExport(...)` | no | `VercelRuntimeExtension<Request>` |
 | `netlify` | `package:osrv/runtime/netlify.dart` | `defineFetchExport(...)` | no | `NetlifyRuntimeExtension<Request>` |
@@ -18,6 +19,7 @@ Use this directory to choose a runtime family and see its real setup, capabiliti
 - [dart](./dart.md)
 - [node](./node.md)
 - [bun](./bun.md)
+- [deno](./deno.md)
 - [cloudflare](./cloudflare.md)
 - [vercel](./vercel.md)
 - [netlify](./netlify.md)
