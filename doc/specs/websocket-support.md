@@ -30,7 +30,7 @@ From the current repository:
 - `Server.fetch(...)` is the shared HTTP path and currently returns `Response`
 - `RequestContext` currently exposes runtime metadata, `waitUntil(...)`, and runtime extension access
 - `RuntimeCapabilities.websocket` means support through the current `osrv` surface, not host possibility in the abstract
-- websocket support is implemented for `dart` and `bun`
+- websocket support is implemented for `dart`, `node`, and `bun`
 - every other runtime family still reports `false`
 
 From local downstream usage:
@@ -242,10 +242,10 @@ Planned interpretation of this spec by runtime family:
 | Runtime | Public direction fits? | Initial status | Notes |
 | --- | --- | --- | --- |
 | `dart` | yes | implemented | direct request-scoped upgrade |
+| `node` | yes | implemented | request-scoped public API with internal bridge from Node's `'upgrade'` event |
 | `bun` | yes | implemented | request-scoped public API with server-level internal bridge |
 | `deno` | yes | later | natural request-scoped outcome |
 | `cloudflare` | yes | later | natural fetch + `101` outcome |
-| `node` | yes | later | needs internal bridge from `'upgrade'` and explicit socket tracking |
 | `vercel` | no | unsupported | platform limitation |
 | `netlify` | not yet | unsupported | keep false until official support path is verified |
 
@@ -259,6 +259,7 @@ Planned interpretation of this spec by runtime family:
 
 Current state:
 - completed for `dart`
+- completed for `node`
 - completed for `bun`
 - still pending for every other runtime family
 
@@ -271,9 +272,9 @@ Add runtimes that naturally reinforce the same request-scoped model:
 
 ### Phase 3
 
-Add runtimes that need heavier bridging:
+Add runtimes that still need heavier platform validation:
 
-- `node`
+- `netlify` only if a real server-side websocket path becomes available
 
 ### Unsupported In Phase 1
 

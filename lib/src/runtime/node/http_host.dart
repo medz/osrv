@@ -23,6 +23,9 @@ extension type NodeHttpServerHost._(JSObject _) implements JSObject {
   external JSFunction get listen;
   external JSFunction get close;
   external JSFunction get on;
+  external JSFunction get once;
+  @JS('removeListener')
+  external JSFunction get removeListener;
   external JSFunction get address;
 }
 
@@ -57,6 +60,16 @@ extension type NodeServerResponseHost._(JSObject _) implements JSObject {
   external JSFunction get end;
 }
 
+extension type NodeSocketHost._(JSObject _) implements JSObject {
+  external JSFunction get on;
+  external JSFunction get once;
+  @JS('removeListener')
+  external JSFunction get removeListener;
+  external JSFunction get write;
+  external JSFunction get end;
+  external JSFunction get destroy;
+}
+
 final class NodeHttpBinding {
   const NodeHttpBinding({required this.host, required this.port});
 
@@ -68,6 +81,13 @@ typedef NodeHostRequestListener =
     void Function(
       NodeIncomingMessageHost request,
       NodeServerResponseHost response,
+    );
+
+typedef NodeHostUpgradeListener =
+    void Function(
+      NodeIncomingMessageHost request,
+      NodeSocketHost socket,
+      JSAny? head,
     );
 
 NodeHttpModuleHost? get nodeHttpModule {
@@ -277,6 +297,7 @@ bool nodeIncomingMessageReadableEnded(NodeIncomingMessageHost request) {
 NodeHttpServerHost createNodeHttpServer(
   NodeHttpModuleHost module, {
   required NodeHostRequestListener onRequest,
+  NodeHostUpgradeListener? onUpgrade,
 }) {
   final server = module.createServer.callAsFunction(
     module,
@@ -284,8 +305,19 @@ NodeHttpServerHost createNodeHttpServer(
       onRequest(request, response);
     }).toJS,
   );
+  final host = NodeHttpServerHost._(server as JSObject);
 
-  return NodeHttpServerHost._(server as JSObject);
+  if (onUpgrade != null) {
+    host.on.callAsFunction(
+      host,
+      'upgrade'.toJS,
+      ((NodeIncomingMessageHost request, NodeSocketHost socket, JSAny? head) {
+        onUpgrade(request, socket, head);
+      }).toJS,
+    );
+  }
+
+  return host;
 }
 
 Future<NodeHttpBinding> listenNodeHttpServer(
@@ -348,6 +380,178 @@ Future<void> closeNodeHttpServer(NodeHttpServerHost server) async {
   );
 
   return completer.future;
+}
+
+Future<void> nodeSocketWrite(NodeSocketHost socket, Object body) async {
+  final completer = Completer<void>();
+  var settled = false;
+  late final JSExportedDartFunction onError;
+
+  onError = ((JSAny? error) {
+    if (settled) {
+      return;
+    }
+
+    settled = true;
+    completer.completeError(StateError(_describeJsError(error)));
+  }).toJS;
+
+  socket.once.callAsFunction(socket, 'error'.toJS, onError);
+  socket.write.callAsFunction(
+    socket,
+    _jsBody(body),
+    (() {
+      socket.removeListener.callAsFunction(socket, 'error'.toJS, onError);
+      if (settled || completer.isCompleted) {
+        return;
+      }
+
+      settled = true;
+      completer.complete();
+    }).toJS,
+  );
+  return completer.future;
+}
+
+Future<void> nodeSocketEnd(NodeSocketHost socket, [Object? body]) async {
+  final completer = Completer<void>();
+  var settled = false;
+  late final JSExportedDartFunction onError;
+
+  onError = ((JSAny? error) {
+    if (settled) {
+      return;
+    }
+
+    settled = true;
+    completer.completeError(StateError(_describeJsError(error)));
+  }).toJS;
+
+  socket.once.callAsFunction(socket, 'error'.toJS, onError);
+  final callback = (() {
+    socket.removeListener.callAsFunction(socket, 'error'.toJS, onError);
+    if (settled || completer.isCompleted) {
+      return;
+    }
+
+    settled = true;
+    completer.complete();
+  }).toJS;
+
+  if (body == null) {
+    socket.end.callAsFunction(socket, callback);
+    return completer.future;
+  }
+
+  socket.end.callAsFunction(socket, _jsBody(body), callback);
+  return completer.future;
+}
+
+void nodeSocketDestroy(NodeSocketHost socket, [Object? error]) {
+  if (error == null) {
+    socket.destroy.callAsFunction(socket);
+    return;
+  }
+
+  socket.destroy.callAsFunction(socket, error.jsify());
+}
+
+Stream<List<int>> nodeSocketReadable(NodeSocketHost socket, {JSAny? head}) {
+  late final StreamController<List<int>> controller;
+  var settled = false;
+  JSFunction? onData;
+  JSFunction? onEnd;
+  JSFunction? onError;
+  JSFunction? onClose;
+
+  void removeListener(String event, JSFunction? listener) {
+    if (listener == null) {
+      return;
+    }
+
+    socket.removeListener.callAsFunction(socket, event.toJS, listener);
+  }
+
+  void detachListeners() {
+    removeListener('data', onData);
+    removeListener('end', onEnd);
+    removeListener('error', onError);
+    removeListener('close', onClose);
+    onData = null;
+    onEnd = null;
+    onError = null;
+    onClose = null;
+  }
+
+  void settleDone() {
+    if (settled) {
+      return;
+    }
+
+    settled = true;
+    detachListeners();
+    if (!controller.isClosed) {
+      controller.close();
+    }
+  }
+
+  void settleError(Object error) {
+    if (settled) {
+      return;
+    }
+
+    settled = true;
+    detachListeners();
+    if (!controller.isClosed) {
+      controller.addError(error);
+      controller.close();
+    }
+  }
+
+  controller = StreamController<List<int>>(
+    sync: true,
+    onListen: () {
+      onData = ((JSAny? chunk) {
+        if (settled || chunk == null) {
+          return;
+        }
+
+        final bytes = _bytesFromNodeChunk(chunk);
+        if (bytes != null && bytes.isNotEmpty) {
+          controller.add(bytes);
+        }
+      }).toJS;
+      onEnd = (() {
+        settleDone();
+      }).toJS;
+      onError = ((JSAny? error) {
+        settleError(StateError(_describeJsError(error)));
+      }).toJS;
+      onClose = (() {
+        settleDone();
+      }).toJS;
+
+      socket.on.callAsFunction(socket, 'data'.toJS, onData);
+      socket.on.callAsFunction(socket, 'end'.toJS, onEnd);
+      socket.on.callAsFunction(socket, 'error'.toJS, onError);
+      socket.on.callAsFunction(socket, 'close'.toJS, onClose);
+
+      final initialBytes = head == null ? null : _bytesFromNodeChunk(head);
+      if (initialBytes != null && initialBytes.isNotEmpty) {
+        controller.add(initialBytes);
+      }
+    },
+    onCancel: () {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      detachListeners();
+    },
+  );
+
+  return controller.stream;
 }
 
 void nodeServerResponseSetStatus(

@@ -17,6 +17,7 @@ Current runtime families:
 
 Current websocket status:
 - `dart` exposes websocket handling through the current `osrv` surface
+- `node` exposes websocket handling through the current `osrv` surface
 - `bun` exposes websocket handling through the current `osrv` surface
 - every other runtime family still reports `runtime.capabilities.websocket == false`
 

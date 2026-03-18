@@ -111,6 +111,7 @@ Use capabilities to branch on real host truth:
 
 Current status:
 - `dart` implements websocket handling through the current `osrv` surface
+- `node` implements websocket handling through the current `osrv` surface
 - `bun` implements websocket handling through the current `osrv` surface
 - other runtime families still report `websocket == false`
 
