@@ -114,6 +114,7 @@ Current status:
 - `node` implements websocket handling through the current `osrv` surface
 - `bun` implements websocket handling through the current `osrv` surface
 - `deno` implements websocket handling through the current `osrv` surface
+- `cloudflare` implements websocket handling through the current `osrv` surface
 - other runtime families still report `websocket == false`
 
 See [capabilities](./capabilities.md) for the current matrix.

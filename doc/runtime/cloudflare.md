@@ -57,7 +57,7 @@ That means:
 | Capability | Value |
 | --- | --- |
 | `streaming` | `true` |
-| `websocket` | `false` |
+| `websocket` | `true` |
 | `fileSystem` | `false` |
 | `backgroundTask` | `true` |
 | `rawTcp` | `false` |
@@ -102,8 +102,34 @@ Use `context.waitUntil(...)` normally.
 
 On Cloudflare, `osrv` forwards it to the worker execution context when available.
 
+## WebSockets
+
+Cloudflare websocket upgrades are available through the shared request-scoped
+API:
+
+```dart
+final server = Server(
+  fetch: (request, context) {
+    final webSocket = context.webSocket;
+    if (webSocket == null || !webSocket.isUpgradeRequest) {
+      return Response('upgrade required', const ResponseInit(status: 426));
+    }
+
+    return webSocket.accept(protocol: 'chat', (socket) async {
+      socket.sendText('connected');
+      await socket.events.drain<void>();
+    });
+  },
+);
+```
+
+`osrv` keeps the public shape request-scoped, then internally bridges that
+outcome to Cloudflare's `WebSocketPair` + `101` response model.
+
 ## Current Limitations
 
-- websocket support is not implemented
 - the runtime entry is JavaScript-target only and does not compile to native executables
 - there is no listener-style `serve(...)` API for Cloudflare
+- local `wrangler dev --local` can emit noisy websocket lifecycle diagnostics on
+  stderr even when the upgrade path is functioning; `osrv` treats behavioral
+  integration tests as the source of truth

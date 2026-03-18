@@ -30,7 +30,7 @@ final class RuntimeCapabilities {
 | `node` | `serve(...)` | `true` | `true` | `true` | `true` | `true` | `true` |
 | `bun` | `serve(...)` | `true` | `true` | `true` | `true` | `false` | `true` |
 | `deno` | `serve(...)` | `true` | `true` | `true` | `true` | `true` | `true` |
-| `cloudflare` | `defineFetchExport(...)` | `true` | `false` | `false` | `true` | `false` | `true` |
+| `cloudflare` | `defineFetchExport(...)` | `true` | `true` | `false` | `true` | `false` | `true` |
 | `vercel` | `defineFetchExport(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
 | `netlify` | `defineFetchExport(...)` | `true` | `false` | `true` | `request-dependent` | `false` | `true` |
 
@@ -49,6 +49,7 @@ Current status:
 - `true` for `node`
 - `true` for `bun`
 - `true` for `deno`
+- `true` for `cloudflare`
 - `false` for every other runtime family
 
 ### `fileSystem`

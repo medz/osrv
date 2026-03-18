@@ -20,6 +20,7 @@ Current websocket status:
 - `node` exposes websocket handling through the current `osrv` surface
 - `bun` exposes websocket handling through the current `osrv` surface
 - `deno` exposes websocket handling through the current `osrv` surface
+- `cloudflare` exposes websocket handling through the current `osrv` surface
 - every other runtime family still reports `runtime.capabilities.websocket == false`
 
 ## Start Here

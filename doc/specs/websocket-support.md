@@ -30,7 +30,7 @@ From the current repository:
 - `Server.fetch(...)` is the shared HTTP path and currently returns `Response`
 - `RequestContext` currently exposes runtime metadata, `waitUntil(...)`, and runtime extension access
 - `RuntimeCapabilities.websocket` means support through the current `osrv` surface, not host possibility in the abstract
-- websocket support is implemented for `dart`, `node`, `bun`, and `deno`
+- websocket support is implemented for `dart`, `node`, `bun`, `deno`, and `cloudflare`
 - every other runtime family still reports `false`
 
 From local downstream usage:
@@ -245,7 +245,7 @@ Planned interpretation of this spec by runtime family:
 | `node` | yes | implemented | request-scoped public API with internal bridge from Node's `'upgrade'` event |
 | `bun` | yes | implemented | request-scoped public API with server-level internal bridge |
 | `deno` | yes | implemented | direct request-scoped outcome through Deno's websocket upgrade API |
-| `cloudflare` | yes | later | natural fetch + `101` outcome |
+| `cloudflare` | yes | implemented | request-scoped public API bridged to `WebSocketPair` + `101` outcome |
 | `vercel` | no | unsupported | platform limitation |
 | `netlify` | not yet | unsupported | keep false until official support path is verified |
 
@@ -262,13 +262,14 @@ Current state:
 - completed for `node`
 - completed for `bun`
 - completed for `deno`
-- still pending for `cloudflare`, `vercel`, and `netlify`
+- completed for `cloudflare`
+- still pending for `vercel` and `netlify`
 
 ### Phase 2
 
 Add runtimes that naturally reinforce the same request-scoped model:
 
-- `cloudflare`
+- none pending in this bucket
 
 ### Phase 3
 

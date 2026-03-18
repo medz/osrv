@@ -84,7 +84,7 @@ void main() {
       'streaming': true,
       'backgroundTask': true,
       'nodeCompat': true,
-      'websocket': false,
+      'websocket': true,
     });
   });
 
@@ -114,6 +114,55 @@ void main() {
     await Future.wait(ctxExport.tasks);
   });
 
+  test('defineFetchExport exposes request-scoped websocket metadata', () async {
+    defineFetchExport(
+      Server(
+        fetch: (request, context) {
+          final webSocket = context.webSocket;
+          return Response.json({
+            'hasWebSocket': webSocket != null,
+            'upgrade': webSocket?.isUpgradeRequest ?? false,
+            'protocols': webSocket?.requestedProtocols ?? const <String>[],
+          });
+        },
+      ),
+    );
+
+    final upgradeHeaders = web.Headers();
+    upgradeHeaders.set('upgrade', 'websocket');
+    upgradeHeaders.set('connection', 'Upgrade');
+    upgradeHeaders.set('sec-websocket-protocol', 'chat, superchat');
+
+    final upgradeResponse = await _callWorkerFetch(
+      _currentFetchHandler(),
+      web.Request(
+        'https://example.com/chat'.toJS,
+        web.RequestInit(headers: upgradeHeaders),
+      ),
+      JSObject(),
+      createJSInteropWrapper(_TestExecutionContext()),
+    );
+    expect(upgradeResponse.status, 200);
+    expect(jsonDecode((await upgradeResponse.text().toDart).toDart), {
+      'hasWebSocket': true,
+      'upgrade': true,
+      'protocols': ['chat', 'superchat'],
+    });
+
+    final plainResponse = await _callWorkerFetch(
+      _currentFetchHandler(),
+      web.Request('https://example.com/plain'.toJS),
+      JSObject(),
+      createJSInteropWrapper(_TestExecutionContext()),
+    );
+    expect(plainResponse.status, 200);
+    expect(jsonDecode((await plainResponse.text().toDart).toDart), {
+      'hasWebSocket': true,
+      'upgrade': false,
+      'protocols': <String>[],
+    });
+  });
+
   test('defineFetchExport uses onError to translate fetch failures', () async {
     defineFetchExport(
       Server(
@@ -136,6 +185,27 @@ void main() {
 
     expect(response.status, 418);
     expect((await response.text().toDart).toDart, 'handled cloudflare');
+  });
+
+  test('defineFetchExport rejects raw 101 responses from onError', () async {
+    defineFetchExport(
+      Server(
+        fetch: (request, context) => throw StateError('boom'),
+        onError: (error, stackTrace, context) {
+          return Response(null, const ResponseInit(status: 101));
+        },
+      ),
+    );
+
+    final response = await _callWorkerFetch(
+      _currentFetchHandler(),
+      web.Request('https://example.com/raw-101-error'.toJS),
+      JSObject(),
+      createJSInteropWrapper(_TestExecutionContext()),
+    );
+
+    expect(response.status, 500);
+    expect((await response.text().toDart).toDart, 'Internal Server Error');
   });
 
   test('defineFetchExport runs onStart only once', () async {
@@ -182,6 +252,29 @@ void main() {
     expect(response.status, 500);
     expect((await response.text().toDart).toDart, 'Internal Server Error');
   });
+
+  test(
+    'defineFetchExport rejects raw 101 responses outside websocket accept',
+    () async {
+      defineFetchExport(
+        Server(
+          fetch: (request, context) {
+            return Response(null, const ResponseInit(status: 101));
+          },
+        ),
+      );
+
+      final response = await _callWorkerFetch(
+        _currentFetchHandler(),
+        web.Request('https://example.com/raw-101'.toJS),
+        JSObject(),
+        createJSInteropWrapper(_TestExecutionContext()),
+      );
+
+      expect(response.status, 500);
+      expect((await response.text().toDart).toDart, 'Internal Server Error');
+    },
+  );
 
   test('defineFetchExport preserves Response.error semantics', () async {
     defineFetchExport(Server(fetch: (request, context) => Response.error()));
