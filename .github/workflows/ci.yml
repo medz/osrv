@@ -36,6 +36,9 @@ jobs:
       - name: Setup Dart
         uses: dart-lang/setup-dart@v1
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
@@ -70,3 +73,4 @@ jobs:
           test/node_runtime_node_test.dart
           test/cloudflare_worker_node_test.dart
           test/vercel_fetch_node_test.dart
+          test/netlify_fetch_node_test.dart
