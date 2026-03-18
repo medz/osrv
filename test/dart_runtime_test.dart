@@ -230,6 +230,34 @@ void main() {
     expect(cookies, contains('b=2; Path=/'));
   });
 
+  test('raw 101 responses are rejected outside websocket accept()', () async {
+    final server = Server(
+      fetch: (request, context) {
+        return Response(
+          null,
+          const ResponseInit(status: HttpStatus.switchingProtocols),
+        );
+      },
+    );
+
+    final runtime = await serve(server, host: '127.0.0.1', port: 0);
+
+    addTearDown(() async {
+      await runtime.close();
+      await runtime.closed;
+    });
+
+    final client = HttpClient();
+    addTearDown(client.close);
+
+    final request = await client.getUrl(runtime.url!.resolve('/raw-101'));
+    final response = await request.close();
+    final body = await response.transform(utf8.decoder).join();
+
+    expect(response.statusCode, HttpStatus.internalServerError);
+    expect(body, 'Internal Server Error');
+  });
+
   test(
     'dart runtime exposes websocket capability and upgrades requests',
     () async {

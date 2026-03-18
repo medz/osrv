@@ -5,6 +5,7 @@ import 'dart:async';
 final class ShutdownCoordinator {
   final _pendingTasks = <Future<void>>{};
   final _pendingRequests = <Future<void>>{};
+  final _pendingConnections = <Future<void>>{};
   final _closedCompleter = Completer<void>();
   bool _stopTriggered = false;
 
@@ -21,6 +22,13 @@ final class ShutdownCoordinator {
     _pendingRequests.add(request);
     request.whenComplete(() {
       _pendingRequests.remove(request);
+    });
+  }
+
+  void trackConnection(Future<void> connection) {
+    _pendingConnections.add(connection);
+    connection.whenComplete(() {
+      _pendingConnections.remove(connection);
     });
   }
 
@@ -50,6 +58,13 @@ final class ShutdownCoordinator {
         firstError ??= error;
         firstStackTrace ??= stackTrace;
       }
+    }
+
+    try {
+      await _waitUntilDrained(_pendingConnections);
+    } catch (error, stackTrace) {
+      firstError ??= error;
+      firstStackTrace ??= stackTrace;
     }
 
     try {

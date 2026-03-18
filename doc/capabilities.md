@@ -26,7 +26,7 @@ final class RuntimeCapabilities {
 
 | Runtime | Entry model | streaming | websocket | fileSystem | backgroundTask | rawTcp | nodeCompat |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `dart` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `false` |
+| `dart` | `serve(...)` | `true` | `true` | `true` | `true` | `true` | `false` |
 | `node` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `true` |
 | `bun` | `serve(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
 | `deno` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `true` |
@@ -45,7 +45,8 @@ The runtime can stream response bodies without forcing everything through one bu
 The runtime supports websocket handling through the current `osrv` surface.
 
 Current status:
-- `false` for every runtime family
+- `true` for `dart`
+- `false` for every other runtime family
 
 ### `fileSystem`
 

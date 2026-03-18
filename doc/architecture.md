@@ -109,8 +109,9 @@ Use capabilities to branch on real host truth:
 - `rawTcp`
 - `nodeCompat`
 
-Current global status:
-- websocket support is not implemented yet
+Current status:
+- `dart` implements websocket handling through the current `osrv` surface
+- other runtime families still report `websocket == false`
 
 See [capabilities](./capabilities.md) for the current matrix.
 

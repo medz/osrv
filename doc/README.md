@@ -15,8 +15,9 @@ Current runtime families:
 - `vercel`
 - `netlify`
 
-Current global limitation:
-- websocket support is not implemented yet, so `runtime.capabilities.websocket` is `false` everywhere
+Current websocket status:
+- `dart` exposes websocket handling through the current `osrv` surface
+- every other runtime family still reports `runtime.capabilities.websocket == false`
 
 ## Start Here
 

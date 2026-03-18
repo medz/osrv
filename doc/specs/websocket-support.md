@@ -1,6 +1,6 @@
 # WebSocket Support Spec
 
-Status: draft
+Status: draft, partially implemented
 Issue: [#17](https://github.com/medz/osrv/issues/17)
 
 ## Goal
@@ -30,7 +30,8 @@ From the current repository:
 - `Server.fetch(...)` is the shared HTTP path and currently returns `Response`
 - `RequestContext` currently exposes runtime metadata, `waitUntil(...)`, and runtime extension access
 - `RuntimeCapabilities.websocket` means support through the current `osrv` surface, not host possibility in the abstract
-- websocket support is not implemented yet, so all runtimes still report `false`
+- websocket support is implemented for `dart`
+- every other runtime family still reports `false`
 
 From local downstream usage:
 
@@ -240,7 +241,7 @@ Planned interpretation of this spec by runtime family:
 
 | Runtime | Public direction fits? | Initial status | Notes |
 | --- | --- | --- | --- |
-| `dart` | yes | target first | direct request-scoped upgrade |
+| `dart` | yes | implemented | direct request-scoped upgrade |
 | `deno` | yes | later | natural request-scoped outcome |
 | `cloudflare` | yes | later | natural fetch + `101` outcome |
 | `bun` | yes | later | needs internal bridge to server-level websocket callbacks |
@@ -255,6 +256,10 @@ Planned interpretation of this spec by runtime family:
 - finalize this spec direction
 - implement the first proving runtime in `dart`
 - validate route-level ergonomics, upgrade flow, shutdown behavior, and error boundaries
+
+Current state:
+- completed for `dart`
+- still pending for every other runtime family
 
 ### Phase 2
 
