@@ -141,6 +141,32 @@ For runtime entry APIs, use the matching runtime entrypoint such as `package:osr
 - [Runtime Guides](./doc/runtime/README.md)
 - [Usage Examples](./doc/examples/final-usage.md)
 
+## Local CI
+
+You can run the repository's GitHub Actions workflow locally before pushing.
+
+Preferred path:
+
+```bash
+brew install act
+./tool/ci_local.sh
+```
+
+That runs `.github/workflows/ci.yml` locally through
+[`nektos/act`](https://github.com/nektos/act), which is specifically designed
+to execute GitHub Actions on your machine using Docker.
+
+Useful variants:
+
+```bash
+./tool/ci_local.sh analyze
+./tool/ci_local.sh --job test-node
+./tool/ci_local.sh --native
+```
+
+`--native` skips `act` and runs the CI-equivalent commands directly. This is
+useful when you want fast local verification or do not have `act` installed.
+
 ## Examples
 
 The [`example`](./example) directory contains runnable minimal entries for:
