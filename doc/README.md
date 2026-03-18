@@ -23,6 +23,7 @@ Current global limitation:
 - [architecture](./architecture.md): what `osrv` provides and how to choose an entry model
 - [config](./config.md): runtime selection, config fields, and validation rules
 - [capabilities](./capabilities.md): capability meanings and the current support matrix
+- [websocket support spec](./specs/websocket-support.md): draft websocket API direction and rollout plan
 - [runtime docs](./runtime/README.md): runtime-by-runtime setup, limits, and extension access
 
 ## API Reference
