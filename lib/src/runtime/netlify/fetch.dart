@@ -17,11 +17,11 @@ import '../_internal/js/web_response_bridge.dart';
 import 'extension.dart';
 import 'host.dart';
 
-const netlifyRuntimeCapabilities = RuntimeCapabilities(
+const _netlifyBaseRuntimeCapabilities = RuntimeCapabilities(
   streaming: true,
   websocket: false,
   fileSystem: true,
-  backgroundTask: true,
+  backgroundTask: false,
   rawTcp: false,
   nodeCompat: true,
 );
@@ -31,35 +31,55 @@ const netlifyRuntimeInfo = RuntimeInfo(name: 'netlify', kind: 'entry');
 JSExportedDartFunction createNetlifyFetchEntry(Server server) {
   final handler = JsEntryFetchHandler(server);
   JSPromise<web.Response> fetch(web.Request request, [JSObject? context]) {
-    final netlifyContext = context == null ? null : NetlifyContext(context);
-    final extension = NetlifyRuntimeExtension<web.Request>(
-      context: netlifyContext,
-      request: request,
-    );
-    final lifecycleContext = ServerLifecycleContext(
-      runtime: netlifyRuntimeInfo,
-      capabilities: netlifyRuntimeCapabilities,
-      extension: extension,
-    );
-    final requestContext = RequestContext(
-      runtime: netlifyRuntimeInfo,
-      capabilities: netlifyRuntimeCapabilities,
-      onWaitUntil: (task) {
-        netlifyWaitUntil(netlifyContext, task);
-      },
-      extension: extension,
-    );
+    final operation = () async {
+      final netlifyContext = context == null ? null : NetlifyContext(context);
+      final requestCapabilities = _requestCapabilities(netlifyContext);
+      final startupContext = ServerLifecycleContext(
+        runtime: netlifyRuntimeInfo,
+        capabilities: _netlifyBaseRuntimeCapabilities,
+        extension: const NetlifyRuntimeExtension<web.Request>(),
+      );
+      final extension = NetlifyRuntimeExtension<web.Request>(
+        context: netlifyContext,
+        request: request,
+      );
+      final lifecycleContext = ServerLifecycleContext(
+        runtime: netlifyRuntimeInfo,
+        capabilities: requestCapabilities,
+        extension: extension,
+      );
+      final requestContext = RequestContext(
+        runtime: netlifyRuntimeInfo,
+        capabilities: requestCapabilities,
+        onWaitUntil: (task) {
+          netlifyWaitUntil(netlifyContext, task);
+        },
+        extension: extension,
+      );
 
-    return handler
-        .handle(
-          request,
-          lifecycleContext: lifecycleContext,
-          requestContext: requestContext,
-          toHtRequest: (request) => Request(request),
-          fromHtResponse: webResponseFromHtResponse,
-        )
-        .toJS;
+      await handler.ensureStarted(startupContext);
+      return handler.handle(
+        request,
+        lifecycleContext: lifecycleContext,
+        requestContext: requestContext,
+        toHtRequest: (request) => Request(request),
+        fromHtResponse: webResponseFromHtResponse,
+      );
+    }();
+
+    return operation.toJS;
   }
 
   return fetch.toJS;
+}
+
+RuntimeCapabilities _requestCapabilities(NetlifyContext? context) {
+  return RuntimeCapabilities(
+    streaming: _netlifyBaseRuntimeCapabilities.streaming,
+    websocket: _netlifyBaseRuntimeCapabilities.websocket,
+    fileSystem: _netlifyBaseRuntimeCapabilities.fileSystem,
+    backgroundTask: netlifySupportsBackgroundTask(context),
+    rawTcp: _netlifyBaseRuntimeCapabilities.rawTcp,
+    nodeCompat: _netlifyBaseRuntimeCapabilities.nodeCompat,
+  );
 }

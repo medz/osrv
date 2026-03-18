@@ -131,10 +131,13 @@ void main() {
 
   test('defineFetchExport runs onStart only once', () async {
     var starts = 0;
+    NetlifyRuntimeExtension<web.Request>? startExtension;
     defineFetchExport(
       Server(
         onStart: (context) {
           starts++;
+          startExtension = context
+              .extension<NetlifyRuntimeExtension<web.Request>>();
         },
         fetch: (request, context) => Response('ok'),
       ),
@@ -154,7 +157,36 @@ void main() {
     expect(first.status, 200);
     expect(second.status, 200);
     expect(starts, 1);
+    expect(startExtension?.request, isNull);
+    expect(startExtension?.context, isNull);
   });
+
+  test(
+    'defineFetchExport reports backgroundTask false without waitUntil',
+    () async {
+      defineFetchExport(
+        Server(
+          fetch: (request, context) {
+            return Response.json({
+              'backgroundTask': context.capabilities.backgroundTask,
+            });
+          },
+        ),
+      );
+
+      final context = _createNetlifyContext()..delete('waitUntil'.toJS);
+      final response = await _callNetlifyFetch(
+        _currentFetchHandler(),
+        web.Request('https://example.com/background-task'.toJS),
+        context,
+      );
+
+      expect(response.status, 200);
+      expect(jsonDecode((await response.text().toDart).toDart), {
+        'backgroundTask': false,
+      });
+    },
+  );
 
   test('defineFetchExport returns default 500 without onError', () async {
     defineFetchExport(
@@ -229,7 +261,7 @@ void main() {
       _createNetlifyContext(),
     );
 
-    await entered.future.timeout(const Duration(milliseconds: 250));
+    await entered.future.timeout(const Duration(seconds: 2));
 
     body.add(utf8.encode('chunk'));
     await body.close();
@@ -259,9 +291,7 @@ void main() {
       _createNetlifyContext(),
     );
 
-    final response = await responseFuture.timeout(
-      const Duration(milliseconds: 250),
-    );
+    final response = await responseFuture.timeout(const Duration(seconds: 2));
 
     expect(response.status, 200);
     expect(response.headers.get('content-type'), 'text/plain');

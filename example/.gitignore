@@ -3,6 +3,4 @@
 .env*.local
 
 cloudflare.dart.js*
-
-bun.lock
 node_modules

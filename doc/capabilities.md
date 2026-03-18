@@ -31,7 +31,7 @@ final class RuntimeCapabilities {
 | `bun` | `serve(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
 | `cloudflare` | `defineFetchExport(...)` | `true` | `false` | `false` | `true` | `false` | `true` |
 | `vercel` | `defineFetchExport(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
-| `netlify` | `defineFetchExport(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
+| `netlify` | `defineFetchExport(...)` | `true` | `false` | `true` | `request-dependent` | `false` | `true` |
 
 ## What Each Field Means
 
@@ -53,6 +53,9 @@ The runtime has meaningful filesystem access in its normal execution model.
 ### `backgroundTask`
 
 The runtime supports request-scoped background work through `RequestContext.waitUntil(...)` or an equivalent host integration.
+
+For `netlify`, this is request-dependent.
+`backgroundTask` is `true` only when the current invocation exposes Netlify Functions `waitUntil(...)`.
 
 ### `rawTcp`
 

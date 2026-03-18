@@ -78,6 +78,7 @@ void main() {
       );
 
       final output = await File(outputPath).readAsString();
+      expect(output, contains('__osrv_fetch__'));
       expect(output, isNot(contains('@vercel/functions')));
       expect(output, isNot(contains('createVercelFetchEntry')));
       expect(output, isNot(contains('loadVercelFunctionHelpers')));

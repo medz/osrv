@@ -3,6 +3,7 @@ library;
 
 import 'dart:async';
 import 'dart:js_interop';
+import 'dart:js_interop_unsafe';
 
 /// Netlify Functions context for a single request invocation.
 extension type NetlifyContext(JSObject _) implements JSObject {
@@ -47,7 +48,22 @@ void netlifyWaitUntil(NetlifyContext? context, Future<void> task) {
     return;
   }
 
+  if (!netlifySupportsBackgroundTask(context)) {
+    _forwardUnhandledTask(task);
+    return;
+  }
+
   context.waitUntil(task.toJS);
+}
+
+/// Returns whether the current invocation supports `waitUntil(...)`.
+bool netlifySupportsBackgroundTask(NetlifyContext? context) {
+  if (context == null) {
+    return false;
+  }
+
+  return (context as JSObject).getProperty<JSFunction?>('waitUntil'.toJS) !=
+      null;
 }
 
 void _forwardUnhandledTask(Future<void> task) {

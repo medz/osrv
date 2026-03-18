@@ -62,7 +62,15 @@ Then bootstrap the generated fetch handler from JavaScript:
 globalThis.self ??= globalThis;
 import './index.dart.js';
 
-export default globalThis.__osrv_fetch__;
+const handler = globalThis.__osrv_fetch__;
+
+if (typeof handler !== 'function') {
+  throw new Error(
+    "Missing '__osrv_fetch__' export. Ensure defineFetchExport(...) ran in the compiled Dart entry.",
+  );
+}
+
+export default handler;
 ```
 
 Put that bootstrap in `netlify/functions/index.mjs`.
@@ -93,6 +101,14 @@ That means:
 - there is no listener config type
 - there is no running `Runtime` handle returned from `main()`
 
+`Server.onStart` runs lazily on the first incoming request, not during module load.
+`Server.onStop` does not have an automatic shutdown callback in this host model.
+
+That means:
+
+- use `Server.onStart` for lazy initialization that can safely happen on first request
+- do not rely on `Server.onStop` for cleanup, because Netlify Functions do not expose a matching shutdown lifecycle hook
+
 ## Capabilities
 
 | Capability | Value |
@@ -100,9 +116,12 @@ That means:
 | `streaming` | `true` |
 | `websocket` | `false` |
 | `fileSystem` | `true` |
-| `backgroundTask` | `true` |
+| `backgroundTask` | `request-dependent` |
 | `rawTcp` | `false` |
 | `nodeCompat` | `true` |
+
+`backgroundTask` is `true` only when the current invocation exposes Netlify's `waitUntil(...)` hook.
+When that hook is absent, `context.capabilities.backgroundTask` is `false`.
 
 ## `NetlifyRuntimeExtension`
 
@@ -136,6 +155,7 @@ Current helpers and fields:
 
 Use `context.waitUntil(...)` normally for background work.
 On Netlify, `osrv` forwards it to the function context's `waitUntil(...)` integration when available.
+If the current invocation does not expose `waitUntil(...)`, `context.capabilities.backgroundTask` is `false`.
 
 ## Example
 
