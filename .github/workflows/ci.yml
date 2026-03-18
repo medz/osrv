@@ -26,7 +26,23 @@ jobs:
       - name: Analyze
         run: dart analyze
 
-  test-vm:
+  test-unit:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Run portable unit tests
+        run: dart test test
+
+  test-vm-integration:
     runs-on: ubuntu-latest
 
     steps:
@@ -48,13 +64,17 @@ jobs:
       - name: Install dependencies
         run: dart pub get
 
-      - name: Run VM tests
+      - name: Run VM integration tests
         run: >
           dart test -p vm
-          test
-          integration_test
+          integration_test/dart
+          integration_test/compile
+          integration_test/node/runtime_process_test.dart
+          integration_test/bun/runtime_process_test.dart
+          integration_test/deno/runtime_process_test.dart
+          integration_test/cloudflare/runtime_process_test.dart
 
-  test-node:
+  test-node-integration:
     runs-on: ubuntu-latest
 
     steps:
@@ -70,10 +90,13 @@ jobs:
       - name: Install dependencies
         run: dart pub get
 
-      - name: Run Node tests
+      - name: Run Node-host integration tests
         run: >
           dart test -p node
-          test/node_runtime_node_test.dart
-          test/cloudflare_worker_node_test.dart
-          test/vercel_fetch_node_test.dart
-          test/netlify_fetch_node_test.dart
+          integration_test/bun/preflight_test.dart
+          integration_test/deno/preflight_test.dart
+          integration_test/node/host_runtime_test.dart
+          integration_test/cloudflare/worker_host_test.dart
+          integration_test/vercel/fetch_export_test.dart
+          integration_test/netlify/fetch_export_test.dart
+          integration_test/web/request_bridge_test.dart

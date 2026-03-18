@@ -160,7 +160,8 @@ Useful variants:
 
 ```bash
 ./tool/ci_local.sh analyze
-./tool/ci_local.sh --job test-node
+./tool/ci_local.sh --job test-unit
+./tool/ci_local.sh --job test-node-integration
 ./tool/ci_local.sh --native
 ```
 
@@ -168,8 +169,12 @@ Useful variants:
 useful when you want fast local verification or do not have `act` installed.
 
 The repository keeps black-box runtime checks under `integration_test/`.
-Those are still plain `package:test` suites for this pure Dart package, and
-the local runner / CI invoke them explicitly.
+Each runtime has its own folder and app-shaped fixture layout, for example
+`integration_test/node/app/` or `integration_test/cloudflare/app/`, so
+host-specific bootstrap files can live next to the behavior tests that use
+them. These are still plain `package:test` suites for this pure Dart package,
+and the local runner / CI invoke them explicitly. The top-level `test/`
+directory is reserved for portable tests only.
 
 ## Examples
 

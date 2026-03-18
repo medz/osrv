@@ -58,12 +58,22 @@ run_native() {
   dart pub get
   dart format --output=none --set-exit-if-changed .
   dart analyze
-  dart test -p vm test integration_test
+  dart test test
+  dart test -p vm \
+    integration_test/dart \
+    integration_test/compile \
+    integration_test/node/runtime_process_test.dart \
+    integration_test/bun/runtime_process_test.dart \
+    integration_test/deno/runtime_process_test.dart \
+    integration_test/cloudflare/runtime_process_test.dart
   dart test -p node \
-    test/node_runtime_node_test.dart \
-    test/cloudflare_worker_node_test.dart \
-    test/vercel_fetch_node_test.dart \
-    test/netlify_fetch_node_test.dart
+    integration_test/bun/preflight_test.dart \
+    integration_test/deno/preflight_test.dart \
+    integration_test/node/host_runtime_test.dart \
+    integration_test/cloudflare/worker_host_test.dart \
+    integration_test/vercel/fetch_export_test.dart \
+    integration_test/netlify/fetch_export_test.dart \
+    integration_test/web/request_bridge_test.dart
 }
 
 if [[ "$native" == 'true' ]]; then
