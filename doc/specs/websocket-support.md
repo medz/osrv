@@ -246,8 +246,8 @@ Planned interpretation of this spec by runtime family:
 | `bun` | yes | implemented | request-scoped public API with server-level internal bridge |
 | `deno` | yes | implemented | direct request-scoped outcome through Deno's websocket upgrade API |
 | `cloudflare` | yes | implemented | request-scoped public API bridged to `WebSocketPair` + `101` outcome |
-| `vercel` | no | unsupported | platform limitation |
-| `netlify` | not yet | unsupported | keep false until official support path is verified |
+| `vercel` | no | unsupported | platform limitation; current Functions model should stay websocket-server false |
+| `netlify` | not yet | unsupported | current `netlify` runtime means Netlify Functions only; keep false until an official server-side upgrade path is verified |
 
 ## Rollout Plan
 
@@ -275,7 +275,7 @@ Add runtimes that naturally reinforce the same request-scoped model:
 
 Add runtimes that still need heavier platform validation:
 
-- `netlify` only if a real server-side websocket path becomes available
+- `netlify` only if Netlify Functions gain a real server-side websocket path, or if a separate Netlify Edge runtime family is intentionally designed and verified
 
 ### Unsupported In Phase 1
 

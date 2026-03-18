@@ -63,7 +63,7 @@ JSExportedDartFunction createNetlifyFetchEntry(Server server) {
         lifecycleContext: lifecycleContext,
         requestContext: requestContext,
         toHtRequest: (request) => Request(request),
-        fromHtResponse: webResponseFromHtResponse,
+        fromHtResponse: webResponseFromHtResponseRejectingRaw101,
       );
     }();
 

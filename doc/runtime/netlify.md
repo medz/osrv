@@ -196,7 +196,9 @@ If you need Deno-based edge middleware or `context.next()`, that is a different 
 
 ## Current Limitations
 
-- websocket support is not implemented
+- websocket server behavior is unsupported for the current Netlify Functions
+  runtime; Netlify Edge is a different host model and is not represented by
+  this runtime family
 - the runtime entry is JavaScript-target only and does not compile to native executables
 - there is no listener-style `serve(...)` API for Netlify
 - `backgroundTask` depends on Netlify's function-context `waitUntil(...)` support at deploy time
