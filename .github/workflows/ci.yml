@@ -39,6 +39,11 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: stable
+
       - name: Install dependencies
         run: dart pub get
 
