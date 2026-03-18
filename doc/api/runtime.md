@@ -6,12 +6,13 @@ See [public surface](./public-surface.md) for the importable entrypoints.
 
 ## Runtime Families
 
-`osrv` currently ships five official runtime families:
+`osrv` currently ships six official runtime families:
 - `dart`
 - `node`
 - `bun`
 - `cloudflare`
 - `vercel`
+- `netlify`
 
 ## The Two Runtime Models
 
@@ -29,6 +30,7 @@ They return a running `Runtime` handle.
 These runtimes use runtime-specific `defineFetchExport(server)`:
 - `cloudflare`
 - `vercel`
+- `netlify`
 
 They do not return a running `Runtime`.
 
@@ -69,7 +71,7 @@ It is not:
 
 ## Entry Export API
 
-For Cloudflare and Vercel:
+For Cloudflare, Vercel, and Netlify:
 
 ```dart
 defineFetchExport(
@@ -101,6 +103,8 @@ Current public runtime-specific types:
 - `VercelRuntimeExtension<Request>`
 - `VercelFunctions`
 - `VercelRuntimeCache`
+- `NetlifyRuntimeExtension<Request>`
+- `NetlifyContext`
 
 ## Current Entry Summary
 
@@ -111,6 +115,7 @@ Current public runtime-specific types:
 | `bun` | `package:osrv/runtime/bun.dart` | `serve(...)` | yes |
 | `cloudflare` | `package:osrv/runtime/cloudflare.dart` | `defineFetchExport(...)` | no |
 | `vercel` | `package:osrv/runtime/vercel.dart` | `defineFetchExport(...)` | no |
+| `netlify` | `package:osrv/runtime/netlify.dart` | `defineFetchExport(...)` | no |
 
 ## Errors You Should Expect
 

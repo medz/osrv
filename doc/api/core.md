@@ -78,6 +78,7 @@ Use runtime-family entrypoints:
 - `package:osrv/runtime/bun.dart` exports `serve(Server, {host, port})`
 - `package:osrv/runtime/cloudflare.dart` exports `defineFetchExport(...)` for fetch-export runtimes
 - `package:osrv/runtime/vercel.dart` exports `defineFetchExport(...)` for fetch-export runtimes
+- `package:osrv/runtime/netlify.dart` exports `defineFetchExport(...)` for fetch-export runtimes
 
 ## `Runtime`
 
@@ -110,6 +111,7 @@ Current values used by official runtimes include:
 - `name == 'bun'`
 - `name == 'cloudflare'`
 - `name == 'vercel'`
+- `name == 'netlify'`
 - `kind == 'server'` for listener runtimes
 - `kind == 'entry'` for fetch-export runtimes
 
@@ -170,6 +172,7 @@ Examples:
 - `BunRuntimeExtension`
 - `CloudflareRuntimeExtension<Env, Request>`
 - `VercelRuntimeExtension<Request>`
+- `NetlifyRuntimeExtension<Request>`
 
 ## Errors
 

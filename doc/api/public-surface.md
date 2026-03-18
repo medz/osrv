@@ -11,6 +11,7 @@ These are the supported public import paths:
 - `package:osrv/runtime/bun.dart`
 - `package:osrv/runtime/cloudflare.dart`
 - `package:osrv/runtime/vercel.dart`
+- `package:osrv/runtime/netlify.dart`
 
 Everything under `package:osrv/src/...` is implementation detail unless it is re-exported through one of the entrypoints above.
 
@@ -76,6 +77,14 @@ defineFetchExport
 VercelRuntimeExtension
 VercelFunctions
 VercelRuntimeCache
+defineFetchExport
+```
+
+### `package:osrv/runtime/netlify.dart`
+
+```dart
+NetlifyRuntimeExtension
+NetlifyContext
 defineFetchExport
 ```
 
