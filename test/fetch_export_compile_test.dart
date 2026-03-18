@@ -34,6 +34,13 @@ void main() {
   });
 
   test(
+    'deno runtime example does not compile to a native executable',
+    () async {
+      await _expectNativeCompileFailure('example/deno.dart');
+    },
+  );
+
+  test(
     'cloudflare runtime example does not compile to a native executable',
     () async {
       await _expectNativeCompileFailure('example/cloudflare.dart');
@@ -158,6 +165,72 @@ void main() {
       output,
       isNot(contains('Node runtime requires the node:http host module')),
     );
+  });
+
+  test('deno serve bundle does not include node or bun runtime code', () async {
+    final tempDir = await Directory.systemTemp.createTemp('osrv_deno_bundle_');
+    addTearDown(() => tempDir.delete(recursive: true));
+
+    final outputPath = '${tempDir.path}/deno.js';
+    final compile = await Process.run('dart', [
+      'compile',
+      'js',
+      'example/deno.dart',
+      '-o',
+      outputPath,
+    ], workingDirectory: _workspacePath);
+
+    expect(compile.exitCode, 0, reason: '${compile.stdout}\n${compile.stderr}');
+
+    final output = await File(outputPath).readAsString();
+    expect(output, isNot(contains('serveNodeRuntime')));
+    expect(output, isNot(contains('node:http')));
+    expect(output, isNot(contains('serveBunRuntime')));
+    expect(output, isNot(contains('Bun runtime requires Bun.serve')));
+  });
+
+  test('node serve bundle does not include deno runtime code', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'osrv_node_deno_bundle_',
+    );
+    addTearDown(() => tempDir.delete(recursive: true));
+
+    final outputPath = '${tempDir.path}/node.js';
+    final compile = await Process.run('dart', [
+      'compile',
+      'js',
+      'example/node.dart',
+      '-o',
+      outputPath,
+    ], workingDirectory: _workspacePath);
+
+    expect(compile.exitCode, 0, reason: '${compile.stdout}\n${compile.stderr}');
+
+    final output = await File(outputPath).readAsString();
+    expect(output, isNot(contains('serveDenoRuntime')));
+    expect(output, isNot(contains('Deno runtime requires the Deno global')));
+  });
+
+  test('bun serve bundle does not include deno runtime code', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'osrv_bun_deno_bundle_',
+    );
+    addTearDown(() => tempDir.delete(recursive: true));
+
+    final outputPath = '${tempDir.path}/bun.js';
+    final compile = await Process.run('dart', [
+      'compile',
+      'js',
+      'example/bun.dart',
+      '-o',
+      outputPath,
+    ], workingDirectory: _workspacePath);
+
+    expect(compile.exitCode, 0, reason: '${compile.stdout}\n${compile.stderr}');
+
+    final output = await File(outputPath).readAsString();
+    expect(output, isNot(contains('serveDenoRuntime')));
+    expect(output, isNot(contains('Deno runtime requires the Deno global')));
   });
 }
 
