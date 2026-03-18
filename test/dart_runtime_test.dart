@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/dart.dart';
 import 'package:test/test.dart';
+import 'package:web_socket/web_socket.dart' as ws;
 
 void main() {
   test('serve starts a dart runtime and handles a request', () async {
@@ -227,6 +228,147 @@ void main() {
     expect(cookies, hasLength(2));
     expect(cookies, contains('a=1; Path=/'));
     expect(cookies, contains('b=2; Path=/'));
+  });
+
+  test(
+    'dart runtime exposes websocket capability and upgrades requests',
+    () async {
+      final server = Server(
+        fetch: (request, context) async {
+          final webSocket = context.webSocket;
+          expect(webSocket, isNotNull);
+
+          if (webSocket!.isUpgradeRequest) {
+            expect(context.capabilities.websocket, isTrue);
+            expect(webSocket.requestedProtocols, ['chat', 'superchat']);
+
+            return webSocket.accept(protocol: 'chat', (socket) async {
+              socket.sendText('connected');
+
+              await for (final event in socket.events) {
+                switch (event) {
+                  case ws.TextDataReceived(text: final text):
+                    socket.sendText('echo:$text');
+                  case ws.BinaryDataReceived():
+                  case ws.CloseReceived():
+                    break;
+                }
+              }
+            });
+          }
+
+          return Response.json({
+            'websocket': context.capabilities.websocket,
+            'upgrade': webSocket.isUpgradeRequest,
+          });
+        },
+      );
+
+      final runtime = await serve(server, host: '127.0.0.1', port: 0);
+
+      addTearDown(() async {
+        await runtime.close();
+        await runtime.closed;
+      });
+
+      expect(runtime.capabilities.websocket, isTrue);
+
+      final client = HttpClient();
+      addTearDown(client.close);
+
+      final httpRequest = await client.getUrl(runtime.url!.resolve('/plain'));
+      final httpResponse = await httpRequest.close();
+      final httpBody = await httpResponse.transform(utf8.decoder).join();
+      expect(httpResponse.statusCode, HttpStatus.ok);
+      expect(httpBody, '{"websocket":true,"upgrade":false}');
+
+      final webSocket = await WebSocket.connect(
+        runtime.url!
+            .replace(scheme: 'ws', path: '/chat', query: '', fragment: '')
+            .toString(),
+        protocols: ['chat', 'superchat'],
+      );
+      addTearDown(() async {
+        if (webSocket.closeCode == null) {
+          await webSocket.close();
+        }
+      });
+
+      final events = StreamIterator<Object?>(webSocket);
+      expect(webSocket.protocol, 'chat');
+      expect(await events.moveNext(), isTrue);
+      expect(events.current, 'connected');
+      webSocket.add('ping');
+      expect(await events.moveNext(), isTrue);
+      expect(events.current, 'echo:ping');
+    },
+  );
+
+  test('runtime.close waits for active websocket sessions', () async {
+    final sessionClosed = Completer<void>();
+
+    final server = Server(
+      fetch: (request, context) {
+        final webSocket = context.webSocket;
+        if (webSocket == null || !webSocket.isUpgradeRequest) {
+          return Response(
+            'upgrade required',
+            const ResponseInit(status: HttpStatus.upgradeRequired),
+          );
+        }
+
+        return webSocket.accept((socket) async {
+          socket.sendText('connected');
+          await socket.events.drain<void>();
+          if (!sessionClosed.isCompleted) {
+            sessionClosed.complete();
+          }
+        });
+      },
+    );
+
+    final runtime = await serve(server, host: '127.0.0.1', port: 0);
+
+    addTearDown(() async {
+      if (!sessionClosed.isCompleted) {
+        sessionClosed.complete();
+      }
+      await runtime.close();
+    });
+
+    final webSocket = await WebSocket.connect(
+      runtime.url!
+          .replace(scheme: 'ws', path: '/close-me', query: '', fragment: '')
+          .toString(),
+    );
+
+    final events = StreamIterator<Object?>(webSocket);
+    expect(await events.moveNext(), isTrue);
+    expect(events.current, 'connected');
+
+    final closeFuture = runtime.close();
+    var closed = false;
+    unawaited(
+      closeFuture.then(
+        (_) {
+          closed = true;
+        },
+        onError: (_) {
+          closed = true;
+        },
+      ),
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(closed, isFalse);
+
+    await webSocket.close();
+    await expectLater(
+      closeFuture.timeout(const Duration(seconds: 5)),
+      completes,
+    );
+
+    await sessionClosed.future;
   });
 
   test('runtime.close waits for waitUntil tasks and onStop', () async {
