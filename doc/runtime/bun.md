@@ -49,7 +49,7 @@ Validation:
 | Capability | Value |
 | --- | --- |
 | `streaming` | `true` |
-| `websocket` | `false` |
+| `websocket` | `true` |
 | `fileSystem` | `true` |
 | `backgroundTask` | `true` |
 | `rawTcp` | `false` |
@@ -95,8 +95,37 @@ Current behavior:
 - unsupported-host startup fails explicitly
 - `onStart`, `onStop`, and `onError` are supported
 - `waitUntil(...)` is tracked during shutdown
+- active websocket sessions are closed during shutdown and keep `Runtime.close()` pending until they finish
+
+## WebSocket Handling
+
+When `context.webSocket` is available, websocket upgrades stay inside the normal `Server.fetch(...)` flow.
+
+Example:
+
+```dart
+final server = Server(
+  fetch: (request, context) {
+    final webSocket = context.webSocket;
+    if (webSocket == null || !webSocket.isUpgradeRequest) {
+      return Response.text('plain http');
+    }
+
+    return webSocket.accept(protocol: 'chat', (socket) async {
+      socket.sendText('connected');
+      await socket.events.drain<void>();
+    });
+  },
+);
+```
+
+Current `bun` runtime websocket behavior:
+- `context.capabilities.websocket == true`
+- `context.webSocket` is always present for request handlers
+- `accept(...)` validates the selected protocol against the client handshake
+- returning a manual HTTP `101` without `context.webSocket.accept(...)` is rejected as invalid runtime usage
+- upgrades are request-scoped in the public API, but internally bridge through Bun's server-level websocket handlers
 
 ## Current Limitations
 
-- websocket support is not implemented in the `osrv` surface
 - the runtime is JavaScript-target only and is not available to native Dart compilation

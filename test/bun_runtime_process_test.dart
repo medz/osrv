@@ -103,9 +103,18 @@ void main() {
     final tempDir = await Directory.systemTemp.createTemp('osrv_bun_test_');
     addTearDown(() => tempDir.delete(recursive: true));
 
+    final compiledPath = '${tempDir.path}/bun_runtime_server.js';
+    final compile = await Process.run('dart', [
+      'compile',
+      'js',
+      'test/fixtures/bun_runtime_server.dart',
+      '-o',
+      compiledPath,
+    ], workingDirectory: _workspacePath);
+    expect(compile.exitCode, 0, reason: '${compile.stdout}\n${compile.stderr}');
+
     final process = await Process.start('bun', [
-      '-e',
-      _bunWebSocketServerScript(),
+      compiledPath,
     ], workingDirectory: _workspacePath);
     addTearDown(() async {
       if (process.kill(ProcessSignal.sigterm)) {
@@ -120,10 +129,7 @@ void main() {
     });
 
     final stderrBuffer = StringBuffer();
-    final stderrDone = process.stderr
-        .transform(utf8.decoder)
-        .listen(stderrBuffer.write)
-        .asFuture<void>();
+    process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
     final uri = await _waitForRuntimeUrl(process.stdout);
 
     final hello = await _send(
@@ -132,11 +138,13 @@ void main() {
     );
     expect(hello.statusCode, 200);
     expect(await hello.transform(utf8.decoder).join(), 'hello from bun');
+    expect(hello.headers.value('x-runtime'), 'bun');
 
     final webSocket = await WebSocket.connect(
       uri
           .replace(scheme: 'ws', path: '/chat', query: '', fragment: '')
           .toString(),
+      protocols: ['chat'],
     );
     addTearDown(() async {
       if (webSocket.closeCode == null) {
@@ -145,6 +153,7 @@ void main() {
     });
 
     final events = StreamIterator<Object?>(webSocket);
+    expect(webSocket.protocol, 'chat');
     expect(await events.moveNext().timeout(const Duration(seconds: 5)), isTrue);
     expect(events.current, 'connected');
 
@@ -153,10 +162,8 @@ void main() {
     expect(events.current, 'echo:ping');
 
     await webSocket.close();
-    final exitCode = await process.exitCode.timeout(const Duration(seconds: 5));
-    await stderrDone;
+    await Future<void>.delayed(const Duration(milliseconds: 50));
 
-    expect(exitCode, 0, reason: stderrBuffer.toString());
     expect(stderrBuffer.toString(), isEmpty);
   });
 }
@@ -199,42 +206,4 @@ Future<HttpClientResponse> _send(
   final response = await request.close();
   client.close();
   return response;
-}
-
-String _bunWebSocketServerScript() {
-  return r'''
-const server = Bun.serve({
-  fetch(req, server) {
-    const url = new URL(req.url);
-
-    if (url.pathname === '/chat') {
-      if (server.upgrade(req)) {
-        return;
-      }
-      return new Response('Upgrade failed', { status: 500 });
-    }
-
-    if (url.pathname === '/hello') {
-      return new Response('hello from bun', {
-        headers: { 'x-runtime': 'bun' },
-      });
-    }
-
-    return new Response('not found', { status: 404 });
-  },
-  websocket: {
-    open(ws) {
-      ws.send('connected');
-    },
-    message(ws, message) {
-      ws.send(`echo:${message}`);
-    },
-    close() {
-      setTimeout(() => process.exit(0), 10);
-    },
-  },
-});
-
-console.log(`URL:http://${server.hostname}:${server.port}`);
-''';
 }

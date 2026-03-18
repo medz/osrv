@@ -28,7 +28,7 @@ final class RuntimeCapabilities {
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `dart` | `serve(...)` | `true` | `true` | `true` | `true` | `true` | `false` |
 | `node` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `true` |
-| `bun` | `serve(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
+| `bun` | `serve(...)` | `true` | `true` | `true` | `true` | `false` | `true` |
 | `deno` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `true` |
 | `cloudflare` | `defineFetchExport(...)` | `true` | `false` | `false` | `true` | `false` | `true` |
 | `vercel` | `defineFetchExport(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
@@ -46,6 +46,7 @@ The runtime supports websocket handling through the current `osrv` surface.
 
 Current status:
 - `true` for `dart`
+- `true` for `bun`
 - `false` for every other runtime family
 
 ### `fileSystem`

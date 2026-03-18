@@ -8,7 +8,7 @@ import 'probe.dart';
 
 const bunRuntimePreflightCapabilities = RuntimeCapabilities(
   streaming: true,
-  websocket: false,
+  websocket: true,
   fileSystem: true,
   backgroundTask: true,
   rawTcp: false,
