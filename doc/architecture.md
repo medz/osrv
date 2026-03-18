@@ -113,6 +113,7 @@ Current status:
 - `dart` implements websocket handling through the current `osrv` surface
 - `node` implements websocket handling through the current `osrv` surface
 - `bun` implements websocket handling through the current `osrv` surface
+- `deno` implements websocket handling through the current `osrv` surface
 - other runtime families still report `websocket == false`
 
 See [capabilities](./capabilities.md) for the current matrix.

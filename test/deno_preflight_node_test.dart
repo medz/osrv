@@ -18,6 +18,7 @@ void main() {
           isJavaScriptHost: true,
           hasDenoGlobal: true,
           hasServe: true,
+          hasUpgradeWebSocket: true,
           version: '2.2.0',
           extension: DenoRuntimeExtension(),
         ),
@@ -26,7 +27,7 @@ void main() {
       expect(preflight.host, '127.0.0.1');
       expect(preflight.canServe, isTrue);
       expect(preflight.capabilities.streaming, isTrue);
-      expect(preflight.capabilities.websocket, isFalse);
+      expect(preflight.capabilities.websocket, isTrue);
       expect(preflight.capabilities.fileSystem, isTrue);
       expect(preflight.capabilities.backgroundTask, isTrue);
       expect(preflight.capabilities.rawTcp, isTrue);
@@ -50,6 +51,7 @@ void main() {
         isJavaScriptHost: true,
         hasDenoGlobal: true,
         hasServe: false,
+        hasUpgradeWebSocket: true,
         version: '2.2.0',
         extension: DenoRuntimeExtension(),
       ),

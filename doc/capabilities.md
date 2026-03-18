@@ -29,7 +29,7 @@ final class RuntimeCapabilities {
 | `dart` | `serve(...)` | `true` | `true` | `true` | `true` | `true` | `false` |
 | `node` | `serve(...)` | `true` | `true` | `true` | `true` | `true` | `true` |
 | `bun` | `serve(...)` | `true` | `true` | `true` | `true` | `false` | `true` |
-| `deno` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `true` |
+| `deno` | `serve(...)` | `true` | `true` | `true` | `true` | `true` | `true` |
 | `cloudflare` | `defineFetchExport(...)` | `true` | `false` | `false` | `true` | `false` | `true` |
 | `vercel` | `defineFetchExport(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
 | `netlify` | `defineFetchExport(...)` | `true` | `false` | `true` | `request-dependent` | `false` | `true` |
@@ -48,6 +48,7 @@ Current status:
 - `true` for `dart`
 - `true` for `node`
 - `true` for `bun`
+- `true` for `deno`
 - `false` for every other runtime family
 
 ### `fileSystem`

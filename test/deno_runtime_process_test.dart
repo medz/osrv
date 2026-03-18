@@ -72,7 +72,7 @@ void main() {
       'kind': 'server',
       'capabilities': {
         'streaming': true,
-        'websocket': false,
+        'websocket': true,
         'fileSystem': true,
         'backgroundTask': true,
         'rawTcp': true,
@@ -119,6 +119,85 @@ void main() {
     expect(exitCode, 0, reason: stderrBuffer.toString());
     expect(stopwatch.elapsedMilliseconds, greaterThanOrEqualTo(150));
     expect(lifecycle, {'onStopHasDeno': true, 'onStopHasServer': true});
+    expect(stderrBuffer.toString(), isEmpty);
+  });
+
+  test('deno websocket server upgrades requests and echoes messages', () async {
+    if (!await _hasDeno()) {
+      markTestSkipped('deno is not available in the current environment');
+      return;
+    }
+
+    final tempDir = await Directory.systemTemp.createTemp('osrv_deno_test_');
+    addTearDown(() => tempDir.delete(recursive: true));
+
+    final compiledPath = '${tempDir.path}/deno_runtime_server.js';
+    final compile = await Process.run('dart', [
+      'compile',
+      'js',
+      'test/fixtures/deno_runtime_server.dart',
+      '-o',
+      compiledPath,
+    ], workingDirectory: _workspacePath);
+    expect(compile.exitCode, 0, reason: '${compile.stdout}\n${compile.stderr}');
+
+    final process = await Process.start('deno', [
+      'run',
+      '--allow-net',
+      compiledPath,
+    ], workingDirectory: _workspacePath);
+    addTearDown(() async {
+      if (process.kill(ProcessSignal.sigterm)) {
+        await process.exitCode.timeout(
+          const Duration(seconds: 3),
+          onTimeout: () {
+            process.kill(ProcessSignal.sigkill);
+            return -1;
+          },
+        );
+      }
+    });
+
+    final stderrBuffer = StringBuffer();
+    process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+    final stdoutLines = process.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .asBroadcastStream();
+
+    final uri = await _waitForRuntimeUrl(stdoutLines);
+
+    final hello = await _send(
+      uri.resolve('/hello'),
+      headers: {'accept': 'text/plain'},
+    );
+    expect(hello.statusCode, 200);
+    expect(await hello.transform(utf8.decoder).join(), 'hello from deno');
+
+    final webSocket = await WebSocket.connect(
+      uri
+          .replace(scheme: 'ws', path: '/chat', query: '', fragment: '')
+          .toString(),
+      protocols: ['chat'],
+    );
+    addTearDown(() async {
+      if (webSocket.closeCode == null) {
+        await webSocket.close();
+      }
+    });
+
+    final events = StreamIterator<Object?>(webSocket);
+    expect(webSocket.protocol, 'chat');
+    expect(await events.moveNext().timeout(const Duration(seconds: 5)), isTrue);
+    expect(events.current, 'connected');
+
+    webSocket.add('ping');
+    expect(await events.moveNext().timeout(const Duration(seconds: 5)), isTrue);
+    expect(events.current, 'echo:ping');
+
+    await webSocket.close();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
     expect(stderrBuffer.toString(), isEmpty);
   });
 }

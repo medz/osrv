@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/deno.dart';
+import 'package:web_socket/web_socket.dart' as ws;
 
 Future<void> main() async {
   late final Runtime runtime;
@@ -51,6 +52,28 @@ Future<void> main() async {
             ]),
             ResponseInit(headers: Headers()..set('x-stream', 'yes')),
           );
+        case '/chat':
+          final webSocket = context.webSocket;
+          if (webSocket == null || !webSocket.isUpgradeRequest) {
+            return Response(
+              'upgrade required',
+              const ResponseInit(status: 426),
+            );
+          }
+
+          return webSocket.accept(protocol: 'chat', (socket) async {
+            socket.sendText('connected');
+
+            await for (final event in socket.events) {
+              switch (event) {
+                case ws.TextDataReceived(text: final text):
+                  socket.sendText('echo:$text');
+                case ws.BinaryDataReceived():
+                case ws.CloseReceived():
+                  break;
+              }
+            }
+          });
         case '/error':
           throw StateError('boom');
         case '/wait-close':

@@ -8,6 +8,7 @@ final class DenoHostProbe {
     required this.isJavaScriptHost,
     required this.hasDenoGlobal,
     required this.hasServe,
+    required this.hasUpgradeWebSocket,
     required this.version,
     required this.extension,
   });
@@ -15,6 +16,7 @@ final class DenoHostProbe {
   final bool isJavaScriptHost;
   final bool hasDenoGlobal;
   final bool hasServe;
+  final bool hasUpgradeWebSocket;
   final String? version;
   final DenoRuntimeExtension extension;
 
@@ -27,6 +29,7 @@ DenoHostProbe probeDenoHost() {
     isJavaScriptHost: globalThis != null,
     hasDenoGlobal: deno != null,
     hasServe: deno != null && denoHasServe(deno),
+    hasUpgradeWebSocket: deno != null && denoHasUpgradeWebSocket(deno),
     version: deno == null ? null : denoRuntimeVersion(deno),
     extension: DenoRuntimeExtension(deno: deno),
   );

@@ -6,15 +6,6 @@ import '../../core/runtime.dart';
 import 'extension.dart';
 import 'probe.dart';
 
-const denoRuntimePreflightCapabilities = RuntimeCapabilities(
-  streaming: true,
-  websocket: false,
-  fileSystem: true,
-  backgroundTask: true,
-  rawTcp: true,
-  nodeCompat: true,
-);
-
 final class DenoRuntimePreflight {
   const DenoRuntimePreflight({
     required this.host,
@@ -86,7 +77,17 @@ DenoRuntimePreflight preflightDenoRuntime({
     host: normalizedHost,
     port: port,
     info: const RuntimeInfo(name: 'deno', kind: 'javascript-host'),
-    capabilities: denoRuntimePreflightCapabilities,
+    capabilities: RuntimeCapabilities(
+      streaming: true,
+      websocket:
+          resolvedProbe.hasDenoGlobal &&
+          resolvedProbe.hasServe &&
+          resolvedProbe.hasUpgradeWebSocket,
+      fileSystem: true,
+      backgroundTask: true,
+      rawTcp: true,
+      nodeCompat: true,
+    ),
     extension: resolvedProbe.extension,
     probe: resolvedProbe,
     blockReason: _buildDenoBlockReason(resolvedProbe),
