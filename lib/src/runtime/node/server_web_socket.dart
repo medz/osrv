@@ -34,6 +34,7 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
   final _fragmentBuffer = BytesBuilder(copy: false);
   bool _closed = false;
   bool _closeReceived = false;
+  bool _closeSent = false;
   int? _fragmentOpcode;
 
   @override
@@ -57,10 +58,7 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
     Object? pendingError;
     StackTrace? pendingStackTrace;
     try {
-      await nodeSocketWrite(
-        _socket,
-        _encodeFrame(opcode: 0x8, payload: payload),
-      );
+      await _writeCloseFrame(payload);
       unawaited(nodeSocketEnd(_socket));
     } catch (error, stackTrace) {
       pendingError = error;
@@ -116,6 +114,14 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
         _onError(error, stackTrace);
       }),
     );
+  }
+
+  Future<void> _writeCloseFrame(List<int> payload) async {
+    if (_closeSent) {
+      return;
+    }
+    _closeSent = true;
+    await nodeSocketWrite(_socket, _encodeFrame(opcode: 0x8, payload: payload));
   }
 
   void _onData(List<int> chunk) {
@@ -230,11 +236,9 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
           return false;
         }
         _closeReceived = true;
-        _events.add(ws.CloseReceived(close.code, close.reason));
-        unawaited(nodeSocketEnd(_socket));
-        unawaited(_events.close());
         _closed = true;
-        _completeClosed();
+        _events.add(ws.CloseReceived(close.code, close.reason));
+        unawaited(_replyToPeerClose(close.code, close.reason));
         return true;
       case 0x9:
         _sendFrame(0xA, frame.payload);
@@ -258,7 +262,9 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
     }
 
     _fragmentOpcode = opcode;
-    _fragmentBuffer.add(frame.payload);
+    if (!_appendFragmentPayload(frame.payload)) {
+      return false;
+    }
     return true;
   }
 
@@ -269,7 +275,9 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
       return false;
     }
 
-    _fragmentBuffer.add(frame.payload);
+    if (!_appendFragmentPayload(frame.payload)) {
+      return false;
+    }
     if (!frame.fin) {
       return true;
     }
@@ -298,9 +306,62 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
     }
   }
 
+  bool _appendFragmentPayload(Uint8List payload) {
+    if (_fragmentBuffer.length + payload.length > _maxBufferedFrameBytes) {
+      _protocolError(
+        'WebSocket message exceeds the $_maxBufferedFrameBytes-byte buffer limit.',
+        code: 1009,
+      );
+      return false;
+    }
+
+    _fragmentBuffer.add(payload);
+    return true;
+  }
+
+  Future<void> _replyToPeerClose(int? code, String reason) async {
+    await _subscription.cancel();
+    try {
+      await _writeCloseFrame(_closePayload(code, reason));
+      await nodeSocketEnd(_socket);
+    } catch (_) {
+      nodeSocketDestroy(_socket);
+    } finally {
+      if (!_events.isClosed) {
+        await _events.close();
+      }
+      _completeClosed();
+    }
+  }
+
+  Future<void> _failProtocol(String reason, {required int code}) async {
+    if (_closed && _events.isClosed) {
+      return;
+    }
+
+    _closed = true;
+    _fragmentOpcode = null;
+    _fragmentBuffer.clear();
+    await _subscription.cancel();
+    if (!_events.isClosed) {
+      if (!_closeReceived) {
+        _events.add(ws.CloseReceived(code, reason));
+      }
+      await _events.close();
+    }
+
+    try {
+      await _writeCloseFrame(_closePayload(code, reason));
+      await nodeSocketEnd(_socket);
+    } catch (_) {
+      nodeSocketDestroy(_socket);
+    } finally {
+      _completeClosed();
+    }
+  }
+
   void _protocolError(String reason, {int code = 1002}) {
-    nodeSocketDestroy(_socket);
-    unawaited(dispose(code, reason));
+    unawaited(_failProtocol(reason, code: code));
   }
 }
 

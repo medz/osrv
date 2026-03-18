@@ -4,6 +4,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:test/test.dart';
 
@@ -124,10 +125,429 @@ void main() {
     expect(exitCode, 0, reason: stderrBuffer.toString());
     expect(stderrBuffer.toString(), isEmpty);
   });
+
+  test(
+    'node runtime replies with a close frame when the client initiates close',
+    () async {
+      if (!await commandAvailable('node')) {
+        markTestSkipped('node is not available in the current environment');
+        return;
+      }
+
+      final process = await _startNodeRuntime();
+      attachProcessCleanup(process);
+
+      final stderrBuffer = StringBuffer();
+      process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+      final uri = await waitForRuntimeUrl(stdoutLines(process));
+      final client = await _RawWebSocketClient.connect(
+        uri.replace(scheme: 'ws', path: '/chat', query: '', fragment: ''),
+        protocols: const ['chat'],
+      );
+      addTearDown(client.dispose);
+
+      final connected = await client.nextFrame(
+        timeout: const Duration(seconds: 5),
+      );
+      expect(connected.opcode, 0x1);
+      expect(utf8.decode(connected.payload), 'connected');
+
+      await client.sendClose(code: 1000, reason: 'bye');
+
+      final close = await client.nextFrame(timeout: const Duration(seconds: 5));
+      expect(close.opcode, 0x8);
+      expect(_decodeClosePayload(close.payload), (code: 1000, reason: 'bye'));
+
+      await client.done.timeout(const Duration(seconds: 5));
+      expect(stderrBuffer.toString(), isEmpty);
+    },
+  );
+
+  test(
+    'node runtime sends 1009 close when fragmented messages exceed the buffer limit',
+    () async {
+      if (!await commandAvailable('node')) {
+        markTestSkipped('node is not available in the current environment');
+        return;
+      }
+
+      final process = await _startNodeRuntime();
+      attachProcessCleanup(process);
+
+      final stderrBuffer = StringBuffer();
+      process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+      final uri = await waitForRuntimeUrl(stdoutLines(process));
+      final client = await _RawWebSocketClient.connect(
+        uri.replace(scheme: 'ws', path: '/chat', query: '', fragment: ''),
+        protocols: const ['chat'],
+      );
+      addTearDown(client.dispose);
+
+      final connected = await client.nextFrame(
+        timeout: const Duration(seconds: 5),
+      );
+      expect(connected.opcode, 0x1);
+      expect(utf8.decode(connected.payload), 'connected');
+
+      final chunk = Uint8List(256 * 1024);
+      chunk.fillRange(0, chunk.length, 0x61);
+
+      await client.sendFrame(opcode: 0x1, payload: chunk, fin: false);
+      await client.sendFrame(opcode: 0x0, payload: chunk, fin: false);
+      await client.sendFrame(opcode: 0x0, payload: chunk, fin: false);
+      await client.sendFrame(opcode: 0x0, payload: chunk, fin: false);
+      await client.sendFrame(opcode: 0x0, payload: chunk, fin: false);
+
+      final close = await client.nextFrame(timeout: const Duration(seconds: 5));
+      expect(close.opcode, 0x8);
+      expect(_decodeClosePayload(close.payload).code, 1009);
+
+      await client.done.timeout(const Duration(seconds: 5));
+      expect(stderrBuffer.toString(), isEmpty);
+    },
+  );
 }
 
 Future<Process> _startNodeRuntime() async {
   final appDir = '$workspacePath/integration_test/node/app';
   await buildFixture(appDir);
   return startFixture(appDir);
+}
+
+final class _RawWebSocketClient {
+  _RawWebSocketClient._(this._socket) {
+    _subscription = _socket.listen(
+      _onData,
+      onDone: _onDone,
+      onError: _onError,
+      cancelOnError: true,
+    );
+  }
+
+  static Future<_RawWebSocketClient> connect(
+    Uri uri, {
+    List<String> protocols = const <String>[],
+  }) async {
+    final socket = await Socket.connect(uri.host, uri.port);
+    final client = _RawWebSocketClient._(socket);
+
+    final path = uri.path.isEmpty ? '/' : uri.path;
+    final target = uri
+        .replace(scheme: '', host: '', port: 0, path: path)
+        .toString();
+    final key = base64.encode(List<int>.generate(16, (index) => index + 1));
+    final request = StringBuffer()
+      ..write('GET $target HTTP/1.1\r\n')
+      ..write('Host: ${uri.host}:${uri.port}\r\n')
+      ..write('Upgrade: websocket\r\n')
+      ..write('Connection: Upgrade\r\n')
+      ..write('Sec-WebSocket-Version: 13\r\n')
+      ..write('Sec-WebSocket-Key: $key\r\n');
+    if (protocols.isNotEmpty) {
+      request.write('Sec-WebSocket-Protocol: ${protocols.join(', ')}\r\n');
+    }
+    request.write('\r\n');
+
+    socket.add(utf8.encode(request.toString()));
+    await socket.flush();
+
+    final response = await client._handshake.future.timeout(
+      const Duration(seconds: 5),
+    );
+    expect(response.statusCode, 101);
+    return client;
+  }
+
+  final Socket _socket;
+  final _buffer = BytesBuilder(copy: false);
+  final _frames = <_ServerFrame>[];
+  final _pendingFrames = <Completer<_ServerFrame>>[];
+  final _handshake = Completer<_HandshakeResponse>();
+  final _doneCompleter = Completer<void>();
+  late final StreamSubscription<List<int>> _subscription;
+  bool _handshakeComplete = false;
+
+  Future<void> get done => _doneCompleter.future;
+
+  Future<void> sendFrame({
+    required int opcode,
+    required List<int> payload,
+    bool fin = true,
+  }) async {
+    _socket.add(_encodeClientFrame(opcode: opcode, payload: payload, fin: fin));
+    await _socket.flush();
+  }
+
+  Future<void> sendClose({int? code, String? reason}) {
+    return sendFrame(opcode: 0x8, payload: _encodeClosePayload(code, reason));
+  }
+
+  Future<_ServerFrame> nextFrame({Duration? timeout}) async {
+    final queued = _takeFrame();
+    if (queued != null) {
+      return queued;
+    }
+
+    final completer = Completer<_ServerFrame>();
+    _pendingFrames.add(completer);
+    final future = completer.future;
+    return timeout == null ? future : future.timeout(timeout);
+  }
+
+  Future<void> dispose() async {
+    await _subscription.cancel();
+    await _socket.close();
+    if (!_doneCompleter.isCompleted) {
+      _doneCompleter.complete();
+    }
+  }
+
+  void _onData(List<int> chunk) {
+    if (chunk.isEmpty) {
+      return;
+    }
+
+    _buffer.add(chunk);
+    final bytes = _buffer.takeBytes();
+    final offset = _handshakeComplete
+        ? _parseFrames(bytes)
+        : _parseHandshakeAndFrames(bytes);
+    if (offset < bytes.length) {
+      _buffer.add(bytes.sublist(offset));
+    }
+  }
+
+  int _parseHandshakeAndFrames(Uint8List bytes) {
+    final headerEnd = _findHttpHeaderEnd(bytes);
+    if (headerEnd == null) {
+      return 0;
+    }
+
+    final responseText = ascii.decode(bytes.sublist(0, headerEnd));
+    final lines = responseText.split('\r\n');
+    final statusLine = lines.first.split(' ');
+    final statusCode = int.parse(statusLine[1]);
+    final headers = <String, String>{};
+    for (final line in lines.skip(1)) {
+      if (line.isEmpty) {
+        continue;
+      }
+      final separator = line.indexOf(':');
+      if (separator <= 0) {
+        continue;
+      }
+      headers[line.substring(0, separator).toLowerCase()] = line
+          .substring(separator + 1)
+          .trim();
+    }
+
+    _handshakeComplete = true;
+    if (!_handshake.isCompleted) {
+      _handshake.complete(_HandshakeResponse(statusCode, headers));
+    }
+
+    return _parseFrames(bytes, start: headerEnd + 4);
+  }
+
+  int _parseFrames(Uint8List bytes, {int start = 0}) {
+    var offset = start;
+    while (true) {
+      final frame = _tryParseServerFrame(bytes, offset);
+      if (frame == null) {
+        break;
+      }
+      offset = frame.nextOffset;
+      _queueFrame(_ServerFrame(frame.opcode, frame.payload, frame.fin));
+    }
+    return offset;
+  }
+
+  void _queueFrame(_ServerFrame frame) {
+    if (_pendingFrames.isNotEmpty) {
+      _pendingFrames.removeAt(0).complete(frame);
+      return;
+    }
+    _frames.add(frame);
+  }
+
+  _ServerFrame? _takeFrame() {
+    if (_frames.isEmpty) {
+      return null;
+    }
+    return _frames.removeAt(0);
+  }
+
+  void _onDone() {
+    while (_pendingFrames.isNotEmpty) {
+      _pendingFrames
+          .removeAt(0)
+          .completeError(
+            StateError('WebSocket closed before the next frame arrived.'),
+          );
+    }
+    if (!_handshake.isCompleted) {
+      _handshake.completeError(
+        StateError('Socket closed before the websocket handshake completed.'),
+      );
+    }
+    if (!_doneCompleter.isCompleted) {
+      _doneCompleter.complete();
+    }
+  }
+
+  void _onError(Object error, StackTrace stackTrace) {
+    while (_pendingFrames.isNotEmpty) {
+      _pendingFrames.removeAt(0).completeError(error, stackTrace);
+    }
+    if (!_handshake.isCompleted) {
+      _handshake.completeError(error, stackTrace);
+    }
+    if (!_doneCompleter.isCompleted) {
+      _doneCompleter.completeError(error, stackTrace);
+    }
+  }
+}
+
+final class _HandshakeResponse {
+  const _HandshakeResponse(this.statusCode, this.headers);
+
+  final int statusCode;
+  final Map<String, String> headers;
+}
+
+final class _ServerFrame {
+  const _ServerFrame(this.opcode, this.payload, this.fin);
+
+  final int opcode;
+  final Uint8List payload;
+  final bool fin;
+}
+
+final class _ParsedServerFrame {
+  const _ParsedServerFrame({
+    required this.fin,
+    required this.opcode,
+    required this.payload,
+    required this.nextOffset,
+  });
+
+  final bool fin;
+  final int opcode;
+  final Uint8List payload;
+  final int nextOffset;
+}
+
+int? _findHttpHeaderEnd(Uint8List bytes) {
+  for (var i = 0; i <= bytes.length - 4; i++) {
+    if (bytes[i] == 13 &&
+        bytes[i + 1] == 10 &&
+        bytes[i + 2] == 13 &&
+        bytes[i + 3] == 10) {
+      return i;
+    }
+  }
+  return null;
+}
+
+_ParsedServerFrame? _tryParseServerFrame(Uint8List bytes, int offset) {
+  if (bytes.length - offset < 2) {
+    return null;
+  }
+
+  final first = bytes[offset];
+  final second = bytes[offset + 1];
+  final fin = (first & 0x80) != 0;
+  final masked = (second & 0x80) != 0;
+  if (masked) {
+    throw StateError('Server websocket frames must not be masked.');
+  }
+
+  var payloadLength = second & 0x7F;
+  var cursor = offset + 2;
+  if (payloadLength == 126) {
+    if (bytes.length - cursor < 2) {
+      return null;
+    }
+    payloadLength = (bytes[cursor] << 8) | bytes[cursor + 1];
+    cursor += 2;
+  } else if (payloadLength == 127) {
+    if (bytes.length - cursor < 8) {
+      return null;
+    }
+    payloadLength = 0;
+    for (var i = 0; i < 8; i++) {
+      payloadLength = (payloadLength << 8) | bytes[cursor + i];
+    }
+    cursor += 8;
+  }
+
+  if (bytes.length - cursor < payloadLength) {
+    return null;
+  }
+
+  return _ParsedServerFrame(
+    fin: fin,
+    opcode: first & 0x0F,
+    payload: Uint8List.sublistView(bytes, cursor, cursor + payloadLength),
+    nextOffset: cursor + payloadLength,
+  );
+}
+
+Uint8List _encodeClientFrame({
+  required int opcode,
+  required List<int> payload,
+  required bool fin,
+}) {
+  const mask = [0x11, 0x22, 0x33, 0x44];
+  final header = BytesBuilder(copy: false)
+    ..addByte((fin ? 0x80 : 0x00) | (opcode & 0x0F));
+
+  if (payload.length < 126) {
+    header.addByte(0x80 | payload.length);
+  } else if (payload.length <= 0xFFFF) {
+    header
+      ..addByte(0x80 | 126)
+      ..addByte((payload.length >> 8) & 0xFF)
+      ..addByte(payload.length & 0xFF);
+  } else {
+    header.addByte(0x80 | 127);
+    for (var shift = 56; shift >= 0; shift -= 8) {
+      header.addByte((payload.length >> shift) & 0xFF);
+    }
+  }
+
+  header.add(mask);
+  final maskedPayload = Uint8List.fromList(payload);
+  for (var i = 0; i < maskedPayload.length; i++) {
+    maskedPayload[i] ^= mask[i % 4];
+  }
+  header.add(maskedPayload);
+  return header.takeBytes();
+}
+
+Uint8List _encodeClosePayload(int? code, String? reason) {
+  if (code == null && (reason == null || reason.isEmpty)) {
+    return Uint8List(0);
+  }
+
+  final builder = BytesBuilder(copy: false);
+  if (code != null) {
+    builder
+      ..addByte((code >> 8) & 0xFF)
+      ..addByte(code & 0xFF);
+  }
+  if (reason != null && reason.isNotEmpty) {
+    builder.add(utf8.encode(reason));
+  }
+  return builder.takeBytes();
+}
+
+({int? code, String reason}) _decodeClosePayload(Uint8List payload) {
+  if (payload.length < 2) {
+    return (code: null, reason: '');
+  }
+
+  final code = (payload[0] << 8) | payload[1];
+  final reason = payload.length > 2 ? utf8.decode(payload.sublist(2)) : '';
+  return (code: code, reason: reason);
 }
