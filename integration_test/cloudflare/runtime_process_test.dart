@@ -28,12 +28,13 @@ void main() {
       );
 
       final stderrBuffer = StringBuffer();
-      final stderrDone = process.stderr
+      final stderrSub = process.stderr
           .transform(utf8.decoder)
-          .listen(stderrBuffer.write)
-          .asFuture<void>();
+          .listen(stderrBuffer.write);
       final stdoutBuffer = StringBuffer();
-      process.stdout.transform(utf8.decoder).listen(stdoutBuffer.write);
+      final stdoutSub = process.stdout
+          .transform(utf8.decoder)
+          .listen(stdoutBuffer.write);
 
       final baseUri = Uri.parse('http://127.0.0.1:$port');
       await waitForHttpServer(baseUri.resolve('/hello'));
@@ -94,16 +95,13 @@ void main() {
       );
 
       await expectWebSocketEcho(baseUri);
-      if (process.kill(ProcessSignal.sigterm)) {
-        await process.exitCode.timeout(
-          const Duration(seconds: 5),
-          onTimeout: () {
-            process.kill(ProcessSignal.sigkill);
-            return -1;
-          },
-        );
-      }
-      await stderrDone;
+      await _stopWranglerProcess(
+        process,
+        stdoutSub: stdoutSub,
+        stderrSub: stderrSub,
+        stdoutBuffer: stdoutBuffer,
+        stderrBuffer: stderrBuffer,
+      );
 
       _expectNoUnexpectedWranglerStderr(
         stderrBuffer.toString(),
@@ -112,6 +110,31 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 2)),
   );
+}
+
+Future<void> _stopWranglerProcess(
+  Process process, {
+  required StreamSubscription<String> stdoutSub,
+  required StreamSubscription<String> stderrSub,
+  required StringBuffer stdoutBuffer,
+  required StringBuffer stderrBuffer,
+}) async {
+  process.kill(ProcessSignal.sigterm);
+
+  await process.exitCode.timeout(
+    const Duration(seconds: 10),
+    onTimeout: () async {
+      process.kill(ProcessSignal.sigkill);
+      return process.exitCode.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => throw TimeoutException(
+          'Wrangler did not exit after SIGTERM/SIGKILL.\nstdout:\n$stdoutBuffer\nstderr:\n$stderrBuffer',
+        ),
+      );
+    },
+  );
+  await stdoutSub.cancel();
+  await stderrSub.cancel();
 }
 
 Future<int> _pickPort() async => pickPort();
