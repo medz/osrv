@@ -11,6 +11,7 @@ void main() {
   test('deno runtime serves requests and shuts down cleanly', () async {
     if (!await _hasDeno()) {
       markTestSkipped('deno is not available in the current environment');
+      return;
     }
 
     final tempDir = await Directory.systemTemp.createTemp('osrv_deno_test_');
