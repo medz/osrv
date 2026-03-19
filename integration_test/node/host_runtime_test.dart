@@ -863,6 +863,32 @@ void main() {
       await eventsExpectation;
     },
   );
+
+  test(
+    'node websocket protocol close is not stalled by a paused events listener',
+    () async {
+      final incoming = StreamController<List<int>>();
+      final fakeSocket = _FakeNodeSocket(failEnd: false, delayEnd: true);
+      final adapter = NodeServerWebSocketAdapter(
+        socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
+        incoming: incoming.stream,
+        protocol: 'chat',
+      );
+
+      final subscription = adapter.events.listen((_) {});
+      addTearDown(subscription.cancel);
+      subscription.pause();
+
+      incoming.add(_maskedTextFrame(const [0xC3, 0x28]));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fakeSocket.endCalled, isTrue);
+
+      subscription.resume();
+      fakeSocket.completeEnd();
+      await incoming.close();
+    },
+  );
 }
 
 const _nonPreReadRequestMethods = ['POST', 'GET', 'HEAD'];
@@ -922,6 +948,16 @@ List<int> _maskedCloseFrame(int code, String reason) {
   );
 
   return <int>[0x88, 0x80 | payload.length, ...mask, ...maskedPayload];
+}
+
+List<int> _maskedTextFrame(List<int> payload) {
+  const mask = [0x11, 0x22, 0x33, 0x44];
+  final maskedPayload = List<int>.generate(
+    payload.length,
+    (index) => payload[index] ^ mask[index % 4],
+  );
+
+  return <int>[0x81, 0x80 | payload.length, ...mask, ...maskedPayload];
 }
 
 Future<void> _expectNodeRuntimeBridgesRequestStreamAfterHeadersAreFlushed(
