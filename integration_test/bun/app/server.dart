@@ -53,6 +53,20 @@ Future<void> main() async {
               }
             }
           });
+        case '/chat-shutdown-race':
+          final webSocket = context.webSocket;
+          if (webSocket == null || !webSocket.isUpgradeRequest) {
+            return Response(
+              'upgrade required',
+              const ResponseInit(status: 426),
+            );
+          }
+
+          unawaited(runtime.close());
+          return webSocket.accept((socket) async {
+            socket.sendText('connected');
+            await socket.events.drain<void>();
+          });
         case '/echo':
           return Response.json({
             'method': request.method.value,

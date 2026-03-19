@@ -1,6 +1,7 @@
 @TestOn('vm')
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -140,6 +141,60 @@ void main() {
     expect(exitCode, 0, reason: stderrBuffer.toString());
     expect(stderrBuffer.toString(), isEmpty);
   });
+
+  test(
+    'bun runtime does not open websocket handlers after shutdown begins',
+    () async {
+      if (!await commandAvailable('bun')) {
+        markTestSkipped('bun is not available in the current environment');
+        return;
+      }
+
+      final process = await _startBunRuntime();
+      attachProcessCleanup(process);
+
+      final stderrBuffer = StringBuffer();
+      process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+      final uri = await waitForRuntimeUrl(stdoutLines(process));
+
+      Object? firstEvent;
+      WebSocket? webSocket;
+      try {
+        webSocket = await WebSocket.connect(
+          uri
+              .replace(
+                scheme: 'ws',
+                path: '/chat-shutdown-race',
+                query: '',
+                fragment: '',
+              )
+              .toString(),
+        );
+
+        final events = StreamIterator<Object?>(webSocket);
+        final didReceive = await events.moveNext().timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => false,
+        );
+        if (didReceive) {
+          firstEvent = events.current;
+        }
+      } catch (_) {
+      } finally {
+        if (webSocket != null && webSocket.closeCode == null) {
+          await webSocket.close();
+        }
+      }
+
+      final exitCode = await process.exitCode.timeout(
+        const Duration(seconds: 5),
+      );
+
+      expect(exitCode, 0, reason: stderrBuffer.toString());
+      expect(stderrBuffer.toString(), isEmpty);
+      expect(firstEvent, isNot('connected'));
+    },
+  );
 }
 
 Future<Process> _startBunRuntime() async {

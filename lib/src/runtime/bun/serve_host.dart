@@ -51,8 +51,22 @@ Future<Runtime> serveBunRuntimeHost(
 
   void open(BunServerWebSocketHost socket) {
     final token = bunServerWebSocketToken(socket);
-    final upgrade = token == null ? null : pendingUpgrades.remove(token);
-    if (token == null || upgrade == null) {
+    if (token == null) {
+      bunServerWebSocketClose(
+        socket,
+        code: 1011,
+        reason: 'Missing websocket upgrade state.',
+      );
+      return;
+    }
+    if (isShuttingDown) {
+      pendingUpgrades.remove(token);
+      bunServerWebSocketClose(socket, code: 1001, reason: 'Runtime shutdown');
+      return;
+    }
+
+    final upgrade = pendingUpgrades.remove(token);
+    if (upgrade == null) {
       bunServerWebSocketClose(
         socket,
         code: 1011,
@@ -92,7 +106,13 @@ Future<Runtime> serveBunRuntimeHost(
       return;
     }
 
-    activeSockets.remove(token)?.close(code?.toDartInt, reason?.toDart);
+    final session = activeSockets.remove(token);
+    if (session != null) {
+      session.close(code?.toDartInt, reason?.toDart);
+      return;
+    }
+
+    pendingUpgrades.remove(token);
   }
 
   void error(BunServerWebSocketHost socket, JSAny? error) {
@@ -104,6 +124,7 @@ Future<Runtime> serveBunRuntimeHost(
     final message = _describeBunWebSocketError(error);
     final session = activeSockets.remove(token);
     if (session == null) {
+      pendingUpgrades.remove(token);
       return;
     }
 
@@ -204,6 +225,7 @@ Future<Runtime> serveBunRuntimeHost(
           await _stopBunRuntime(
             server: server,
             lifecycleContext: lifecycleContext,
+            pendingUpgrades: pendingUpgrades,
             activeSockets: activeSockets,
           );
         },
@@ -347,8 +369,10 @@ Future<void> _runBunWebSocketSession({
 Future<void> _stopBunRuntime({
   required Server server,
   required ServerLifecycleContext lifecycleContext,
+  required Map<int, BunAcceptedWebSocketUpgrade> pendingUpgrades,
   required Map<int, _BunActiveWebSocketSession> activeSockets,
 }) async {
+  pendingUpgrades.clear();
   await _closeActiveBunWebSockets(activeSockets);
 
   if (server.onStop != null) {
