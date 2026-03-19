@@ -15,6 +15,7 @@ import 'package:osrv/src/runtime/cloudflare/host.dart'
 import 'package:osrv/src/runtime/cloudflare/server_web_socket.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
+import 'package:web_socket/web_socket.dart' as ws;
 
 @JSExport()
 final class _TestExecutionContext {
@@ -57,6 +58,22 @@ final class _FakeCloudflareSocket {
 
     closeCode = dartCode;
     closeReason = dartReason;
+  }
+
+  void emitClose([int? code, String? reason]) {
+    final listener = _listeners['close'];
+    if (listener == null) {
+      return;
+    }
+
+    final event = JSObject();
+    if (code != null) {
+      event.setProperty('code'.toJS, code.toJS);
+    }
+    if (reason != null) {
+      event.setProperty('reason'.toJS, reason.toJS);
+    }
+    listener.callAsFunction(null, event);
   }
 }
 
@@ -480,6 +497,25 @@ void main() {
 
       adapter.sendText('still-open');
       expect(fakeSocket.lastSent, 'still-open');
+    },
+  );
+
+  test(
+    'cloudflare websocket adapter replies to non-sendable peer close codes with 1000',
+    () async {
+      final fakeSocket = _FakeCloudflareSocket();
+      final adapter = CloudflareServerWebSocketAdapter(
+        createJSInteropWrapper(fakeSocket) as CloudflareWebSocketHost,
+        protocol: 'chat',
+      );
+
+      fakeSocket.emitClose(1006, 'abnormal');
+
+      expect(fakeSocket.closeCode, 1000);
+      await expectLater(
+        adapter.events,
+        emitsInOrder([isA<ws.CloseReceived>(), emitsDone]),
+      );
     },
   );
 }

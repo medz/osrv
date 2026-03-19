@@ -133,18 +133,39 @@ final class CloudflareServerWebSocketAdapter implements ws.WebSocket {
 
   void _replyToPeerClose(int? code, String? reason) {
     try {
-      if (code == null || code == 1005) {
-        cloudflareWebSocketClose(_socket, code: 1000);
-        return;
-      }
+      final replyCode = _normalizeReplyCloseCode(code);
 
       cloudflareWebSocketClose(
         _socket,
-        code: code,
+        code: replyCode,
         reason: reason == null || reason.isEmpty ? null : reason,
       );
     } catch (_) {
       // Ignore teardown failures while acknowledging a peer-initiated close.
     }
   }
+}
+
+int _normalizeReplyCloseCode(int? code) {
+  if (code == null) {
+    return 1000;
+  }
+
+  if (code == 1000) {
+    return code;
+  }
+
+  if (code >= 1001 && code <= 1014) {
+    if (code == 1004 || code == 1005 || code == 1006) {
+      return 1000;
+    }
+
+    return code;
+  }
+
+  if (code >= 3000 && code <= 4999) {
+    return code;
+  }
+
+  return 1000;
 }
