@@ -64,6 +64,11 @@ final class CloudflareServerWebSocketAdapter implements ws.WebSocket {
         final object = event as JSObject?;
         final code = object?.getProperty<JSNumber?>('code'.toJS)?.toDartInt;
         final reason = object?.getProperty<JSString?>('reason'.toJS)?.toDart;
+        _closed = true;
+        if (!_closeSent) {
+          _closeSent = true;
+          _replyToPeerClose(code, reason);
+        }
         _events.add(ws.CloseReceived(code, reason ?? ''));
         unawaited(_events.close());
       }).toJS,
@@ -77,6 +82,7 @@ final class CloudflareServerWebSocketAdapter implements ws.WebSocket {
           return;
         }
 
+        _closed = true;
         _events.add(ws.CloseReceived(1006, 'error'));
         unawaited(_events.close());
       }).toJS,
@@ -86,10 +92,12 @@ final class CloudflareServerWebSocketAdapter implements ws.WebSocket {
   final CloudflareWebSocketHost _socket;
   final String _protocol;
   final _events = StreamController<ws.WebSocketEvent>();
+  bool _closeSent = false;
+  bool _closed = false;
 
   @override
   void sendText(String s) {
-    if (_events.isClosed) {
+    if (_closed || _events.isClosed) {
       throw ws.WebSocketConnectionClosed();
     }
 
@@ -98,7 +106,7 @@ final class CloudflareServerWebSocketAdapter implements ws.WebSocket {
 
   @override
   void sendBytes(Uint8List b) {
-    if (_events.isClosed) {
+    if (_closed || _events.isClosed) {
       throw ws.WebSocketConnectionClosed();
     }
 
@@ -107,10 +115,12 @@ final class CloudflareServerWebSocketAdapter implements ws.WebSocket {
 
   @override
   Future<void> close([int? code, String? reason]) async {
-    if (_events.isClosed) {
+    if (_closed || _events.isClosed) {
       throw ws.WebSocketConnectionClosed();
     }
 
+    _closeSent = true;
+    _closed = true;
     unawaited(_events.close());
     cloudflareWebSocketClose(_socket, code: code, reason: reason);
   }
@@ -120,4 +130,21 @@ final class CloudflareServerWebSocketAdapter implements ws.WebSocket {
 
   @override
   String get protocol => _protocol;
+
+  void _replyToPeerClose(int? code, String? reason) {
+    try {
+      if (code == null || code == 1005) {
+        cloudflareWebSocketClose(_socket, code: 1000);
+        return;
+      }
+
+      cloudflareWebSocketClose(
+        _socket,
+        code: code,
+        reason: reason == null || reason.isEmpty ? null : reason,
+      );
+    } catch (_) {
+      // Ignore teardown failures while acknowledging a peer-initiated close.
+    }
+  }
 }

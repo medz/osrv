@@ -93,7 +93,7 @@ void main() {
           'Internal Server Error',
         );
 
-        await expectWebSocketEcho(baseUri);
+        await _expectManualWebSocketClientCleanClose(appDir, baseUri);
       } finally {
         await _stopWranglerProcess(
           process,
@@ -138,6 +138,25 @@ Future<void> _stopWranglerProcess(
 }
 
 Future<int> _pickPort() async => pickPort();
+
+Future<void> _expectManualWebSocketClientCleanClose(
+  String appDir,
+  Uri baseUri,
+) async {
+  // Cloudflare websocket behavior is exercised against the real local JS
+  // runtime, so use a JS client here as well and wait for an explicit clean
+  // close before considering the request complete.
+  final result = await Process.run('node', [
+    './manual_ws_client.mjs',
+    baseUri.replace(scheme: 'ws', path: '/chat').toString(),
+    'chat',
+  ], workingDirectory: appDir);
+  expect(
+    result.exitCode,
+    0,
+    reason: 'stdout:\n${result.stdout}\nstderr:\n${result.stderr}',
+  );
+}
 
 void _expectNoUnexpectedWranglerStderr(
   String stderr, {
