@@ -27,7 +27,7 @@ void main() {
       process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
       final lines = stdoutLines(process);
 
-      final uri = await waitForRuntimeUrl(lines);
+      final uri = await _waitForNodeRuntimeUrl(lines);
 
       final meta = await send(uri.resolve('/meta'));
       expect(meta.statusCode, 200);
@@ -93,7 +93,7 @@ void main() {
     process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
     final lines = stdoutLines(process);
 
-    final uri = await waitForRuntimeUrl(lines);
+    final uri = await _waitForNodeRuntimeUrl(lines);
     final webSocket = await WebSocket.connect(
       uri
           .replace(scheme: 'ws', path: '/chat', query: '', fragment: '')
@@ -139,7 +139,7 @@ void main() {
 
       final stderrBuffer = StringBuffer();
       process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
-      final uri = await waitForRuntimeUrl(stdoutLines(process));
+      final uri = await _waitForNodeRuntimeUrl(stdoutLines(process));
       final client = await _RawWebSocketClient.connect(
         uri.replace(scheme: 'ws', path: '/chat', query: '', fragment: ''),
         protocols: const ['chat'],
@@ -176,7 +176,7 @@ void main() {
 
       final stderrBuffer = StringBuffer();
       process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
-      final uri = await waitForRuntimeUrl(stdoutLines(process));
+      final uri = await _waitForNodeRuntimeUrl(stdoutLines(process));
       final client = await _RawWebSocketClient.connect(
         uri.replace(scheme: 'ws', path: '/chat', query: '', fragment: ''),
         protocols: const ['chat'],
@@ -217,7 +217,7 @@ void main() {
 
       final process = await _startNodeRuntime();
       attachProcessCleanup(process);
-      final uri = await waitForRuntimeUrl(stdoutLines(process));
+      final uri = await _waitForNodeRuntimeUrl(stdoutLines(process));
 
       final response = await _sendRawHttpRequest(
         uri.replace(path: '/chat', query: '', fragment: ''),
@@ -235,6 +235,56 @@ void main() {
   );
 
   test(
+    'node runtime rejects websocket upgrades with 503 when startup fails',
+    () async {
+      if (!await commandAvailable('node')) {
+        markTestSkipped('node is not available in the current environment');
+        return;
+      }
+
+      final port = await pickPort();
+      final process = await _startNodeStartupFailureRuntime(port);
+      attachProcessCleanup(process);
+
+      final stderrBuffer = StringBuffer();
+      process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+      final lines = stdoutLines(process);
+      await waitForLinePrefix(
+        lines,
+        'STARTUP_ENTERED',
+        timeout: const Duration(seconds: 5),
+      );
+
+      final exchange = await _sendRawHttpRequestAsync(
+        Uri.parse('http://127.0.0.1:$port/chat'),
+        headers: _webSocketUpgradeHeaders(),
+      );
+      await exchange.requestSent;
+      await waitForLinePrefix(
+        lines,
+        'UPGRADE_SEEN',
+        timeout: const Duration(seconds: 5),
+      );
+      process.stdin.writeln('release');
+      await process.stdin.flush();
+      final response = await exchange.response;
+
+      expect(response.statusCode, 503);
+      expect(response.statusText, 'Service Unavailable');
+      expect(response.body, 'Service Unavailable');
+      expect(response.header('upgrade'), isNull);
+      expect(response.header('sec-websocket-accept'), isNull);
+      expect(response.header('connection'), isNull);
+
+      final exitCode = await process.exitCode.timeout(
+        const Duration(seconds: 5),
+      );
+      expect(exitCode, isNonZero);
+      expect(stderrBuffer.toString(), contains('Failed to start node runtime'));
+    },
+  );
+
+  test(
     'node runtime sanitizes raw 101 upgrade responses before writing to the socket',
     () async {
       if (!await commandAvailable('node')) {
@@ -244,7 +294,7 @@ void main() {
 
       final process = await _startNodeRuntime();
       attachProcessCleanup(process);
-      final uri = await waitForRuntimeUrl(stdoutLines(process));
+      final uri = await _waitForNodeRuntimeUrl(stdoutLines(process));
 
       final response = await _sendRawHttpRequest(
         uri.replace(path: '/raw-101-upgrade', query: '', fragment: ''),
@@ -289,7 +339,7 @@ void main() {
 
       final process = await _startNodeRuntime();
       attachProcessCleanup(process);
-      final uri = await waitForRuntimeUrl(stdoutLines(process));
+      final uri = await _waitForNodeRuntimeUrl(stdoutLines(process));
 
       final response = await _sendRawHttpRequest(
         uri.replace(path: '/upgrade-http-response', query: '', fragment: ''),
@@ -505,6 +555,16 @@ Future<Process> _startNodeRuntime() async {
   return startFixture(appDir);
 }
 
+Future<Process> _startNodeStartupFailureRuntime(int port) async {
+  final appDir = '$workspacePath/integration_test/node/startup_failure_app';
+  await buildFixture(appDir);
+  return startFixture(appDir, environment: {'OSRV_TEST_PORT': '$port'});
+}
+
+Future<Uri> _waitForNodeRuntimeUrl(Stream<String> lines) {
+  return waitForRuntimeUrl(lines, timeout: const Duration(seconds: 20));
+}
+
 Map<String, String> _webSocketUpgradeHeaders({String protocols = 'chat'}) {
   return {
     'Upgrade': 'websocket',
@@ -523,42 +583,65 @@ Future<_RawHttpResponse> _sendRawHttpRequest(
   Map<String, String> headers = const <String, String>{},
   String? body,
 }) async {
+  final exchange = await _sendRawHttpRequestAsync(
+    uri,
+    method: method,
+    headers: headers,
+    body: body,
+  );
+  await exchange.requestSent;
+  return exchange.response;
+}
+
+Future<_RawHttpRequestExchange> _sendRawHttpRequestAsync(
+  Uri uri, {
+  String method = 'GET',
+  Map<String, String> headers = const <String, String>{},
+  String? body,
+}) async {
   final socket = await Socket.connect(uri.host, uri.port);
-  try {
-    final path = uri.path.isEmpty ? '/' : uri.path;
-    final target = uri
-        .replace(scheme: '', host: '', port: 0, path: path)
-        .toString();
-    final request = StringBuffer()
-      ..write('$method $target HTTP/1.1\r\n')
-      ..write('Host: ${uri.host}:${uri.port}\r\n');
-    headers.forEach((key, value) {
-      request.write('$key: $value\r\n');
-    });
-    if (body != null) {
-      request.write('Content-Length: ${utf8.encode(body).length}\r\n');
+  final response = () async {
+    try {
+      final responseBytes = await socket.fold<BytesBuilder>(
+        BytesBuilder(copy: false),
+        (builder, chunk) {
+          builder.add(chunk);
+          return builder;
+        },
+      );
+      final rawResponse = latin1.decode(responseBytes.takeBytes());
+      return _RawHttpResponse.parse(rawResponse);
+    } finally {
+      await socket.close();
     }
-    request.write('\r\n');
-    if (body != null) {
-      request.write(body);
-    }
+  }();
 
-    socket.add(utf8.encode(request.toString()));
-    await socket.flush();
-    await socket.close();
-
-    final responseBytes = await socket.fold<BytesBuilder>(
-      BytesBuilder(copy: false),
-      (builder, chunk) {
-        builder.add(chunk);
-        return builder;
-      },
-    );
-    final rawResponse = latin1.decode(responseBytes.takeBytes());
-    return _RawHttpResponse.parse(rawResponse);
-  } finally {
-    await socket.close();
+  final path = uri.path.isEmpty ? '/' : uri.path;
+  final target = uri
+      .replace(scheme: '', host: '', port: 0, path: path)
+      .toString();
+  final request = StringBuffer()
+    ..write('$method $target HTTP/1.1\r\n')
+    ..write('Host: ${uri.host}:${uri.port}\r\n');
+  headers.forEach((key, value) {
+    request.write('$key: $value\r\n');
+  });
+  if (body != null) {
+    request.write('Content-Length: ${utf8.encode(body).length}\r\n');
   }
+  request.write('\r\n');
+  if (body != null) {
+    request.write(body);
+  }
+
+  socket.add(utf8.encode(request.toString()));
+  await socket.flush();
+  await socket.close();
+
+  return _RawHttpRequestExchange(
+    requestSent: Future<void>.value(),
+    response: response,
+  );
 }
 
 final class _RawHttpResponse {
@@ -606,6 +689,16 @@ final class _RawHttpResponse {
   final String rawResponse;
 
   String? header(String name) => headers[name.toLowerCase()];
+}
+
+final class _RawHttpRequestExchange {
+  const _RawHttpRequestExchange({
+    required this.requestSent,
+    required this.response,
+  });
+
+  final Future<void> requestSent;
+  final Future<_RawHttpResponse> response;
 }
 
 final class _RawWebSocketClient {
