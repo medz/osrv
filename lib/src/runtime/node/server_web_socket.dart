@@ -151,6 +151,10 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
     }
 
     _closed = true;
+    unawaited(_subscription.cancel());
+    try {
+      nodeSocketDestroy(_socket);
+    } catch (_) {}
     _events.add(ws.CloseReceived(1006, error.toString()));
     unawaited(_events.close());
     _completeClosed();

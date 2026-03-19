@@ -52,7 +52,11 @@ extension type _NodeIncomingMessageReadableState._(JSObject _)
 
 @JSExport()
 final class _FakeNodeSocket {
-  _FakeNodeSocket({this.failEnd = true, this.delayEnd = false});
+  _FakeNodeSocket({
+    this.failEnd = true,
+    this.delayEnd = false,
+    this.failWrite = false,
+  });
 
   JSFunction? _errorListener;
   JSAny? _pendingEndCallback;
@@ -60,6 +64,7 @@ final class _FakeNodeSocket {
   bool endCalled = false;
   final bool failEnd;
   final bool delayEnd;
+  final bool failWrite;
 
   void on(JSAny? event, JSFunction listener) {
     event;
@@ -81,6 +86,13 @@ final class _FakeNodeSocket {
 
   void write(JSAny? body, JSFunction callback) {
     body;
+    if (failWrite) {
+      Future<void>.microtask(() {
+        _errorListener?.callAsFunction(null, 'socket write failed'.toJS);
+      });
+      return;
+    }
+
     callback.callAsFunction();
   }
 
@@ -886,6 +898,43 @@ void main() {
 
       subscription.resume();
       fakeSocket.completeEnd();
+      await incoming.close();
+    },
+  );
+
+  test(
+    'node websocket adapter destroys the socket and cancels reads after write failure',
+    () async {
+      final incomingCanceled = Completer<void>();
+      final incoming = StreamController<List<int>>(
+        onCancel: () {
+          if (!incomingCanceled.isCompleted) {
+            incomingCanceled.complete();
+          }
+        },
+      );
+      final fakeSocket = _FakeNodeSocket(failWrite: true);
+      final uncaughtErrors = <Object>[];
+
+      await runZonedGuarded(
+        () async {
+          final adapter = NodeServerWebSocketAdapter(
+            socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
+            incoming: incoming.stream,
+            protocol: 'chat',
+          );
+
+          adapter.sendText('boom');
+          await incomingCanceled.future.timeout(const Duration(seconds: 1));
+        },
+        (error, stackTrace) {
+          uncaughtErrors.add(error);
+        },
+      );
+
+      expect(uncaughtErrors, isNotEmpty);
+      expect(fakeSocket.destroyed, isTrue);
+
       await incoming.close();
     },
   );
