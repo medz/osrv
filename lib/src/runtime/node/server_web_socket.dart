@@ -305,7 +305,7 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
           _events.add(ws.TextDataReceived(utf8.decode(payload)));
           return true;
         } on FormatException {
-          _protocolError('Invalid UTF-8 payload.');
+          _protocolError('Invalid UTF-8 payload.', code: 1007);
           return false;
         }
       case 0x2:

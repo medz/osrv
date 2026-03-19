@@ -207,6 +207,78 @@ void main() {
     },
   );
 
+  test('node runtime sends 1007 close for invalid UTF-8 text frames', () async {
+    if (!await commandAvailable('node')) {
+      markTestSkipped('node is not available in the current environment');
+      return;
+    }
+
+    final process = await _startNodeRuntime();
+    attachProcessCleanup(process);
+
+    final stderrBuffer = StringBuffer();
+    process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+    final uri = await _waitForNodeRuntimeUrl(stdoutLines(process));
+    final client = await _RawWebSocketClient.connect(
+      uri.replace(scheme: 'ws', path: '/chat', query: '', fragment: ''),
+      protocols: const ['chat'],
+    );
+    addTearDown(client.dispose);
+
+    final connected = await client.nextFrame(
+      timeout: const Duration(seconds: 5),
+    );
+    expect(connected.opcode, 0x1);
+    expect(utf8.decode(connected.payload), 'connected');
+
+    await client.sendFrame(opcode: 0x1, payload: const [0xC3, 0x28]);
+
+    final close = await client.nextFrame(timeout: const Duration(seconds: 5));
+    expect(close.opcode, 0x8);
+    expect(_decodeClosePayload(close.payload).code, 1007);
+
+    await client.done.timeout(const Duration(seconds: 5));
+    expect(stderrBuffer.toString(), isEmpty);
+  });
+
+  test(
+    'node runtime sends 1007 close for invalid fragmented UTF-8 text messages',
+    () async {
+      if (!await commandAvailable('node')) {
+        markTestSkipped('node is not available in the current environment');
+        return;
+      }
+
+      final process = await _startNodeRuntime();
+      attachProcessCleanup(process);
+
+      final stderrBuffer = StringBuffer();
+      process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+      final uri = await _waitForNodeRuntimeUrl(stdoutLines(process));
+      final client = await _RawWebSocketClient.connect(
+        uri.replace(scheme: 'ws', path: '/chat', query: '', fragment: ''),
+        protocols: const ['chat'],
+      );
+      addTearDown(client.dispose);
+
+      final connected = await client.nextFrame(
+        timeout: const Duration(seconds: 5),
+      );
+      expect(connected.opcode, 0x1);
+      expect(utf8.decode(connected.payload), 'connected');
+
+      await client.sendFrame(opcode: 0x1, payload: const [0xE2], fin: false);
+      await client.sendFrame(opcode: 0x0, payload: const [0x28, 0xA1]);
+
+      final close = await client.nextFrame(timeout: const Duration(seconds: 5));
+      expect(close.opcode, 0x8);
+      expect(_decodeClosePayload(close.payload).code, 1007);
+
+      await client.done.timeout(const Duration(seconds: 5));
+      expect(stderrBuffer.toString(), isEmpty);
+    },
+  );
+
   test(
     'node runtime rejects websocket upgrades without a websocket key',
     () async {
