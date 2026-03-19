@@ -235,6 +235,10 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
           _protocolError('Invalid UTF-8 in close reason.', code: 1007);
           return false;
         }
+        if (close.code != null && !_isValidCloseCode(close.code!)) {
+          _protocolError('Invalid close status code.');
+          return false;
+        }
         _closeReceived = true;
         _closed = true;
         _events.add(ws.CloseReceived(close.code, close.reason));
@@ -395,6 +399,20 @@ Uint8List _closePayload(int? code, String? reason) {
   if (code == null && reason != null && reason.isNotEmpty) {
     code = 1000;
   }
+  if (code != null && !_isValidCloseCode(code)) {
+    throw ArgumentError.value(code, 'code', 'Invalid WebSocket close code.');
+  }
+
+  final reasonBytes = (reason == null || reason.isEmpty)
+      ? const <int>[]
+      : utf8.encode(reason);
+  if (reasonBytes.length > 123) {
+    throw ArgumentError.value(
+      reason,
+      'reason',
+      'Close reason must be at most 123 UTF-8 bytes.',
+    );
+  }
 
   final builder = BytesBuilder(copy: false);
   if (code != null) {
@@ -402,10 +420,19 @@ Uint8List _closePayload(int? code, String? reason) {
       ..addByte((code >> 8) & 0xFF)
       ..addByte(code & 0xFF);
   }
-  if (reason != null && reason.isNotEmpty) {
-    builder.add(utf8.encode(reason));
+  if (reasonBytes.isNotEmpty) {
+    builder.add(reasonBytes);
   }
   return builder.takeBytes();
+}
+
+bool _isValidCloseCode(int code) {
+  return (code >= 1000 &&
+          code <= 1014 &&
+          code != 1004 &&
+          code != 1005 &&
+          code != 1006) ||
+      (code >= 3000 && code <= 4999);
 }
 
 _ParsedFrame? _tryParseFrame(Uint8List bytes, int offset) {

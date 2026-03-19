@@ -346,6 +346,157 @@ void main() {
       expect(stderrBuffer.toString(), isEmpty);
     },
   );
+
+  test(
+    'node runtime rejects invalid close status codes received from peers',
+    () async {
+      if (!await commandAvailable('node')) {
+        markTestSkipped('node is not available in the current environment');
+        return;
+      }
+
+      final process = await _startNodeRuntime();
+      attachProcessCleanup(process);
+      final stderrBuffer = StringBuffer();
+      process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+      final uri = await waitForRuntimeUrl(stdoutLines(process));
+      final client = await _RawWebSocketClient.connect(
+        uri.replace(scheme: 'ws', path: '/chat', query: '', fragment: ''),
+        protocols: const ['chat'],
+      );
+      addTearDown(client.dispose);
+
+      final connected = await client.nextFrame(
+        timeout: const Duration(seconds: 5),
+      );
+      expect(connected.opcode, 0x1);
+      expect(utf8.decode(connected.payload), 'connected');
+
+      await client.sendClose(code: 1005, reason: 'bad');
+
+      final close = await client.nextFrame(timeout: const Duration(seconds: 5));
+      expect(close.opcode, 0x8);
+      expect(_decodeClosePayload(close.payload).code, 1002);
+      await client.done.timeout(const Duration(seconds: 5));
+
+      await expectHelloEndpoint(
+        uri,
+        expectedBody: 'hello from node',
+        expectedRuntimeHeader: 'node',
+      );
+      expect(stderrBuffer.toString(), isEmpty);
+    },
+  );
+
+  test(
+    'node runtime rejects invalid outbound close codes before encoding frames',
+    () async {
+      if (!await commandAvailable('node')) {
+        markTestSkipped('node is not available in the current environment');
+        return;
+      }
+
+      final process = await _startNodeRuntime();
+      attachProcessCleanup(process);
+      final stderrBuffer = StringBuffer();
+      process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+      final uri = await waitForRuntimeUrl(stdoutLines(process));
+      final webSocket = await WebSocket.connect(
+        uri
+            .replace(
+              scheme: 'ws',
+              path: '/chat-invalid-close-code',
+              query: '',
+              fragment: '',
+            )
+            .toString(),
+      );
+      addTearDown(() async {
+        if (webSocket.closeCode == null) {
+          await webSocket.close();
+        }
+      });
+
+      final events = StreamIterator<Object?>(webSocket);
+      expect(
+        await events.moveNext().timeout(const Duration(seconds: 5)),
+        isTrue,
+      );
+      expect(events.current, 'connected');
+      expect(
+        await events.moveNext().timeout(const Duration(seconds: 5)),
+        isTrue,
+      );
+      expect(events.current, 'close-error:code');
+      expect(
+        await events.moveNext().timeout(const Duration(seconds: 5)),
+        isFalse,
+      );
+      expect(webSocket.closeCode, 1000);
+      expect(webSocket.closeReason, 'ok');
+      await expectHelloEndpoint(
+        uri,
+        expectedBody: 'hello from node',
+        expectedRuntimeHeader: 'node',
+      );
+      expect(stderrBuffer.toString(), isEmpty);
+    },
+  );
+
+  test(
+    'node runtime rejects oversized outbound close reasons before encoding frames',
+    () async {
+      if (!await commandAvailable('node')) {
+        markTestSkipped('node is not available in the current environment');
+        return;
+      }
+
+      final process = await _startNodeRuntime();
+      attachProcessCleanup(process);
+      final stderrBuffer = StringBuffer();
+      process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+      final uri = await waitForRuntimeUrl(stdoutLines(process));
+      final webSocket = await WebSocket.connect(
+        uri
+            .replace(
+              scheme: 'ws',
+              path: '/chat-invalid-close-reason',
+              query: '',
+              fragment: '',
+            )
+            .toString(),
+      );
+      addTearDown(() async {
+        if (webSocket.closeCode == null) {
+          await webSocket.close();
+        }
+      });
+
+      final events = StreamIterator<Object?>(webSocket);
+      expect(
+        await events.moveNext().timeout(const Duration(seconds: 5)),
+        isTrue,
+      );
+      expect(events.current, 'connected');
+      expect(
+        await events.moveNext().timeout(const Duration(seconds: 5)),
+        isTrue,
+      );
+      expect(events.current, 'close-error:reason');
+      expect(
+        await events.moveNext().timeout(const Duration(seconds: 5)),
+        isFalse,
+      );
+      expect(webSocket.closeCode, 1000);
+      expect(webSocket.closeReason, 'ok');
+      await expectHelloEndpoint(
+        uri,
+        expectedBody: 'hello from node',
+        expectedRuntimeHeader: 'node',
+      );
+      expect(stderrBuffer.toString(), isEmpty);
+    },
+  );
 }
 
 Future<Process> _startNodeRuntime() async {

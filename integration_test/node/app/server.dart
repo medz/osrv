@@ -68,6 +68,37 @@ Future<void> main() async {
               await socket.events.drain<void>();
             },
           );
+        case '/chat-invalid-close-code':
+          if (context.webSocket case final webSocket?
+              when webSocket.isUpgradeRequest) {
+            return webSocket.accept((socket) async {
+              socket.sendText('connected');
+              try {
+                await socket.close(1005, 'invalid');
+              } on ArgumentError {
+                socket.sendText('close-error:code');
+                await socket.close(1000, 'ok');
+              }
+            });
+          }
+          return Response('upgrade required', const ResponseInit(status: 426));
+        case '/chat-invalid-close-reason':
+          if (context.webSocket case final webSocket?
+              when webSocket.isUpgradeRequest) {
+            return webSocket.accept((socket) async {
+              socket.sendText('connected');
+              try {
+                final oversizedReason = String.fromCharCodes(
+                  List<int>.filled(42, 0x4F60),
+                );
+                await socket.close(1000, oversizedReason);
+              } on ArgumentError {
+                socket.sendText('close-error:reason');
+                await socket.close(1000, 'ok');
+              }
+            });
+          }
+          return Response('upgrade required', const ResponseInit(status: 426));
         case '/raw-101-upgrade':
           return Response(null, const ResponseInit(status: 101));
         case '/upgrade-http-response':
