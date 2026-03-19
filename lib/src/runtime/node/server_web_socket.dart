@@ -59,7 +59,13 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
     StackTrace? pendingStackTrace;
     try {
       await _writeCloseFrame(payload);
-      unawaited(nodeSocketEnd(_socket));
+      unawaited(
+        nodeSocketEnd(_socket).catchError((Object _, StackTrace _) {
+          try {
+            nodeSocketDestroy(_socket);
+          } catch (_) {}
+        }),
+      );
     } catch (error, stackTrace) {
       pendingError = error;
       pendingStackTrace = stackTrace;

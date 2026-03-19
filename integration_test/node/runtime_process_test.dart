@@ -547,6 +547,13 @@ void main() {
       expect(stderrBuffer.toString(), isEmpty);
     },
   );
+
+  test('_encodeClosePayload rejects a close reason without a status code', () {
+    expect(
+      () => _encodeClosePayload(null, 'reason'),
+      throwsA(isA<ArgumentError>()),
+    );
+  });
 }
 
 Future<Process> _startNodeRuntime() async {
@@ -1016,13 +1023,18 @@ Uint8List _encodeClosePayload(int? code, String? reason) {
   if (code == null && (reason == null || reason.isEmpty)) {
     return Uint8List(0);
   }
+  if (code == null) {
+    throw ArgumentError.value(
+      reason,
+      'reason',
+      'Close reason requires a status code.',
+    );
+  }
 
   final builder = BytesBuilder(copy: false);
-  if (code != null) {
-    builder
-      ..addByte((code >> 8) & 0xFF)
-      ..addByte(code & 0xFF);
-  }
+  builder
+    ..addByte((code >> 8) & 0xFF)
+    ..addByte(code & 0xFF);
   if (reason != null && reason.isNotEmpty) {
     builder.add(utf8.encode(reason));
   }

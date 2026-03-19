@@ -10,7 +10,8 @@ import 'dart:typed_data';
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/node.dart';
 import 'package:osrv/src/runtime/node/http_host.dart'
-    show NodeIncomingMessageHost;
+    show NodeIncomingMessageHost, NodeSocketHost;
+import 'package:osrv/src/runtime/node/server_web_socket.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 
@@ -46,6 +47,46 @@ extension type _NodeClientResponse._(JSObject _) implements JSObject {
 extension type _NodeIncomingMessageReadableState._(JSObject _)
     implements JSObject {
   external JSAny? get readableFlowing;
+}
+
+@JSExport()
+final class _FakeNodeSocket {
+  JSFunction? _errorListener;
+  bool destroyed = false;
+
+  void on(JSAny? event, JSFunction listener) {
+    event;
+    listener;
+  }
+
+  void once(JSAny? event, JSFunction listener) {
+    if ((event as JSString).toDart == 'error') {
+      _errorListener = listener;
+    }
+  }
+
+  void removeListener(JSAny? event, JSFunction listener) {
+    event;
+    if (identical(_errorListener, listener)) {
+      _errorListener = null;
+    }
+  }
+
+  void write(JSAny? body, JSFunction callback) {
+    body;
+    callback.callAsFunction();
+  }
+
+  void end([JSAny? first, JSAny? second]) {
+    Future<void>.microtask(() {
+      _errorListener?.callAsFunction(null, 'socket end failed'.toJS);
+    });
+  }
+
+  void destroy([JSAny? error]) {
+    error;
+    destroyed = true;
+  }
 }
 
 void main() {
@@ -674,6 +715,33 @@ void main() {
     await closeFuture;
     expect(closeCompleted, isTrue);
   });
+
+  test(
+    'node websocket adapter handles socket end failures during close',
+    () async {
+      final uncaughtErrors = <Object>[];
+      final fakeSocket = _FakeNodeSocket();
+
+      await runZonedGuarded(
+        () async {
+          final adapter = NodeServerWebSocketAdapter(
+            socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
+            incoming: const Stream<List<int>>.empty(),
+            protocol: 'chat',
+          );
+
+          await adapter.close(1000, 'bye');
+          await Future<void>.delayed(Duration.zero);
+        },
+        (error, stackTrace) {
+          uncaughtErrors.add(error);
+        },
+      );
+
+      expect(uncaughtErrors, isEmpty);
+      expect(fakeSocket.destroyed, isTrue);
+    },
+  );
 }
 
 const _nonPreReadRequestMethods = ['POST', 'GET', 'HEAD'];
