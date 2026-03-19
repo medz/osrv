@@ -119,10 +119,10 @@ final class CloudflareServerWebSocketAdapter implements ws.WebSocket {
       throw ws.WebSocketConnectionClosed();
     }
 
+    cloudflareWebSocketClose(_socket, code: code, reason: reason);
     _closeSent = true;
     _closed = true;
-    unawaited(_events.close());
-    cloudflareWebSocketClose(_socket, code: code, reason: reason);
+    await _events.close();
   }
 
   @override

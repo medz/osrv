@@ -10,6 +10,9 @@ import 'dart:typed_data';
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/cloudflare.dart';
 import 'package:osrv/src/runtime/_internal/js/web_stream_bridge.dart';
+import 'package:osrv/src/runtime/cloudflare/host.dart'
+    show CloudflareWebSocketHost;
+import 'package:osrv/src/runtime/cloudflare/server_web_socket.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 
@@ -21,6 +24,39 @@ final class _TestExecutionContext {
   void waitUntil(JSPromise<JSAny?> task) {
     waitUntilCalls++;
     tasks.add(task.toDart);
+  }
+}
+
+@JSExport()
+final class _FakeCloudflareSocket {
+  final Map<String, JSFunction> _listeners = <String, JSFunction>{};
+  Object? lastSent;
+  int? closeCode;
+  String? closeReason;
+
+  void addEventListener(String type, JSFunction listener) {
+    _listeners[type] = listener;
+  }
+
+  void send(JSAny? data) {
+    lastSent = data?.dartify();
+  }
+
+  void close([JSAny? code, JSAny? reason]) {
+    final dartCode = (code as JSNumber?)?.toDartInt;
+    final dartReason = (reason as JSString?)?.toDart;
+    if (dartCode == 1004 ||
+        dartCode == 1005 ||
+        dartCode == 1006 ||
+        dartCode == 1015) {
+      throw StateError('invalid close code');
+    }
+    if (dartReason != null && utf8.encode(dartReason).length > 123) {
+      throw StateError('close reason too long');
+    }
+
+    closeCode = dartCode;
+    closeReason = dartReason;
   }
 }
 
@@ -430,6 +466,22 @@ void main() {
 
     expect((await response.text().toDart).toDart, 'Hello Osrv!');
   });
+
+  test(
+    'cloudflare websocket adapter keeps the socket open when host close validation fails',
+    () async {
+      final fakeSocket = _FakeCloudflareSocket();
+      final adapter = CloudflareServerWebSocketAdapter(
+        createJSInteropWrapper(fakeSocket) as CloudflareWebSocketHost,
+        protocol: 'chat',
+      );
+
+      await expectLater(adapter.close(1005), throwsStateError);
+
+      adapter.sendText('still-open');
+      expect(fakeSocket.lastSent, 'still-open');
+    },
+  );
 }
 
 Future<web.Response> _callWorkerFetch(
