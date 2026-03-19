@@ -518,6 +518,32 @@ void main() {
       );
     },
   );
+
+  test(
+    'cloudflare websocket adapter emits CloseReceived after a local close once the host closes',
+    () async {
+      final fakeSocket = _FakeCloudflareSocket();
+      final adapter = CloudflareServerWebSocketAdapter(
+        createJSInteropWrapper(fakeSocket) as CloudflareWebSocketHost,
+        protocol: 'chat',
+      );
+
+      final eventsExpectation = expectLater(
+        adapter.events,
+        emitsInOrder([
+          isA<ws.CloseReceived>()
+              .having((event) => event.code, 'code', 1000)
+              .having((event) => event.reason, 'reason', 'bye'),
+          emitsDone,
+        ]),
+      );
+
+      await adapter.close(1000, 'bye');
+      fakeSocket.emitClose(1000, 'bye');
+
+      await eventsExpectation;
+    },
+  );
 }
 
 Future<web.Response> _callWorkerFetch(
