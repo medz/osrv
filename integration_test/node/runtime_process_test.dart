@@ -94,32 +94,36 @@ void main() {
     final lines = stdoutLines(process);
 
     final uri = await _waitForNodeRuntimeUrl(lines);
-    final webSocket = await WebSocket.connect(
-      uri
-          .replace(scheme: 'ws', path: '/chat', query: '', fragment: '')
-          .toString(),
-      protocols: ['chat'],
+    final client = await _RawWebSocketClient.connect(
+      uri.replace(scheme: 'ws', path: '/chat', query: '', fragment: ''),
+      protocols: const ['chat'],
     );
 
-    final events = StreamIterator<Object?>(webSocket);
-    expect(await events.moveNext().timeout(const Duration(seconds: 5)), isTrue);
-    expect(events.current, 'connected');
-
-    var exited = false;
-    unawaited(
-      process.exitCode.then((_) {
-        exited = true;
-      }),
+    final connected = await client.nextFrame(
+      timeout: const Duration(seconds: 5),
     );
+    expect(connected.opcode, 0x1);
+    expect(utf8.decode(connected.payload), 'connected');
 
     final closing = await send(uri.resolve('/close-runtime'));
     expect(closing.statusCode, 200);
     expect(await closing.transform(utf8.decoder).join(), 'closing');
 
-    await Future<void>.delayed(const Duration(milliseconds: 50));
-    expect(exited, isFalse);
+    final close = await client.nextFrame(timeout: const Duration(seconds: 5));
+    expect(close.opcode, 0x8);
+    expect(_decodeClosePayload(close.payload), (
+      code: 1001,
+      reason: 'Runtime shutdown',
+    ));
 
-    await webSocket.close();
+    await expectLater(
+      process.exitCode.timeout(const Duration(milliseconds: 250)),
+      throwsA(isA<TimeoutException>()),
+    );
+
+    await client.sendClose(code: 1001, reason: 'Runtime shutdown');
+    await client.done.timeout(const Duration(seconds: 5));
+    await client.dispose();
     final exitCode = await process.exitCode.timeout(const Duration(seconds: 5));
 
     expect(exitCode, 0, reason: stderrBuffer.toString());
