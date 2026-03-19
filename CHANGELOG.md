@@ -1,5 +1,32 @@
 ## Unreleased
 
+## 0.6.0
+
+### Runtime
+
+- Added first-class websocket support to the shared `osrv` surface through
+  `RequestContext.webSocket` and `context.webSocket!.accept(...)`.
+- Implemented websocket handling for the `dart`, `node`, `bun`, `deno`, and
+  `cloudflare` runtime families while keeping `vercel` and the current
+  `netlify` runtime family explicitly unsupported.
+- Added the dedicated `package:osrv/websocket.dart` entrypoint for
+  websocket-specific public types.
+
+### Testing
+
+- Added black-box integration suites for `bun`, `node`, `deno`, and
+  `cloudflare`, each backed by runtime-specific app fixtures and host-level
+  websocket regression coverage.
+- Added local CI execution through `./tool/ci_local.sh` and aligned the
+  repository test layout around portable `test/` suites and host/runtime
+  `integration_test/` suites.
+
+### Documentation
+
+- Expanded the runtime guides, capabilities matrix, public API docs, and
+  websocket design notes to document the new websocket surface and runtime
+  boundaries.
+
 ## 0.5.0
 
 ### Runtime

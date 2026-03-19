@@ -32,6 +32,7 @@ Use `osrv` when you want:
 - Unified `Server` contract built around `Request`, `Response`, and `RequestContext`
 - Explicit runtime selection through runtime-specific `serve(...)` or `defineFetchExport(...)`
 - Runtime capability model via `RuntimeCapabilities`
+- Request-scoped websocket upgrades on supported runtimes through `package:osrv/websocket.dart`
 - Lifecycle hooks: `onStart`, `onStop`, and `onError`
 - Typed runtime-specific extension access
 - Separate entry models for listener runtimes and fetch-export runtimes
