@@ -17,6 +17,8 @@ import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 import 'package:web_socket/web_socket.dart' as ws;
 
+import '../shared/runtime_contract.dart';
+
 @JSExport()
 final class _TestExecutionContext {
   int waitUntilCalls = 0;
@@ -556,20 +558,13 @@ void main() {
         protocol: 'chat',
       );
 
-      final eventsExpectation = expectLater(
-        adapter.events,
-        emitsInOrder([
-          isA<ws.CloseReceived>()
-              .having((event) => event.code, 'code', 1000)
-              .having((event) => event.reason, 'reason', 'bye'),
-          emitsDone,
-        ]),
+      await expectObservableLocalClose(
+        events: adapter.events,
+        startLocalClose: () => adapter.close(1000, 'bye'),
+        triggerTerminalClose: () => fakeSocket.emitClose(1000, 'bye'),
+        expectedCode: 1000,
+        expectedReason: 'bye',
       );
-
-      await adapter.close(1000, 'bye');
-      fakeSocket.emitClose(1000, 'bye');
-
-      await eventsExpectation;
     },
   );
 }

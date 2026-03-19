@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
+import 'package:web_socket/web_socket.dart' as ws;
 
 import 'test_support.dart';
 
@@ -27,6 +28,7 @@ Future<void> expectWebSocketEcho(
   String connectedMessage = 'connected',
   String outboundMessage = 'ping',
   String echoedMessage = 'echo:ping',
+  int expectedCloseCode = 1000,
 }) async {
   final webSocket = await WebSocket.connect(
     baseUri
@@ -49,6 +51,42 @@ Future<void> expectWebSocketEcho(
   expect(await events.moveNext().timeout(const Duration(seconds: 5)), isTrue);
   expect(events.current, echoedMessage);
 
-  await webSocket.close();
-  await Future<void>.delayed(const Duration(milliseconds: 50));
+  await webSocket.close(1000, 'client done');
+  expect(
+    await events.moveNext().timeout(
+      const Duration(seconds: 5),
+      onTimeout: () => true,
+    ),
+    isFalse,
+    reason: 'WebSocket stream should finish after the close handshake.',
+  );
+  expect(
+    webSocket.closeCode,
+    expectedCloseCode,
+    reason: 'WebSocket close handshake should complete cleanly.',
+  );
+}
+
+Future<void> expectObservableLocalClose({
+  required Stream<ws.WebSocketEvent> events,
+  required Future<void> Function() startLocalClose,
+  required FutureOr<void> Function() triggerTerminalClose,
+  required int expectedCode,
+  required String expectedReason,
+}) async {
+  final eventsExpectation = expectLater(
+    events,
+    emitsInOrder([
+      isA<ws.CloseReceived>()
+          .having((event) => event.code, 'code', expectedCode)
+          .having((event) => event.reason, 'reason', expectedReason),
+      emitsDone,
+    ]),
+  );
+
+  final closeFuture = startLocalClose();
+  await triggerTerminalClose();
+
+  await closeFuture;
+  await eventsExpectation;
 }
