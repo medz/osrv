@@ -35,7 +35,10 @@ socket.on('message', (data, isBinary) => {
   if (text === 'echo:ping') {
     sawEcho = true;
     socket.close(1000, 'client done');
+    return;
   }
+
+  fail(`websocket client received unexpected text frame: ${text}`);
 });
 
 socket.on('error', (error) => {

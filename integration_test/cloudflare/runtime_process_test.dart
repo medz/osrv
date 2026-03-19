@@ -12,6 +12,66 @@ import '../shared/test_support.dart';
 
 void main() {
   test(
+    'cloudflare manual websocket client fails fast on unexpected text frames',
+    () async {
+      if (!await commandAvailable('npm') || !await commandAvailable('node')) {
+        markTestSkipped(
+          'npm or node is not available in the current environment',
+        );
+        return;
+      }
+
+      final appDir = '$workspacePath/integration_test/cloudflare/app';
+      await buildFixture(appDir);
+
+      final server = await _startManualClientFixtureServer(appDir);
+      final stdoutLinesStream = stdoutLines(server);
+      final serverStderr = StringBuffer();
+      final stderrSub = server.stderr
+          .transform(utf8.decoder)
+          .listen(serverStderr.write);
+      final url = await waitForLinePrefix(
+        stdoutLinesStream,
+        'URL:',
+        reason: 'Manual websocket fixture server did not print a URL.',
+      );
+
+      try {
+        final stopwatch = Stopwatch()..start();
+        final result = await Process.run('node', [
+          './manual_ws_client.mjs',
+          url,
+          'chat',
+        ], workingDirectory: appDir);
+        stopwatch.stop();
+
+        expect(result.exitCode, isNonZero, reason: '${result.stdout}');
+        expect(
+          result.stderr,
+          contains('unexpected text frame'),
+          reason: 'stdout:\n${result.stdout}\nstderr:\n${result.stderr}',
+        );
+        expect(
+          stopwatch.elapsed,
+          lessThan(const Duration(seconds: 2)),
+          reason: 'manual client should fail immediately on unexpected text',
+        );
+      } finally {
+        await stderrSub.cancel();
+        if (server.kill(ProcessSignal.sigterm)) {
+          await server.exitCode.timeout(
+            const Duration(seconds: 5),
+            onTimeout: () {
+              server.kill(ProcessSignal.sigkill);
+              return -1;
+            },
+          );
+        }
+      }
+    },
+  );
+
+  test(
     'cloudflare worker serves requests over wrangler local dev',
     () async {
       if (!await commandAvailable('npm')) {
@@ -138,6 +198,28 @@ Future<void> _stopWranglerProcess(
 }
 
 Future<int> _pickPort() async => pickPort();
+
+Future<Process> _startManualClientFixtureServer(String appDir) async {
+  final process = await Process.start('node', [
+    '--input-type=module',
+    '-e',
+    '''
+import { WebSocketServer } from 'ws';
+
+const server = new WebSocketServer({ host: '127.0.0.1', port: 0 });
+server.on('listening', () => {
+  const address = server.address();
+  console.log(`URL:ws://127.0.0.1:\${address.port}`);
+});
+server.on('connection', (socket) => {
+  socket.send('connected');
+  socket.send('unexpected');
+});
+''',
+  ], workingDirectory: appDir);
+  attachProcessCleanup(process);
+  return process;
+}
 
 Future<void> _expectManualWebSocketClientCleanClose(
   String appDir,
