@@ -75,6 +75,19 @@ final class _FakeCloudflareSocket {
     }
     listener.callAsFunction(null, event);
   }
+
+  void emitMessage(JSAny? data) {
+    final listener = _listeners['message'];
+    if (listener == null) {
+      return;
+    }
+
+    final event = JSObject();
+    if (data != null) {
+      event.setProperty('data'.toJS, data);
+    }
+    listener.callAsFunction(null, event);
+  }
 }
 
 const _defaultFetchExportName = '__osrv_fetch__';
@@ -516,6 +529,21 @@ void main() {
         adapter.events,
         emitsInOrder([isA<ws.CloseReceived>(), emitsDone]),
       );
+    },
+  );
+
+  test(
+    'cloudflare websocket adapter rejects unsupported host payload types',
+    () {
+      final fakeSocket = _FakeCloudflareSocket();
+      final adapter = CloudflareServerWebSocketAdapter(
+        createJSInteropWrapper(fakeSocket) as CloudflareWebSocketHost,
+        protocol: 'chat',
+      );
+
+      expect(() => fakeSocket.emitMessage(JSObject()), throwsUnsupportedError);
+
+      adapter;
     },
   );
 

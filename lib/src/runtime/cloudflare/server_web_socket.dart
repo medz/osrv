@@ -48,7 +48,9 @@ final class CloudflareServerWebSocketAdapter implements ws.WebSocket {
             _events.add(ws.TextDataReceived(dartValue));
             break;
           default:
-            break;
+            throw UnsupportedError(
+              'Unsupported Cloudflare websocket payload type: ${dartValue.runtimeType}',
+            );
         }
       }).toJS,
     );
