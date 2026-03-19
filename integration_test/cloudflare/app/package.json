@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "wrangler": "4.75.0"
+    "wrangler": "4.75.0",
+    "ws": "^8.19.0"
   }
 }

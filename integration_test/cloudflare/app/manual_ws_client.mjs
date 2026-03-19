@@ -1,3 +1,5 @@
+import WebSocket from 'ws';
+
 const [url, protocol = 'chat'] = process.argv.slice(2);
 
 if (!url) {
@@ -14,31 +16,39 @@ const timer = setTimeout(() => {
   fail('websocket client timed out waiting for a clean close');
 }, 5000);
 
-socket.addEventListener('open', () => {
+socket.on('open', () => {
   socket.send('ping');
 });
 
-socket.addEventListener('message', (event) => {
-  if (event.data === 'connected') {
+socket.on('message', (data, isBinary) => {
+  if (isBinary) {
+    fail('websocket client received an unexpected binary frame');
+    return;
+  }
+
+  const text = data.toString();
+  if (text === 'connected') {
     sawConnected = true;
     return;
   }
 
-  if (event.data === 'echo:ping') {
+  if (text === 'echo:ping') {
     sawEcho = true;
     socket.close(1000, 'client done');
   }
 });
 
-socket.addEventListener('error', () => {
-  fail('websocket client observed an error event');
+socket.on('error', (error) => {
+  fail(`websocket client observed an error event: ${error}`);
 });
 
-socket.addEventListener('close', (event) => {
+socket.on('close', (code, reasonBuffer) => {
   clearTimeout(timer);
   if (settled) {
     return;
   }
+
+  const reason = reasonBuffer.toString();
 
   if (!sawConnected || !sawEcho) {
     fail(
@@ -47,13 +57,13 @@ socket.addEventListener('close', (event) => {
     return;
   }
 
-  if (event.code !== 1000) {
-    fail(`expected close code 1000, got ${event.code}`);
+  if (code !== 1000) {
+    fail(`expected close code 1000, got ${code}`);
     return;
   }
 
   settled = true;
-  console.log(`CLOSE:${event.code}:${event.reason}`);
+  console.log(`CLOSE:${code}:${reason}`);
   process.exit(0);
 });
 
