@@ -77,7 +77,7 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
       if (!_closeReceived) {
         _events.add(ws.CloseReceived(code, reason ?? ''));
       }
-      await _events.close();
+      unawaited(_events.close());
     }
     _completeClosed();
   }
@@ -319,7 +319,7 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
       nodeSocketDestroy(_socket);
     } finally {
       if (!_events.isClosed) {
-        await _events.close();
+        unawaited(_events.close());
       }
       _completeClosed();
     }

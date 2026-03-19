@@ -938,6 +938,45 @@ void main() {
       await incoming.close();
     },
   );
+
+  test(
+    'node websocket adapter dispose completes without an events listener',
+    () async {
+      final incoming = StreamController<List<int>>();
+      final fakeSocket = _FakeNodeSocket(failEnd: false);
+      final adapter = NodeServerWebSocketAdapter(
+        socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
+        incoming: incoming.stream,
+        protocol: 'chat',
+      );
+
+      await adapter
+          .dispose(1001, 'shutdown')
+          .timeout(const Duration(milliseconds: 250));
+      await incoming.close();
+    },
+  );
+
+  test(
+    'node websocket adapter close completes without an events listener after peer close',
+    () async {
+      final incoming = StreamController<List<int>>();
+      final fakeSocket = _FakeNodeSocket(failEnd: false, delayEnd: true);
+      final adapter = NodeServerWebSocketAdapter(
+        socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
+        incoming: incoming.stream,
+        protocol: 'chat',
+      );
+
+      final closeFuture = adapter.close(1000, 'bye');
+      incoming.add(_maskedCloseFrame(1000, 'bye'));
+      await Future<void>.delayed(Duration.zero);
+      fakeSocket.completeEnd();
+
+      await closeFuture.timeout(const Duration(milliseconds: 250));
+      await incoming.close();
+    },
+  );
 }
 
 const _nonPreReadRequestMethods = ['POST', 'GET', 'HEAD'];
