@@ -55,7 +55,7 @@ Validation:
 | Capability | Value |
 | --- | --- |
 | `streaming` | `true` |
-| `websocket` | `false` |
+| `websocket` | `true` |
 | `fileSystem` | `true` |
 | `backgroundTask` | `true` |
 | `rawTcp` | `true` |
@@ -108,13 +108,43 @@ Current behavior:
 - listener bind failures throw `RuntimeStartupError`
 - `onStart`, `onStop`, and `onError` are supported
 - `waitUntil(...)` work is tracked during shutdown
+- active websocket sessions are closed during shutdown and keep `Runtime.close()` pending until they finish
+
+## WebSocket Handling
+
+When `context.webSocket` is available, websocket upgrades stay inside the normal `Server.fetch(...)` flow.
+
+Example:
+
+```dart
+final server = Server(
+  fetch: (request, context) {
+    final webSocket = context.webSocket;
+    if (webSocket == null || !webSocket.isUpgradeRequest) {
+      return Response.text('plain http');
+    }
+
+    return webSocket.accept(protocol: 'chat', (socket) async {
+      socket.sendText('connected');
+      await socket.events.drain<void>();
+    });
+  },
+);
+```
+
+Current `deno` runtime websocket behavior:
+
+- `context.capabilities.websocket == true`
+- `context.webSocket` is always present for request handlers
+- `accept(...)` validates the selected protocol against the client handshake
+- returning a manual HTTP `101` without `context.webSocket.accept(...)` is rejected as invalid runtime usage
+- upgrades stay request-scoped in both the public API and the underlying Deno host model
 
 ## What It Is Not
 
 The `deno` runtime in `osrv` does not:
 
 - auto-detect the host and switch to `node` or `bun`
-- expose websocket support through the current `osrv` surface
 - flatten Deno CLI and Deno Deploy into one fake universal runtime
 
 ## Counterexample
@@ -129,6 +159,5 @@ Examples:
 
 ## Current Limitations
 
-- websocket support is not implemented in the `osrv` surface
 - the runtime is JavaScript-target only and is not available to native Dart compilation
 - Deno permissions are host policy; `osrv` does not emulate missing host capabilities

@@ -3,22 +3,25 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:ht/ht.dart' show Request;
+import 'package:ht/ht.dart' show Request, Response, ResponseInit;
+import 'package:web_socket/io_web_socket.dart' show IOWebSocket;
 
 import '../../core/capabilities.dart';
 import '../../core/errors.dart';
 import '../../core/request_context.dart';
 import '../../core/runtime.dart';
 import '../../core/server.dart';
+import '../../core/websocket.dart';
 import '../_internal/server/error_handler.dart';
+import '../_internal/server/runtime_handle.dart';
 import '../_internal/server/shutdown_coordinator.dart';
 import 'extension.dart';
 import 'response_bridge.dart';
-import '../_internal/server/runtime_handle.dart';
+import 'websocket_request.dart';
 
 const dartRuntimeCapabilities = RuntimeCapabilities(
   streaming: true,
-  websocket: false,
+  websocket: true,
   fileSystem: true,
   backgroundTask: true,
   rawTcp: true,
@@ -52,6 +55,7 @@ Future<Runtime> serveDartRuntime(
   );
 
   final coordinator = ShutdownCoordinator();
+  final activeSockets = <WebSocket>{};
 
   try {
     if (server.onStart != null) {
@@ -65,41 +69,28 @@ Future<Runtime> serveDartRuntime(
   unawaited(() async {
     try {
       await for (final request in httpServer) {
-        final requestExtension = DartRuntimeExtension(
-          server: httpServer,
+        final operation = _handleDartRequest(
+          server: server,
+          runtimeInfo: runtimeInfo,
+          lifecycleContext: lifecycleContext,
+          httpServer: httpServer,
           request: request,
-          response: request.response,
+          coordinator: coordinator,
+          activeSockets: activeSockets,
         );
-        final context = RequestContext(
-          runtime: runtimeInfo,
-          capabilities: dartRuntimeCapabilities,
-          onWaitUntil: coordinator.trackTask,
-          extension: requestExtension,
-        );
-
-        try {
-          final htRequest = Request(request);
-          final response = await server.fetch(htRequest, context);
-          await writeHtResponseToDartHttpResponse(response, request.response);
-        } catch (error, stackTrace) {
-          final handled = await handleServerError(
-            server: server,
-            error: error,
-            stackTrace: stackTrace,
-            context: lifecycleContext,
-            defaultStatus: HttpStatus.internalServerError,
-          );
-          await writeHtResponseToDartHttpResponse(handled, request.response);
-        }
+        coordinator.trackRequest(operation);
+        unawaited(operation);
       }
     } finally {
       await coordinator.stop(
         onStop: () async {
-          if (server.onStop != null) {
-            await server.onStop!(lifecycleContext);
-          }
+          await _stopDartRuntime(
+            server: server,
+            lifecycleContext: lifecycleContext,
+            activeSockets: activeSockets,
+          );
         },
-        waitForRequests: false,
+        waitForRequests: true,
       );
     }
   }());
@@ -110,20 +101,72 @@ Future<Runtime> serveDartRuntime(
     closed: coordinator.closed,
     url: Uri(scheme: 'http', host: host, port: httpServer.port),
     onClose: () async {
-      unawaited(
-        coordinator.stop(
-          onStop: () async {
-            if (server.onStop != null) {
-              await server.onStop!(lifecycleContext);
-            }
-          },
-          waitForRequests: false,
-        ),
+      final stop = coordinator.stop(
+        onStop: () async {
+          await _stopDartRuntime(
+            server: server,
+            lifecycleContext: lifecycleContext,
+            activeSockets: activeSockets,
+          );
+        },
+        waitForRequests: true,
       );
       await httpServer.close();
+      await stop;
       await coordinator.closed;
     },
   );
+}
+
+Future<void> _handleDartRequest({
+  required Server server,
+  required RuntimeInfo runtimeInfo,
+  required ServerLifecycleContext lifecycleContext,
+  required HttpServer httpServer,
+  required HttpRequest request,
+  required ShutdownCoordinator coordinator,
+  required Set<WebSocket> activeSockets,
+}) async {
+  final requestExtension = DartRuntimeExtension(
+    server: httpServer,
+    request: request,
+    response: request.response,
+  );
+  final webSocket = DartWebSocketRequest(request);
+  final context = RequestContext(
+    runtime: runtimeInfo,
+    capabilities: dartRuntimeCapabilities,
+    onWaitUntil: coordinator.trackTask,
+    extension: requestExtension,
+    webSocket: webSocket,
+  );
+
+  try {
+    final htRequest = Request(request);
+    final response = await server.fetch(htRequest, context);
+    await _writeDartFetchResponse(
+      response,
+      request: request,
+      webSocket: webSocket,
+      coordinator: coordinator,
+      activeSockets: activeSockets,
+    );
+  } catch (error, stackTrace) {
+    final handled = await handleServerError(
+      server: server,
+      error: error,
+      stackTrace: stackTrace,
+      context: context,
+      defaultStatus: HttpStatus.internalServerError,
+    );
+    await _writeDartFetchResponse(
+      _sanitizeErrorResponse(handled, webSocket: webSocket),
+      request: request,
+      webSocket: webSocket,
+      coordinator: coordinator,
+      activeSockets: activeSockets,
+    );
+  }
 }
 
 Future<HttpServer> _bindDartHttpServer({
@@ -147,6 +190,114 @@ Future<HttpServer> _bindDartHttpServer({
       error,
     );
   }
+}
+
+Future<void> _writeDartFetchResponse(
+  Response response, {
+  required HttpRequest request,
+  required DartWebSocketRequest webSocket,
+  required ShutdownCoordinator coordinator,
+  required Set<WebSocket> activeSockets,
+}) async {
+  final upgrade = webSocket.takeAcceptedUpgrade(response);
+  if (upgrade != null) {
+    await _handleDartWebSocketUpgrade(
+      request,
+      upgrade: upgrade,
+      coordinator: coordinator,
+      activeSockets: activeSockets,
+    );
+    return;
+  }
+
+  if (response.status == HttpStatus.switchingProtocols) {
+    throw StateError(
+      'Raw 101 responses are reserved for websocket upgrades. '
+      'Use context.webSocket?.accept(...) to accept an upgrade.',
+    );
+  }
+
+  await writeHtResponseToDartHttpResponse(response, request.response);
+}
+
+Future<void> _handleDartWebSocketUpgrade(
+  HttpRequest request, {
+  required DartAcceptedWebSocketUpgrade upgrade,
+  required ShutdownCoordinator coordinator,
+  required Set<WebSocket> activeSockets,
+}) async {
+  final socket = await WebSocketTransformer.upgrade(
+    request,
+    protocolSelector: upgrade.protocol == null
+        ? null
+        : (_) => Future<String>.value(upgrade.protocol!),
+  );
+
+  activeSockets.add(socket);
+  final connection = socket.done.whenComplete(() {
+    activeSockets.remove(socket);
+  });
+  coordinator.trackConnection(connection);
+
+  final session = _runDartWebSocketSession(socket, upgrade.handler);
+  coordinator.trackTask(session);
+  unawaited(session);
+}
+
+Future<void> _runDartWebSocketSession(
+  WebSocket socket,
+  WebSocketHandler handler,
+) async {
+  try {
+    await handler(IOWebSocket.fromWebSocket(socket));
+  } catch (error, stackTrace) {
+    try {
+      await socket.close(
+        WebSocketStatus.internalServerError,
+        'Internal Server Error',
+      );
+    } catch (_) {}
+
+    Zone.current.handleUncaughtError(error, stackTrace);
+  }
+}
+
+Future<void> _stopDartRuntime({
+  required Server server,
+  required ServerLifecycleContext lifecycleContext,
+  required Set<WebSocket> activeSockets,
+}) async {
+  await _closeActiveDartWebSockets(activeSockets);
+
+  if (server.onStop != null) {
+    await server.onStop!(lifecycleContext);
+  }
+}
+
+Future<void> _closeActiveDartWebSockets(Set<WebSocket> activeSockets) async {
+  final sockets = List<WebSocket>.of(activeSockets);
+  for (final socket in sockets) {
+    final close = socket.close(WebSocketStatus.goingAway, 'Runtime shutdown');
+    unawaited(close.catchError((Object _, StackTrace _) {}));
+  }
+}
+
+Response _sanitizeErrorResponse(
+  Response response, {
+  required DartWebSocketRequest webSocket,
+}) {
+  if (response.status != HttpStatus.switchingProtocols) {
+    return response;
+  }
+
+  if (webSocket.hasAcceptedUpgrade(response)) {
+    return response;
+  }
+
+  return Response(
+    'Internal Server Error',
+    const ResponseInit(status: HttpStatus.internalServerError),
+  );
 }
 
 void _validateDartServeParameters({

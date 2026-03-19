@@ -357,13 +357,13 @@ The example should mirror the existing `node.dart` and `bun.dart` examples:
 
 Add focused tests before implementation:
 
-- `test/deno_preflight_node_test.dart`
-- `test/deno_runtime_process_test.dart`
-- `test/fixtures/deno_runtime_server.dart`
+- `integration_test/deno/preflight_test.dart`
+- `integration_test/deno/runtime_process_test.dart`
+- `integration_test/deno/app/server.dart`
 
 Extend existing compile coverage:
 
-- `test/fetch_export_compile_test.dart`
+- `integration_test/compile/fetch_export_compile_test.dart`
 
 ### Preflight Tests
 

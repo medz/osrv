@@ -40,6 +40,7 @@ void main() {
             'backgroundTask': context.capabilities.backgroundTask,
             'nodeCompat': context.capabilities.nodeCompat,
             'websocket': context.capabilities.websocket,
+            'hasWebSocket': context.webSocket != null,
             'region': (functions?.geolocation as Map?)?['region'],
             'env': (functions?.env as Map?)?['APP_ENV'],
             'ip': functions?.ipAddress,
@@ -64,6 +65,7 @@ void main() {
       'backgroundTask': true,
       'nodeCompat': true,
       'websocket': false,
+      'hasWebSocket': false,
       'region': 'iad1',
       'env': 'test',
       'ip': '127.0.0.1',
@@ -96,6 +98,42 @@ void main() {
     waitUntilCompleter.complete();
     await Future.wait(tracker.tasks);
   });
+
+  test(
+    'defineFetchExport keeps websocket request surface unavailable on upgrade-like requests',
+    () async {
+      defineFetchExport(
+        Server(
+          fetch: (request, context) {
+            return Response.json({
+              'websocket': context.capabilities.websocket,
+              'hasWebSocket': context.webSocket != null,
+            });
+          },
+        ),
+      );
+
+      final headers = web.Headers();
+      headers.set('upgrade', 'websocket');
+      headers.set('connection', 'Upgrade');
+      headers.set('sec-websocket-protocol', 'chat');
+
+      _installFunctionsOverride();
+      final response = await _callVercelFetch(
+        _currentFetchHandler(),
+        web.Request(
+          'https://example.com/chat'.toJS,
+          web.RequestInit(headers: headers),
+        ),
+      );
+
+      expect(response.status, 200);
+      expect(jsonDecode((await response.text().toDart).toDart), {
+        'websocket': false,
+        'hasWebSocket': false,
+      });
+    },
+  );
 
   test('defineFetchExport uses onError to translate failures', () async {
     defineFetchExport(
@@ -155,6 +193,48 @@ void main() {
     final response = await _callVercelFetch(
       _currentFetchHandler(),
       web.Request('https://example.com/unhandled'.toJS),
+    );
+
+    expect(response.status, 500);
+    expect((await response.text().toDart).toDart, 'Internal Server Error');
+  });
+
+  test(
+    'defineFetchExport rejects raw 101 responses outside websocket accept',
+    () async {
+      defineFetchExport(
+        Server(
+          fetch: (request, context) {
+            return Response(null, const ResponseInit(status: 101));
+          },
+        ),
+      );
+
+      _installFunctionsOverride();
+      final response = await _callVercelFetch(
+        _currentFetchHandler(),
+        web.Request('https://example.com/raw-101'.toJS),
+      );
+
+      expect(response.status, 500);
+      expect((await response.text().toDart).toDart, 'Internal Server Error');
+    },
+  );
+
+  test('defineFetchExport rejects raw 101 responses from onError', () async {
+    defineFetchExport(
+      Server(
+        fetch: (request, context) => throw StateError('boom'),
+        onError: (error, stackTrace, context) {
+          return Response(null, const ResponseInit(status: 101));
+        },
+      ),
+    );
+
+    _installFunctionsOverride();
+    final response = await _callVercelFetch(
+      _currentFetchHandler(),
+      web.Request('https://example.com/raw-101-error'.toJS),
     );
 
     expect(response.status, 500);

@@ -15,14 +15,20 @@ Current runtime families:
 - `vercel`
 - `netlify`
 
-Current global limitation:
-- websocket support is not implemented yet, so `runtime.capabilities.websocket` is `false` everywhere
+Current websocket status:
+- `dart` exposes websocket handling through the current `osrv` surface
+- `node` exposes websocket handling through the current `osrv` surface
+- `bun` exposes websocket handling through the current `osrv` surface
+- `deno` exposes websocket handling through the current `osrv` surface
+- `cloudflare` exposes websocket handling through the current `osrv` surface
+- every other runtime family still reports `runtime.capabilities.websocket == false`
 
 ## Start Here
 
 - [architecture](./architecture.md): what `osrv` provides and how to choose an entry model
 - [config](./config.md): runtime selection, config fields, and validation rules
 - [capabilities](./capabilities.md): capability meanings and the current support matrix
+- [websocket support spec](./specs/websocket-support.md): draft websocket API direction and rollout plan
 - [runtime docs](./runtime/README.md): runtime-by-runtime setup, limits, and extension access
 
 ## API Reference
@@ -39,6 +45,7 @@ Current global limitation:
 
 Application code should import only:
 - `package:osrv/osrv.dart`
+- `package:osrv/websocket.dart`
 - `package:osrv/runtime/*.dart`
 
 Do not build against `package:osrv/src/...` paths.

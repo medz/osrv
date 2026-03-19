@@ -9,7 +9,7 @@ import 'probe.dart';
 
 const nodeRuntimePreflightCapabilities = RuntimeCapabilities(
   streaming: true,
-  websocket: false,
+  websocket: true,
   fileSystem: true,
   backgroundTask: true,
   rawTcp: true,

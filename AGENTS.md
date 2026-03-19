@@ -10,8 +10,8 @@ Key repository areas:
 - `lib/runtime/*.dart`: public runtime-family entrypoints.
 - `lib/src/core/`: shared server contract, lifecycle model, capabilities, errors, and runtime metadata.
 - `doc/`: source-of-truth design docs, including architecture, config, capabilities, terms, API docs, and runtime guides.
-- `test/`: runtime bridge, capability, and compile-mode verification.
-- `test/fixtures/`: helper sources used by compile and process tests.
+- `test/`: unit, bridge, capability, and compile-mode verification.
+- `integration_test/`: black-box runtime behavior tests, including runtime-specific app fixtures under `integration_test/<runtime>/app/`.
 - `example/`: runnable runtime examples and deployment shims.
 
 Keep edits scoped. Avoid touching generated or installed artifacts unless the task explicitly requires it, especially:
@@ -105,23 +105,28 @@ Baseline:
 
 CI-aligned verification:
 
+- Prefer `./tool/ci_local.sh --native` to run the full local CI-equivalent bundle.
+- Prefer `./tool/ci_local.sh --job <job>` when you need a single GitHub Actions job through `act`.
 - `dart format --output=none --set-exit-if-changed .`
-- `dart test -p vm`
-- `dart test -p node test/node_runtime_node_test.dart test/cloudflare_worker_node_test.dart test/vercel_fetch_node_test.dart`
+- `dart test test`
+- `dart test -p vm integration_test/dart integration_test/compile integration_test/node/runtime_process_test.dart integration_test/bun/runtime_process_test.dart integration_test/deno/runtime_process_test.dart integration_test/cloudflare/runtime_process_test.dart`
+- `dart test -p node integration_test/bun/preflight_test.dart integration_test/deno/preflight_test.dart integration_test/node/host_runtime_test.dart integration_test/cloudflare/worker_host_test.dart integration_test/vercel/fetch_export_test.dart integration_test/netlify/fetch_export_test.dart integration_test/web/request_bridge_test.dart`
 
 Fast targeted checks:
 
-- `dart test test/dart_runtime_test.dart test/dart_request_bridge_test.dart`
-- `dart test -p node test/node_runtime_node_test.dart test/web_request_bridge_node_test.dart`
-- `dart test -p node test/cloudflare_worker_node_test.dart test/vercel_fetch_node_test.dart`
-- `dart test -p node test/bun_preflight_node_test.dart`
-- `dart test test/bun_runtime_process_test.dart`
-- `dart test test/fetch_export_compile_test.dart`
+- `dart test test/websocket_public_surface_test.dart`
+- `dart test -p node integration_test/bun/preflight_test.dart integration_test/deno/preflight_test.dart`
+- `dart test -p vm integration_test/dart/runtime_test.dart integration_test/dart/request_bridge_test.dart`
+- `dart test -p node integration_test/node/host_runtime_test.dart integration_test/web/request_bridge_test.dart`
+- `dart test -p node integration_test/cloudflare/worker_host_test.dart integration_test/vercel/fetch_export_test.dart`
+- `dart test integration_test/bun/runtime_process_test.dart`
+- `dart test -p vm integration_test/compile/fetch_export_compile_test.dart`
 
 Environment notes:
 
-- Node-targeted tests require a Node test environment.
-- `test/bun_runtime_process_test.dart` requires `bun` to be installed and available on `PATH`.
+- `test/` is reserved for portable tests and should not depend on `@TestOn(...)` or host-specific globals.
+- Node-host integration tests require a Node test environment.
+- `integration_test/bun/runtime_process_test.dart` requires `bun` to be installed and available on `PATH`.
 - Example and deployment files under `example/` are part of the runtime contract when they document bootstrap or host-shim behavior.
 
 Use the smallest verification set that matches the change, but do not skip runtime-specific tests when touching a runtime bridge, capability claim, or example bootstrap.
@@ -182,7 +187,7 @@ Common expectations:
 - core contract or lifecycle behavior: update the relevant `test/*` runtime or bridge test;
 - listener runtimes (`dart`, `node`, `bun`): verify request bridging and lifecycle behavior;
 - fetch-export runtimes (`cloudflare`, `vercel`): verify export setup, request bridging, and `waitUntil` behavior;
-- compile-target expectations: update or run `test/fetch_export_compile_test.dart`;
+- compile-target expectations: update or run `integration_test/compile/fetch_export_compile_test.dart`;
 - docs or examples that change runtime behavior claims: verify the related example or targeted runtime test.
 
 If a change claims cross-runtime behavior, verify more than one runtime family.

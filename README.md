@@ -116,7 +116,9 @@ must also include `@vercel/functions`, use an ESM entry such as `.mjs`, and prov
 
 ## Core API
 
-The public core entrypoint is `package:osrv/osrv.dart`.
+The public core entrypoints are:
+- `package:osrv/osrv.dart`
+- `package:osrv/websocket.dart` for websocket-specific types
 
 Main exported concepts:
 - `Server`
@@ -138,6 +140,41 @@ For runtime entry APIs, use the matching runtime entrypoint such as `package:osr
 - [Public Surface](./doc/api/public-surface.md)
 - [Runtime Guides](./doc/runtime/README.md)
 - [Usage Examples](./doc/examples/final-usage.md)
+
+## Local CI
+
+You can run the repository's GitHub Actions workflow locally before pushing.
+
+Preferred path:
+
+```bash
+brew install act
+./tool/ci_local.sh
+```
+
+That runs `.github/workflows/ci.yml` locally through
+[`nektos/act`](https://github.com/nektos/act), which is specifically designed
+to execute GitHub Actions on your machine using Docker.
+
+Useful variants:
+
+```bash
+./tool/ci_local.sh analyze
+./tool/ci_local.sh --job test-unit
+./tool/ci_local.sh --job test-node-integration
+./tool/ci_local.sh --native
+```
+
+`--native` skips `act` and runs the CI-equivalent commands directly. This is
+useful when you want fast local verification or do not have `act` installed.
+
+The repository keeps black-box runtime checks under `integration_test/`.
+Each runtime has its own folder and app-shaped fixture layout, for example
+`integration_test/node/app/` or `integration_test/cloudflare/app/`, so
+host-specific bootstrap files can live next to the behavior tests that use
+them. These are still plain `package:test` suites for this pure Dart package,
+and the local runner / CI invoke them explicitly. The top-level `test/`
+directory is reserved for portable tests only.
 
 ## Examples
 

@@ -26,11 +26,11 @@ final class RuntimeCapabilities {
 
 | Runtime | Entry model | streaming | websocket | fileSystem | backgroundTask | rawTcp | nodeCompat |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `dart` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `false` |
-| `node` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `true` |
-| `bun` | `serve(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
-| `deno` | `serve(...)` | `true` | `false` | `true` | `true` | `true` | `true` |
-| `cloudflare` | `defineFetchExport(...)` | `true` | `false` | `false` | `true` | `false` | `true` |
+| `dart` | `serve(...)` | `true` | `true` | `true` | `true` | `true` | `false` |
+| `node` | `serve(...)` | `true` | `true` | `true` | `true` | `true` | `true` |
+| `bun` | `serve(...)` | `true` | `true` | `true` | `true` | `false` | `true` |
+| `deno` | `serve(...)` | `true` | `host-dependent` | `true` | `true` | `true` | `true` |
+| `cloudflare` | `defineFetchExport(...)` | `true` | `true` | `false` | `true` | `false` | `true` |
 | `vercel` | `defineFetchExport(...)` | `true` | `false` | `true` | `true` | `false` | `true` |
 | `netlify` | `defineFetchExport(...)` | `true` | `false` | `true` | `request-dependent` | `false` | `true` |
 
@@ -45,7 +45,16 @@ The runtime can stream response bodies without forcing everything through one bu
 The runtime supports websocket handling through the current `osrv` surface.
 
 Current status:
-- `false` for every runtime family
+- `true` for `dart`
+- `true` for `node`
+- `true` for `bun`
+- `host-dependent` for `deno`
+- `true` for `cloudflare`
+- `false` for every other runtime family
+
+For `deno`, websocket support depends on whether the current host exposes
+`Deno.upgradeWebSocket(...)`. `RuntimeCapabilities.websocket` reflects that
+runtime check.
 
 ### `fileSystem`
 

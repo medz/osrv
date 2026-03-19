@@ -109,8 +109,13 @@ Use capabilities to branch on real host truth:
 - `rawTcp`
 - `nodeCompat`
 
-Current global status:
-- websocket support is not implemented yet
+Current status:
+- `dart` implements websocket handling through the current `osrv` surface
+- `node` implements websocket handling through the current `osrv` surface
+- `bun` implements websocket handling through the current `osrv` surface
+- `deno` implements websocket handling through the current `osrv` surface
+- `cloudflare` implements websocket handling through the current `osrv` surface
+- other runtime families still report `websocket == false`
 
 See [capabilities](./capabilities.md) for the current matrix.
 
@@ -133,6 +138,7 @@ Extensions expose runtime-specific power without pushing host objects into the c
 
 Application code should import only:
 - `package:osrv/osrv.dart`
+- `package:osrv/websocket.dart`
 - `package:osrv/runtime/*.dart`
 
 Do not import `package:osrv/src/...`.

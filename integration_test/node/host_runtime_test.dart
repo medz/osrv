@@ -10,9 +10,11 @@ import 'dart:typed_data';
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/node.dart';
 import 'package:osrv/src/runtime/node/http_host.dart'
-    show NodeIncomingMessageHost;
+    show NodeIncomingMessageHost, NodeSocketHost;
+import 'package:osrv/src/runtime/node/server_web_socket.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
+import 'package:web_socket/web_socket.dart' as ws;
 
 @JS('fetch')
 external JSPromise<web.Response> _fetch(JSAny input, [web.RequestInit init]);
@@ -46,6 +48,97 @@ extension type _NodeClientResponse._(JSObject _) implements JSObject {
 extension type _NodeIncomingMessageReadableState._(JSObject _)
     implements JSObject {
   external JSAny? get readableFlowing;
+}
+
+@JSExport()
+final class _FakeNodeSocket {
+  _FakeNodeSocket({
+    this.failEnd = true,
+    this.delayEnd = false,
+    this.failWrite = false,
+  });
+
+  JSFunction? _errorListener;
+  JSAny? _pendingEndCallback;
+  bool destroyed = false;
+  bool endCalled = false;
+  final bool failEnd;
+  final bool delayEnd;
+  final bool failWrite;
+
+  void on(JSAny? event, JSFunction listener) {
+    event;
+    listener;
+  }
+
+  void once(JSAny? event, JSFunction listener) {
+    if ((event as JSString).toDart == 'error') {
+      _errorListener = listener;
+    }
+  }
+
+  void removeListener(JSAny? event, JSFunction listener) {
+    event;
+    if (identical(_errorListener, listener)) {
+      _errorListener = null;
+    }
+  }
+
+  void write(JSAny? body, JSFunction callback) {
+    body;
+    if (failWrite) {
+      Future<void>.microtask(() {
+        _errorListener?.callAsFunction(null, 'socket write failed'.toJS);
+      });
+      return;
+    }
+
+    callback.callAsFunction();
+  }
+
+  void end([JSAny? first, JSAny? second]) {
+    endCalled = true;
+    final callback = switch ((first, second)) {
+      (final JSAny callback, _) when callback.typeofEquals('function') =>
+        callback,
+      (_, final JSAny callback) when callback.typeofEquals('function') =>
+        callback,
+      _ => null,
+    };
+    if (delayEnd) {
+      _pendingEndCallback = callback;
+      return;
+    }
+
+    Future<void>.microtask(() {
+      if (failEnd) {
+        _errorListener?.callAsFunction(null, 'socket end failed'.toJS);
+        return;
+      }
+
+      if (callback != null) {
+        (callback as JSFunction).callAsFunction(null);
+      }
+    });
+  }
+
+  void destroy([JSAny? error]) {
+    error;
+    destroyed = true;
+  }
+
+  void completeEnd() {
+    final callback = _pendingEndCallback;
+    _pendingEndCallback = null;
+    if (callback != null) {
+      (callback as JSFunction).callAsFunction(null);
+    }
+  }
+
+  void failPendingEnd() {
+    _pendingEndCallback = null;
+    _errorListener?.callAsFunction(null, 'socket end failed'.toJS);
+  }
 }
 
 void main() {
@@ -121,10 +214,12 @@ void main() {
   test(
     'node runtime onError can translate failures into a custom response',
     () async {
+      NodeRuntimeExtension? errorExtension;
       final runtime = await serve(
         Server(
           fetch: (request, context) => throw StateError('boom'),
           onError: (error, stackTrace, context) {
+            errorExtension = context.extension<NodeRuntimeExtension>();
             return Response(
               'handled ${context.runtime.name}',
               ResponseInit(status: 418),
@@ -140,8 +235,29 @@ void main() {
       final response = await _fetchText(runtime.url!.resolve('/fails'));
       expect(response.status, 418);
       expect(response.text, 'handled node');
+      expect(errorExtension, isNotNull);
+      expect(errorExtension!.request, isNotNull);
     },
   );
+
+  test('node runtime rejects raw 101 responses from onError', () async {
+    final runtime = await serve(
+      Server(
+        fetch: (request, context) => throw StateError('boom'),
+        onError: (error, stackTrace, context) {
+          return Response(null, const ResponseInit(status: 101));
+        },
+      ),
+      host: '127.0.0.1',
+      port: 0,
+    );
+
+    addTearDown(runtime.close);
+
+    final response = await _fetchText(runtime.url!.resolve('/raw-101-error'));
+    expect(response.status, 500);
+    expect(response.text, 'Internal Server Error');
+  });
 
   test('node runtime streams response bodies over node:http', () async {
     final runtime = await serve(
@@ -651,6 +767,216 @@ void main() {
     await closeFuture;
     expect(closeCompleted, isTrue);
   });
+
+  test(
+    'node websocket adapter handles socket end failures during close',
+    () async {
+      final uncaughtErrors = <Object>[];
+      final fakeSocket = _FakeNodeSocket();
+      final incoming = StreamController<List<int>>();
+
+      await runZonedGuarded(
+        () async {
+          final adapter = NodeServerWebSocketAdapter(
+            socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
+            incoming: incoming.stream,
+            protocol: 'chat',
+          );
+          final eventsDrained = adapter.events.drain<void>();
+
+          final closeFuture = adapter.close(1000, 'bye');
+          incoming.add(_maskedCloseFrame(1000, 'bye'));
+          await closeFuture;
+          await eventsDrained;
+          await incoming.close();
+        },
+        (error, stackTrace) {
+          uncaughtErrors.add(error);
+        },
+      );
+
+      expect(uncaughtErrors, isEmpty);
+      expect(fakeSocket.destroyed, isTrue);
+    },
+  );
+
+  test(
+    'node websocket adapter keeps close and closed pending until socket end finishes',
+    () async {
+      final incoming = StreamController<List<int>>();
+      final fakeSocket = _FakeNodeSocket(failEnd: false, delayEnd: true);
+      final adapter = NodeServerWebSocketAdapter(
+        socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
+        incoming: incoming.stream,
+        protocol: 'chat',
+      );
+      final eventsDrained = adapter.events.drain<void>();
+
+      var closeCompleted = false;
+      final closeFuture = adapter.close(1000, 'bye').then((_) {
+        closeCompleted = true;
+      });
+
+      var closedCompleted = false;
+      final closedFuture = adapter.closed.then((_) {
+        closedCompleted = true;
+      });
+
+      await Future<void>.delayed(Duration.zero);
+      expect(fakeSocket.endCalled, isFalse);
+      expect(closeCompleted, isFalse);
+      expect(closedCompleted, isFalse);
+
+      incoming.add(_maskedCloseFrame(1000, 'bye'));
+      await Future<void>.delayed(Duration.zero);
+      expect(fakeSocket.endCalled, isTrue);
+      expect(closeCompleted, isFalse);
+      expect(closedCompleted, isFalse);
+
+      fakeSocket.completeEnd();
+
+      await closeFuture;
+      await closedFuture;
+      await incoming.close();
+      await eventsDrained;
+      expect(closeCompleted, isTrue);
+      expect(closedCompleted, isTrue);
+    },
+  );
+
+  test(
+    'node websocket adapter emits CloseReceived after a local close once the peer closes',
+    () async {
+      final incoming = StreamController<List<int>>();
+      final fakeSocket = _FakeNodeSocket(failEnd: false, delayEnd: true);
+      final adapter = NodeServerWebSocketAdapter(
+        socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
+        incoming: incoming.stream,
+        protocol: 'chat',
+      );
+
+      final eventsExpectation = expectLater(
+        adapter.events,
+        emitsInOrder([
+          isA<ws.CloseReceived>()
+              .having((event) => event.code, 'code', 1000)
+              .having((event) => event.reason, 'reason', 'bye'),
+          emitsDone,
+        ]),
+      );
+
+      final closeFuture = adapter.close(1000, 'bye');
+      incoming.add(_maskedCloseFrame(1000, 'bye'));
+      await Future<void>.delayed(Duration.zero);
+      fakeSocket.completeEnd();
+      await closeFuture;
+      await incoming.close();
+
+      await eventsExpectation;
+    },
+  );
+
+  test(
+    'node websocket protocol close is not stalled by a paused events listener',
+    () async {
+      final incoming = StreamController<List<int>>();
+      final fakeSocket = _FakeNodeSocket(failEnd: false, delayEnd: true);
+      final adapter = NodeServerWebSocketAdapter(
+        socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
+        incoming: incoming.stream,
+        protocol: 'chat',
+      );
+
+      final subscription = adapter.events.listen((_) {});
+      addTearDown(subscription.cancel);
+      subscription.pause();
+
+      incoming.add(_maskedTextFrame(const [0xC3, 0x28]));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(fakeSocket.endCalled, isTrue);
+
+      subscription.resume();
+      fakeSocket.completeEnd();
+      await incoming.close();
+    },
+  );
+
+  test(
+    'node websocket adapter destroys the socket and cancels reads after write failure',
+    () async {
+      final incomingCanceled = Completer<void>();
+      final incoming = StreamController<List<int>>(
+        onCancel: () {
+          if (!incomingCanceled.isCompleted) {
+            incomingCanceled.complete();
+          }
+        },
+      );
+      final fakeSocket = _FakeNodeSocket(failWrite: true);
+      final uncaughtErrors = <Object>[];
+
+      await runZonedGuarded(
+        () async {
+          final adapter = NodeServerWebSocketAdapter(
+            socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
+            incoming: incoming.stream,
+            protocol: 'chat',
+          );
+
+          adapter.sendText('boom');
+          await incomingCanceled.future.timeout(const Duration(seconds: 1));
+        },
+        (error, stackTrace) {
+          uncaughtErrors.add(error);
+        },
+      );
+
+      expect(uncaughtErrors, isNotEmpty);
+      expect(fakeSocket.destroyed, isTrue);
+
+      await incoming.close();
+    },
+  );
+
+  test(
+    'node websocket adapter dispose completes without an events listener',
+    () async {
+      final incoming = StreamController<List<int>>();
+      final fakeSocket = _FakeNodeSocket(failEnd: false);
+      final adapter = NodeServerWebSocketAdapter(
+        socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
+        incoming: incoming.stream,
+        protocol: 'chat',
+      );
+
+      await adapter
+          .dispose(1001, 'shutdown')
+          .timeout(const Duration(milliseconds: 250));
+      await incoming.close();
+    },
+  );
+
+  test(
+    'node websocket adapter close completes without an events listener after peer close',
+    () async {
+      final incoming = StreamController<List<int>>();
+      final fakeSocket = _FakeNodeSocket(failEnd: false, delayEnd: true);
+      final adapter = NodeServerWebSocketAdapter(
+        socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
+        incoming: incoming.stream,
+        protocol: 'chat',
+      );
+
+      final closeFuture = adapter.close(1000, 'bye');
+      incoming.add(_maskedCloseFrame(1000, 'bye'));
+      await Future<void>.delayed(Duration.zero);
+      fakeSocket.completeEnd();
+
+      await closeFuture.timeout(const Duration(milliseconds: 250));
+      await incoming.close();
+    },
+  );
 }
 
 const _nonPreReadRequestMethods = ['POST', 'GET', 'HEAD'];
@@ -698,6 +1024,28 @@ Future<void> _expectNodeRuntimeDoesNotPreReadRequestStream(
   expect(response.status, 200);
   expect(response.text, isEmpty);
   expect(response.rawHeaderValues('x-method'), [method]);
+}
+
+List<int> _maskedCloseFrame(int code, String reason) {
+  final reasonBytes = utf8.encode(reason);
+  final payload = <int>[(code >> 8) & 0xFF, code & 0xFF, ...reasonBytes];
+  const mask = [0x11, 0x22, 0x33, 0x44];
+  final maskedPayload = List<int>.generate(
+    payload.length,
+    (index) => payload[index] ^ mask[index % 4],
+  );
+
+  return <int>[0x88, 0x80 | payload.length, ...mask, ...maskedPayload];
+}
+
+List<int> _maskedTextFrame(List<int> payload) {
+  const mask = [0x11, 0x22, 0x33, 0x44];
+  final maskedPayload = List<int>.generate(
+    payload.length,
+    (index) => payload[index] ^ mask[index % 4],
+  );
+
+  return <int>[0x81, 0x80 | payload.length, ...mask, ...maskedPayload];
 }
 
 Future<void> _expectNodeRuntimeBridgesRequestStreamAfterHeadersAreFlushed(

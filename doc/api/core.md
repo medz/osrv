@@ -10,6 +10,15 @@ See [public surface](./public-surface.md) for the full export list.
 import 'package:osrv/osrv.dart';
 ```
 
+When you use websocket-specific APIs, prefer adding:
+
+```dart
+import 'package:osrv/websocket.dart';
+```
+
+That entrypoint re-exports the websocket event/socket types used by `osrv`'s
+websocket surface.
+
 ## Core Request Types
 
 `osrv` re-exports these request primitives from `package:ht/ht.dart`:
@@ -123,6 +132,7 @@ It provides:
 - `runtime`
 - `capabilities`
 - `waitUntil(Future<void> task)`
+- `webSocket`
 - `extension<T extends RuntimeExtension>()`
 
 Example:
@@ -165,6 +175,17 @@ See [capabilities](../capabilities.md) for the current matrix.
 `RuntimeExtension` is the marker interface used for runtime-specific extensions.
 
 Use `context.extension<T>()` to retrieve one.
+
+## `WebSocketRequest`
+
+`WebSocketRequest` is exported from `package:osrv/websocket.dart`.
+
+When websocket handling is supported by the active runtime family, `RequestContext.webSocket` exposes:
+- `isUpgradeRequest`
+- `requestedProtocols`
+- `accept(WebSocketHandler handler, {String? protocol})`
+
+`accept(...)` returns a response-compatible websocket upgrade outcome for `Server.fetch(...)`.
 
 Examples:
 - `DartRuntimeExtension`

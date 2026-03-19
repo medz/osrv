@@ -173,6 +173,7 @@ final server = Server(
 
 ## Current Limitations
 
-- websocket support is not implemented
+- websocket server behavior is unsupported on current Vercel Functions; use a
+  separate realtime provider instead of claiming inbound websocket support
 - the runtime entry is JavaScript-target only and does not compile to native executables
 - there is no listener-style `serve(...)` API for Vercel

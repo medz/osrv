@@ -10,8 +10,12 @@ import 'dart:typed_data';
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/cloudflare.dart';
 import 'package:osrv/src/runtime/_internal/js/web_stream_bridge.dart';
+import 'package:osrv/src/runtime/cloudflare/host.dart'
+    show CloudflareWebSocketHost;
+import 'package:osrv/src/runtime/cloudflare/server_web_socket.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
+import 'package:web_socket/web_socket.dart' as ws;
 
 @JSExport()
 final class _TestExecutionContext {
@@ -21,6 +25,68 @@ final class _TestExecutionContext {
   void waitUntil(JSPromise<JSAny?> task) {
     waitUntilCalls++;
     tasks.add(task.toDart);
+  }
+}
+
+@JSExport()
+final class _FakeCloudflareSocket {
+  final Map<String, JSFunction> _listeners = <String, JSFunction>{};
+  Object? lastSent;
+  int? closeCode;
+  String? closeReason;
+
+  void addEventListener(String type, JSFunction listener) {
+    _listeners[type] = listener;
+  }
+
+  void send(JSAny? data) {
+    lastSent = data?.dartify();
+  }
+
+  void close([JSAny? code, JSAny? reason]) {
+    final dartCode = (code as JSNumber?)?.toDartInt;
+    final dartReason = (reason as JSString?)?.toDart;
+    if (dartCode == 1004 ||
+        dartCode == 1005 ||
+        dartCode == 1006 ||
+        dartCode == 1015) {
+      throw StateError('invalid close code');
+    }
+    if (dartReason != null && utf8.encode(dartReason).length > 123) {
+      throw StateError('close reason too long');
+    }
+
+    closeCode = dartCode;
+    closeReason = dartReason;
+  }
+
+  void emitClose([int? code, String? reason]) {
+    final listener = _listeners['close'];
+    if (listener == null) {
+      return;
+    }
+
+    final event = JSObject();
+    if (code != null) {
+      event.setProperty('code'.toJS, code.toJS);
+    }
+    if (reason != null) {
+      event.setProperty('reason'.toJS, reason.toJS);
+    }
+    listener.callAsFunction(null, event);
+  }
+
+  void emitMessage(JSAny? data) {
+    final listener = _listeners['message'];
+    if (listener == null) {
+      return;
+    }
+
+    final event = JSObject();
+    if (data != null) {
+      event.setProperty('data'.toJS, data);
+    }
+    listener.callAsFunction(null, event);
   }
 }
 
@@ -84,7 +150,7 @@ void main() {
       'streaming': true,
       'backgroundTask': true,
       'nodeCompat': true,
-      'websocket': false,
+      'websocket': true,
     });
   });
 
@@ -114,11 +180,83 @@ void main() {
     await Future.wait(ctxExport.tasks);
   });
 
+  test('defineFetchExport exposes request-scoped websocket metadata', () async {
+    defineFetchExport(
+      Server(
+        fetch: (request, context) {
+          final webSocket = context.webSocket;
+          return Response.json({
+            'hasWebSocket': webSocket != null,
+            'upgrade': webSocket?.isUpgradeRequest ?? false,
+            'protocols': webSocket?.requestedProtocols ?? const <String>[],
+          });
+        },
+      ),
+    );
+
+    final upgradeHeaders = web.Headers();
+    upgradeHeaders.set('upgrade', 'websocket');
+    upgradeHeaders.set('connection', 'Upgrade');
+    upgradeHeaders.set('sec-websocket-protocol', 'chat, superchat');
+
+    final upgradeResponse = await _callWorkerFetch(
+      _currentFetchHandler(),
+      web.Request(
+        'https://example.com/chat'.toJS,
+        web.RequestInit(headers: upgradeHeaders),
+      ),
+      JSObject(),
+      createJSInteropWrapper(_TestExecutionContext()),
+    );
+    expect(upgradeResponse.status, 200);
+    expect(jsonDecode((await upgradeResponse.text().toDart).toDart), {
+      'hasWebSocket': true,
+      'upgrade': true,
+      'protocols': ['chat', 'superchat'],
+    });
+
+    final plainResponse = await _callWorkerFetch(
+      _currentFetchHandler(),
+      web.Request('https://example.com/plain'.toJS),
+      JSObject(),
+      createJSInteropWrapper(_TestExecutionContext()),
+    );
+    expect(plainResponse.status, 200);
+    expect(jsonDecode((await plainResponse.text().toDart).toDart), {
+      'hasWebSocket': true,
+      'upgrade': false,
+      'protocols': <String>[],
+    });
+
+    final postUpgradeResponse = await _callWorkerFetch(
+      _currentFetchHandler(),
+      web.Request(
+        'https://example.com/chat'.toJS,
+        web.RequestInit(method: 'POST', headers: upgradeHeaders),
+      ),
+      JSObject(),
+      createJSInteropWrapper(_TestExecutionContext()),
+    );
+    expect(postUpgradeResponse.status, 200);
+    expect(jsonDecode((await postUpgradeResponse.text().toDart).toDart), {
+      'hasWebSocket': true,
+      'upgrade': false,
+      'protocols': ['chat', 'superchat'],
+    });
+  });
+
   test('defineFetchExport uses onError to translate fetch failures', () async {
+    CloudflareRuntimeExtension<JSObject, web.Request>? errorExtension;
+    RequestContext? errorRequestContext;
     defineFetchExport(
       Server(
         fetch: (request, context) => throw StateError('boom'),
         onError: (error, stackTrace, context) {
+          errorExtension = context
+              .extension<CloudflareRuntimeExtension<JSObject, web.Request>>();
+          if (context is RequestContext) {
+            errorRequestContext = context;
+          }
           return Response(
             'handled ${context.runtime.name}',
             ResponseInit(status: 418),
@@ -136,6 +274,53 @@ void main() {
 
     expect(response.status, 418);
     expect((await response.text().toDart).toDart, 'handled cloudflare');
+    expect(errorExtension, isNotNull);
+    expect(errorExtension!.request, isNotNull);
+    expect(errorRequestContext, isNotNull);
+    expect(errorRequestContext!.webSocket, isNotNull);
+    expect(errorRequestContext!.webSocket!.isUpgradeRequest, isFalse);
+  });
+
+  test('defineFetchExport falls back to 500 when onError throws', () async {
+    defineFetchExport(
+      Server(
+        fetch: (request, context) => throw StateError('boom'),
+        onError: (error, stackTrace, context) {
+          throw StateError('error in onError');
+        },
+      ),
+    );
+
+    final response = await _callWorkerFetch(
+      _currentFetchHandler(),
+      web.Request('https://example.com/error-on-error'.toJS),
+      JSObject(),
+      createJSInteropWrapper(_TestExecutionContext()),
+    );
+
+    expect(response.status, 500);
+    expect((await response.text().toDart).toDart, 'Internal Server Error');
+  });
+
+  test('defineFetchExport rejects raw 101 responses from onError', () async {
+    defineFetchExport(
+      Server(
+        fetch: (request, context) => throw StateError('boom'),
+        onError: (error, stackTrace, context) {
+          return Response(null, const ResponseInit(status: 101));
+        },
+      ),
+    );
+
+    final response = await _callWorkerFetch(
+      _currentFetchHandler(),
+      web.Request('https://example.com/raw-101-error'.toJS),
+      JSObject(),
+      createJSInteropWrapper(_TestExecutionContext()),
+    );
+
+    expect(response.status, 500);
+    expect((await response.text().toDart).toDart, 'Internal Server Error');
   });
 
   test('defineFetchExport runs onStart only once', () async {
@@ -182,6 +367,29 @@ void main() {
     expect(response.status, 500);
     expect((await response.text().toDart).toDart, 'Internal Server Error');
   });
+
+  test(
+    'defineFetchExport rejects raw 101 responses outside websocket accept',
+    () async {
+      defineFetchExport(
+        Server(
+          fetch: (request, context) {
+            return Response(null, const ResponseInit(status: 101));
+          },
+        ),
+      );
+
+      final response = await _callWorkerFetch(
+        _currentFetchHandler(),
+        web.Request('https://example.com/raw-101'.toJS),
+        JSObject(),
+        createJSInteropWrapper(_TestExecutionContext()),
+      );
+
+      expect(response.status, 500);
+      expect((await response.text().toDart).toDart, 'Internal Server Error');
+    },
+  );
 
   test('defineFetchExport preserves Response.error semantics', () async {
     defineFetchExport(Server(fetch: (request, context) => Response.error()));
@@ -288,6 +496,82 @@ void main() {
 
     expect((await response.text().toDart).toDart, 'Hello Osrv!');
   });
+
+  test(
+    'cloudflare websocket adapter keeps the socket open when host close validation fails',
+    () async {
+      final fakeSocket = _FakeCloudflareSocket();
+      final adapter = CloudflareServerWebSocketAdapter(
+        createJSInteropWrapper(fakeSocket) as CloudflareWebSocketHost,
+        protocol: 'chat',
+      );
+
+      await expectLater(adapter.close(1005), throwsStateError);
+
+      adapter.sendText('still-open');
+      expect(fakeSocket.lastSent, 'still-open');
+    },
+  );
+
+  test(
+    'cloudflare websocket adapter replies to non-sendable peer close codes with 1000',
+    () async {
+      final fakeSocket = _FakeCloudflareSocket();
+      final adapter = CloudflareServerWebSocketAdapter(
+        createJSInteropWrapper(fakeSocket) as CloudflareWebSocketHost,
+        protocol: 'chat',
+      );
+
+      fakeSocket.emitClose(1006, 'abnormal');
+
+      expect(fakeSocket.closeCode, 1000);
+      await expectLater(
+        adapter.events,
+        emitsInOrder([isA<ws.CloseReceived>(), emitsDone]),
+      );
+    },
+  );
+
+  test(
+    'cloudflare websocket adapter rejects unsupported host payload types',
+    () {
+      final fakeSocket = _FakeCloudflareSocket();
+      final adapter = CloudflareServerWebSocketAdapter(
+        createJSInteropWrapper(fakeSocket) as CloudflareWebSocketHost,
+        protocol: 'chat',
+      );
+
+      expect(() => fakeSocket.emitMessage(JSObject()), throwsUnsupportedError);
+
+      adapter;
+    },
+  );
+
+  test(
+    'cloudflare websocket adapter emits CloseReceived after a local close once the host closes',
+    () async {
+      final fakeSocket = _FakeCloudflareSocket();
+      final adapter = CloudflareServerWebSocketAdapter(
+        createJSInteropWrapper(fakeSocket) as CloudflareWebSocketHost,
+        protocol: 'chat',
+      );
+
+      final eventsExpectation = expectLater(
+        adapter.events,
+        emitsInOrder([
+          isA<ws.CloseReceived>()
+              .having((event) => event.code, 'code', 1000)
+              .having((event) => event.reason, 'reason', 'bye'),
+          emitsDone,
+        ]),
+      );
+
+      await adapter.close(1000, 'bye');
+      fakeSocket.emitClose(1000, 'bye');
+
+      await eventsExpectation;
+    },
+  );
 }
 
 Future<web.Response> _callWorkerFetch(

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'capabilities.dart';
 import 'extension.dart';
 import 'runtime.dart';
+import 'websocket.dart';
 
 /// Carries runtime metadata shared by lifecycle hooks and request handling.
 base class ServerLifecycleContext {
@@ -39,9 +40,15 @@ base class RequestContext extends ServerLifecycleContext {
     required super.capabilities,
     required void Function(Future<void> task) onWaitUntil,
     super.extension,
-  }) : _onWaitUntil = onWaitUntil;
+    WebSocketRequest? webSocket,
+  }) : _onWaitUntil = onWaitUntil,
+       _webSocket = webSocket;
 
   final void Function(Future<void> task) _onWaitUntil;
+  final WebSocketRequest? _webSocket;
+
+  /// Returns the request-scoped websocket upgrade capability when supported.
+  WebSocketRequest? get webSocket => _webSocket;
 
   /// Registers a task that should outlive the immediate response.
   void waitUntil(Future<void> task) {
