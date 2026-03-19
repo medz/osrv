@@ -105,6 +105,8 @@ Baseline:
 
 CI-aligned verification:
 
+- Prefer `./tool/ci_local.sh --native` to run the full local CI-equivalent bundle.
+- Prefer `./tool/ci_local.sh --job <job>` when you need a single GitHub Actions job through `act`.
 - `dart format --output=none --set-exit-if-changed .`
 - `dart test test`
 - `dart test -p vm integration_test/dart integration_test/compile integration_test/node/runtime_process_test.dart integration_test/bun/runtime_process_test.dart integration_test/deno/runtime_process_test.dart integration_test/cloudflare/runtime_process_test.dart`

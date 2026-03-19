@@ -105,6 +105,10 @@ Future<Uri> waitForRuntimeUrl(
   return Uri.parse(value);
 }
 
+/// Opens an HTTP request and returns the live response stream.
+///
+/// Callers must consume or `drain()` the returned response so the underlying
+/// connection can be released promptly.
 Future<HttpClientResponse> send(
   Uri uri, {
   String method = 'GET',
