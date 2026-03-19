@@ -239,7 +239,10 @@ Future<void> _handleNodeUpgrade({
     final response = await server.fetch(htRequest, context);
     final accepted = webSocket.takeAcceptedUpgrade(response);
     if (accepted == null) {
-      await _writeNodeUpgradeHttpResponse(socket, response);
+      await _writeNodeUpgradeHttpResponse(
+        socket,
+        _sanitizeNodeUpgradeErrorResponse(response, webSocket: webSocket),
+      );
       return;
     }
 
@@ -255,6 +258,13 @@ Future<void> _handleNodeUpgrade({
     }
 
     final protocol = accepted.protocol;
+    final requestedProtocols = webSocket.requestedProtocols;
+    if (protocol != null &&
+        (!requestedProtocols.contains(protocol) ||
+            !_isValidWebSocketSubprotocolToken(protocol))) {
+      await _writeNodeUpgradeFailureResponse(socket, status: 400);
+      return;
+    }
     await _writeNodeWebSocketHandshake(socket, key: key, protocol: protocol);
 
     final adapter = NodeServerWebSocketAdapter(
@@ -335,14 +345,20 @@ Future<void> _writeNodeUpgradeHttpResponse(
   Response response,
 ) async {
   final body = await response.bytes();
-  final statusText = response.statusText.isEmpty
+  final rawStatusText = response.statusText.isEmpty
       ? 'HTTP Response'
       : response.statusText;
+  final statusText = _containsHttpLineBreak(rawStatusText)
+      ? 'HTTP Response'
+      : rawStatusText;
   final builder = StringBuffer()
     ..write('HTTP/1.1 ${response.status} $statusText\r\n');
 
   var hasContentLength = false;
   for (final MapEntry(:key, :value) in response.headers.entries()) {
+    if (!_isValidHttpHeaderName(key) || _containsHttpLineBreak(value)) {
+      continue;
+    }
     if (key.toLowerCase() == 'content-length') {
       hasContentLength = true;
     }
@@ -470,3 +486,13 @@ String? _headerValue(Object? rawHeaders, String name) {
 }
 
 const _nodeWebSocketGuid = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+final _httpTokenPattern = RegExp(r"^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$");
+
+bool _containsHttpLineBreak(String value) =>
+    value.contains('\r') || value.contains('\n');
+
+bool _isValidHttpHeaderName(String value) =>
+    !_containsHttpLineBreak(value) && _httpTokenPattern.hasMatch(value);
+
+bool _isValidWebSocketSubprotocolToken(String value) =>
+    _httpTokenPattern.hasMatch(value);

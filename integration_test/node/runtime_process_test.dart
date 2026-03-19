@@ -206,12 +206,255 @@ void main() {
       expect(stderrBuffer.toString(), isEmpty);
     },
   );
+
+  test(
+    'node runtime rejects websocket upgrades without a websocket key',
+    () async {
+      if (!await commandAvailable('node')) {
+        markTestSkipped('node is not available in the current environment');
+        return;
+      }
+
+      final process = await _startNodeRuntime();
+      attachProcessCleanup(process);
+      final uri = await waitForRuntimeUrl(stdoutLines(process));
+
+      final response = await _sendRawHttpRequest(
+        uri.replace(path: '/chat', query: '', fragment: ''),
+        headers: {
+          'Upgrade': 'websocket',
+          'Connection': 'Upgrade',
+          'Sec-WebSocket-Version': '13',
+          'Sec-WebSocket-Protocol': 'chat',
+        },
+      );
+
+      expect(response.statusCode, 400);
+      expect(response.body, 'Bad Request');
+    },
+  );
+
+  test(
+    'node runtime sanitizes raw 101 upgrade responses before writing to the socket',
+    () async {
+      if (!await commandAvailable('node')) {
+        markTestSkipped('node is not available in the current environment');
+        return;
+      }
+
+      final process = await _startNodeRuntime();
+      attachProcessCleanup(process);
+      final uri = await waitForRuntimeUrl(stdoutLines(process));
+
+      final response = await _sendRawHttpRequest(
+        uri.replace(path: '/raw-101-upgrade', query: '', fragment: ''),
+        headers: _webSocketUpgradeHeaders(),
+      );
+
+      expect(response.statusCode, 500);
+      expect(response.body, 'Internal Server Error');
+      expect(response.header('upgrade'), isNull);
+      expect(response.header('connection'), isNull);
+    },
+  );
+
+  test('node runtime rejects unsafe selected websocket subprotocols', () async {
+    if (!await commandAvailable('node')) {
+      markTestSkipped('node is not available in the current environment');
+      return;
+    }
+
+    final process = await _startNodeRuntime();
+    attachProcessCleanup(process);
+    final uri = await waitForRuntimeUrl(stdoutLines(process));
+
+    final response = await _sendRawHttpRequest(
+      uri.replace(path: '/chat-requested-protocol', query: '', fragment: ''),
+      headers: _webSocketUpgradeHeaders(protocols: 'bad proto'),
+    );
+
+    expect(response.statusCode, 400);
+    expect(response.body, 'Bad Request');
+    expect(response.rawResponse, isNot(contains('Injected: nope')));
+    expect(response.header('sec-websocket-protocol'), isNull);
+  });
+
+  test(
+    'node runtime strips CRLF injection from upgrade HTTP responses',
+    () async {
+      if (!await commandAvailable('node')) {
+        markTestSkipped('node is not available in the current environment');
+        return;
+      }
+
+      final process = await _startNodeRuntime();
+      attachProcessCleanup(process);
+      final uri = await waitForRuntimeUrl(stdoutLines(process));
+
+      final response = await _sendRawHttpRequest(
+        uri.replace(path: '/upgrade-http-response', query: '', fragment: ''),
+        headers: _webSocketUpgradeHeaders(),
+      );
+
+      expect(response.statusCode, 418);
+      expect(response.statusText, 'HTTP Response');
+      expect(response.header('x-safe'), 'ok');
+      expect(response.rawResponse, isNot(contains('Injected: nope')));
+    },
+  );
+
+  test(
+    'node runtime closes active websocket sessions with 1001 during shutdown',
+    () async {
+      if (!await commandAvailable('node')) {
+        markTestSkipped('node is not available in the current environment');
+        return;
+      }
+
+      final process = await _startNodeRuntime();
+      attachProcessCleanup(process);
+
+      final stderrBuffer = StringBuffer();
+      process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+      final lines = stdoutLines(process);
+      final uri = await waitForRuntimeUrl(lines);
+      final client = await _RawWebSocketClient.connect(
+        uri.replace(scheme: 'ws', path: '/chat', query: '', fragment: ''),
+        protocols: const ['chat'],
+      );
+      addTearDown(client.dispose);
+
+      final connected = await client.nextFrame(
+        timeout: const Duration(seconds: 5),
+      );
+      expect(connected.opcode, 0x1);
+      expect(utf8.decode(connected.payload), 'connected');
+
+      final closing = await send(uri.resolve('/close-runtime'));
+      expect(closing.statusCode, 200);
+      expect(await closing.transform(utf8.decoder).join(), 'closing');
+
+      final close = await client.nextFrame(timeout: const Duration(seconds: 5));
+      expect(close.opcode, 0x8);
+      expect(_decodeClosePayload(close.payload), (
+        code: 1001,
+        reason: 'Runtime shutdown',
+      ));
+
+      await client.sendClose(code: 1001, reason: 'Runtime shutdown');
+      await client.done.timeout(const Duration(seconds: 5));
+      expect(stderrBuffer.toString(), isEmpty);
+    },
+  );
 }
 
 Future<Process> _startNodeRuntime() async {
   final appDir = '$workspacePath/integration_test/node/app';
   await buildFixture(appDir);
   return startFixture(appDir);
+}
+
+Map<String, String> _webSocketUpgradeHeaders({String protocols = 'chat'}) {
+  return {
+    'Upgrade': 'websocket',
+    'Connection': 'Upgrade',
+    'Sec-WebSocket-Version': '13',
+    'Sec-WebSocket-Key': base64.encode(
+      List<int>.generate(16, (index) => index + 1),
+    ),
+    'Sec-WebSocket-Protocol': protocols,
+  };
+}
+
+Future<_RawHttpResponse> _sendRawHttpRequest(
+  Uri uri, {
+  String method = 'GET',
+  Map<String, String> headers = const <String, String>{},
+  String? body,
+}) async {
+  final socket = await Socket.connect(uri.host, uri.port);
+  try {
+    final path = uri.path.isEmpty ? '/' : uri.path;
+    final target = uri
+        .replace(scheme: '', host: '', port: 0, path: path)
+        .toString();
+    final request = StringBuffer()
+      ..write('$method $target HTTP/1.1\r\n')
+      ..write('Host: ${uri.host}:${uri.port}\r\n');
+    headers.forEach((key, value) {
+      request.write('$key: $value\r\n');
+    });
+    if (body != null) {
+      request.write('Content-Length: ${utf8.encode(body).length}\r\n');
+    }
+    request.write('\r\n');
+    if (body != null) {
+      request.write(body);
+    }
+
+    socket.add(utf8.encode(request.toString()));
+    await socket.flush();
+    await socket.close();
+
+    final responseBytes = await socket.fold<BytesBuilder>(
+      BytesBuilder(copy: false),
+      (builder, chunk) {
+        builder.add(chunk);
+        return builder;
+      },
+    );
+    final rawResponse = latin1.decode(responseBytes.takeBytes());
+    return _RawHttpResponse.parse(rawResponse);
+  } finally {
+    await socket.close();
+  }
+}
+
+final class _RawHttpResponse {
+  const _RawHttpResponse({
+    required this.statusCode,
+    required this.statusText,
+    required this.headers,
+    required this.body,
+    required this.rawResponse,
+  });
+
+  factory _RawHttpResponse.parse(String rawResponse) {
+    final parts = rawResponse.split('\r\n\r\n');
+    final head = parts.first;
+    final body = parts.length > 1 ? parts.sublist(1).join('\r\n\r\n') : '';
+    final lines = head.split('\r\n');
+    final statusLine = lines.first.split(' ');
+    final headers = <String, String>{};
+    for (final line in lines.skip(1)) {
+      if (line.isEmpty) {
+        continue;
+      }
+      final separator = line.indexOf(':');
+      if (separator <= 0) {
+        continue;
+      }
+      headers[line.substring(0, separator).toLowerCase()] = line
+          .substring(separator + 1)
+          .trim();
+    }
+
+    return _RawHttpResponse(
+      statusCode: int.parse(statusLine[1]),
+      statusText: statusLine.skip(2).join(' '),
+      headers: headers,
+      body: body,
+      rawResponse: rawResponse,
+    );
+  }
+
+  final int statusCode;
+  final String statusText;
+  final Map<String, String> headers;
+  final String body;
+  final String rawResponse;
+
+  String? header(String name) => headers[name.toLowerCase()];
 }
 
 final class _RawWebSocketClient {

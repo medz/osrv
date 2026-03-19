@@ -52,6 +52,33 @@ Future<void> main() async {
               }
             }
           });
+        case '/chat-requested-protocol':
+          final webSocket = context.webSocket;
+          if (webSocket == null || !webSocket.isUpgradeRequest) {
+            return Response(
+              'upgrade required',
+              const ResponseInit(status: 426),
+            );
+          }
+
+          return webSocket.accept(
+            protocol: webSocket.requestedProtocols.first,
+            (socket) async {
+              socket.sendText('connected');
+              await socket.events.drain<void>();
+            },
+          );
+        case '/raw-101-upgrade':
+          return Response(null, const ResponseInit(status: 101));
+        case '/upgrade-http-response':
+          return Response(
+            'bad upgrade',
+            ResponseInit(
+              status: 418,
+              statusText: 'bad\r\nInjected: nope',
+              headers: Headers()..set('x-safe', 'ok'),
+            ),
+          );
         case '/close-runtime':
           unawaited(
             Future<void>(() async {
