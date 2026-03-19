@@ -19,10 +19,11 @@ final class BunServerWebSocketAdapter implements ws.WebSocket {
   final BunServerWebSocketHost _socket;
   final String _protocol;
   final _events = StreamController<ws.WebSocketEvent>();
+  bool _closed = false;
 
   @override
   void sendText(String s) {
-    if (_events.isClosed) {
+    if (_closed || _events.isClosed) {
       throw ws.WebSocketConnectionClosed();
     }
 
@@ -31,7 +32,7 @@ final class BunServerWebSocketAdapter implements ws.WebSocket {
 
   @override
   void sendBytes(Uint8List b) {
-    if (_events.isClosed) {
+    if (_closed || _events.isClosed) {
       throw ws.WebSocketConnectionClosed();
     }
 
@@ -40,12 +41,12 @@ final class BunServerWebSocketAdapter implements ws.WebSocket {
 
   @override
   Future<void> close([int? code, String? reason]) async {
-    if (_events.isClosed) {
+    if (_closed || _events.isClosed) {
       throw ws.WebSocketConnectionClosed();
     }
 
-    unawaited(_events.close());
     bunServerWebSocketClose(_socket, code: code, reason: reason);
+    _closed = true;
   }
 
   @override
@@ -70,6 +71,7 @@ final class BunServerWebSocketAdapter implements ws.WebSocket {
       return;
     }
 
+    _closed = true;
     _events.add(ws.CloseReceived(code, reason ?? ''));
     unawaited(_events.close());
   }
