@@ -26,7 +26,6 @@ void main() {
         appDir,
         environment: {'HOST': '127.0.0.1', 'PORT': '$port'},
       );
-
       final stderrBuffer = StringBuffer();
       final stderrSub = process.stderr
           .transform(utf8.decoder)
@@ -35,78 +34,79 @@ void main() {
       final stdoutSub = process.stdout
           .transform(utf8.decoder)
           .listen(stdoutBuffer.write);
+      try {
+        final baseUri = Uri.parse('http://127.0.0.1:$port');
+        await waitForHttpServer(baseUri.resolve('/hello'));
 
-      final baseUri = Uri.parse('http://127.0.0.1:$port');
-      await waitForHttpServer(baseUri.resolve('/hello'));
+        await expectHelloEndpoint(
+          baseUri,
+          expectedBody: 'hello from cloudflare',
+          expectedRuntimeHeader: 'cloudflare',
+        );
 
-      await expectHelloEndpoint(
-        baseUri,
-        expectedBody: 'hello from cloudflare',
-        expectedRuntimeHeader: 'cloudflare',
-      );
+        final meta = await send(baseUri.resolve('/meta'));
+        expect(meta.statusCode, 200);
+        expect(jsonDecode(await meta.transform(utf8.decoder).join()), {
+          'runtime': 'cloudflare',
+          'kind': 'entry',
+          'capabilities': {
+            'streaming': true,
+            'websocket': true,
+            'fileSystem': false,
+            'backgroundTask': true,
+            'rawTcp': false,
+            'nodeCompat': true,
+          },
+        });
 
-      final meta = await send(baseUri.resolve('/meta'));
-      expect(meta.statusCode, 200);
-      expect(jsonDecode(await meta.transform(utf8.decoder).join()), {
-        'runtime': 'cloudflare',
-        'kind': 'entry',
-        'capabilities': {
-          'streaming': true,
-          'websocket': true,
-          'fileSystem': false,
-          'backgroundTask': true,
-          'rawTcp': false,
-          'nodeCompat': true,
-        },
-      });
+        final echo = await send(
+          baseUri.resolve('/echo?mode=full'),
+          method: 'POST',
+          body: 'payload',
+          headers: {'x-test': 'yes'},
+        );
+        expect(echo.statusCode, 200);
+        expect(jsonDecode(await echo.transform(utf8.decoder).join()), {
+          'method': 'POST',
+          'path': '/echo',
+          'query': 'full',
+          'header': 'yes',
+          'body': 'payload',
+        });
 
-      final echo = await send(
-        baseUri.resolve('/echo?mode=full'),
-        method: 'POST',
-        body: 'payload',
-        headers: {'x-test': 'yes'},
-      );
-      expect(echo.statusCode, 200);
-      expect(jsonDecode(await echo.transform(utf8.decoder).join()), {
-        'method': 'POST',
-        'path': '/echo',
-        'query': 'full',
-        'header': 'yes',
-        'body': 'payload',
-      });
+        final stream = await send(baseUri.resolve('/stream'));
+        expect(stream.statusCode, 200);
+        expect(await stream.transform(utf8.decoder).join(), 'hello cloudflare');
+        expect(stream.headers.value('x-stream'), 'yes');
 
-      final stream = await send(baseUri.resolve('/stream'));
-      expect(stream.statusCode, 200);
-      expect(await stream.transform(utf8.decoder).join(), 'hello cloudflare');
-      expect(stream.headers.value('x-stream'), 'yes');
+        final handled = await send(baseUri.resolve('/error'));
+        expect(handled.statusCode, 418);
+        expect(
+          await handled.transform(utf8.decoder).join(),
+          'handled cloudflare',
+        );
 
-      final handled = await send(baseUri.resolve('/error'));
-      expect(handled.statusCode, 418);
-      expect(
-        await handled.transform(utf8.decoder).join(),
-        'handled cloudflare',
-      );
+        final raw101 = await send(baseUri.resolve('/raw-101'));
+        expect(raw101.statusCode, 500);
+        expect(
+          await raw101.transform(utf8.decoder).join(),
+          'Internal Server Error',
+        );
 
-      final raw101 = await send(baseUri.resolve('/raw-101'));
-      expect(raw101.statusCode, 500);
-      expect(
-        await raw101.transform(utf8.decoder).join(),
-        'Internal Server Error',
-      );
-
-      await expectWebSocketEcho(baseUri);
-      await _stopWranglerProcess(
-        process,
-        stdoutSub: stdoutSub,
-        stderrSub: stderrSub,
-        stdoutBuffer: stdoutBuffer,
-        stderrBuffer: stderrBuffer,
-      );
-
-      _expectNoUnexpectedWranglerStderr(
-        stderrBuffer.toString(),
-        stdout: stdoutBuffer.toString(),
-      );
+        await expectWebSocketEcho(baseUri);
+      } finally {
+        await _stopWranglerProcess(
+          process,
+          stdoutSub: stdoutSub,
+          stderrSub: stderrSub,
+          stdoutBuffer: stdoutBuffer,
+          stderrBuffer: stderrBuffer,
+        );
+        _expectNoUnexpectedWranglerStderr(
+          stderrBuffer.toString(),
+          stdout: stdoutBuffer.toString(),
+        );
+      }
     },
     timeout: const Timeout(Duration(minutes: 2)),
   );

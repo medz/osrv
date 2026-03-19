@@ -70,16 +70,21 @@ JSExportedDartFunction createCloudflareFetchEntry(Server server) {
         );
       } catch (error, stackTrace) {
         if (server.onError != null) {
-          final handled = await server.onError!(
-            error,
-            stackTrace,
-            requestContext,
-          );
-          if (handled != null) {
-            return _responseFromCloudflareFetchOutcome(
-              _sanitizeCloudflareErrorResponse(handled, webSocket: webSocket),
-              webSocket: webSocket,
+          try {
+            final handled = await server.onError!(
+              error,
+              stackTrace,
+              requestContext,
             );
+            if (handled != null) {
+              return _responseFromCloudflareFetchOutcome(
+                _sanitizeCloudflareErrorResponse(handled, webSocket: webSocket),
+                webSocket: webSocket,
+              );
+            }
+          } catch (_) {
+            // Fall back to the default 500 response when user-provided onError
+            // handling also fails.
           }
         }
 

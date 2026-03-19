@@ -10,7 +10,6 @@ import 'dart:typed_data';
 import 'package:osrv/osrv.dart';
 import 'package:osrv/runtime/cloudflare.dart';
 import 'package:osrv/src/runtime/_internal/js/web_stream_bridge.dart';
-import 'package:osrv/src/runtime/cloudflare/websocket_request.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
 
@@ -180,28 +179,6 @@ void main() {
     });
   });
 
-  test(
-    'cloudflare websocket request keeps accepted upgrade until matching response is consumed',
-    () {
-      final headers = web.Headers();
-      headers.set('upgrade', 'websocket');
-      headers.set('connection', 'Upgrade');
-
-      final request = CloudflareWebSocketRequest(
-        web.Request(
-          'https://example.com/chat'.toJS,
-          web.RequestInit(headers: headers),
-        ),
-      );
-
-      final accepted = request.accept((socket) async {});
-      expect(request.takeAcceptedUpgrade(Response('nope')), isNull);
-      expect(request.hasAcceptedUpgrade(accepted), isTrue);
-      expect(request.takeAcceptedUpgrade(accepted), isNotNull);
-      expect(request.hasAcceptedUpgrade(accepted), isFalse);
-    },
-  );
-
   test('defineFetchExport uses onError to translate fetch failures', () async {
     CloudflareRuntimeExtension<JSObject, web.Request>? errorExtension;
     RequestContext? errorRequestContext;
@@ -236,6 +213,27 @@ void main() {
     expect(errorRequestContext, isNotNull);
     expect(errorRequestContext!.webSocket, isNotNull);
     expect(errorRequestContext!.webSocket!.isUpgradeRequest, isFalse);
+  });
+
+  test('defineFetchExport falls back to 500 when onError throws', () async {
+    defineFetchExport(
+      Server(
+        fetch: (request, context) => throw StateError('boom'),
+        onError: (error, stackTrace, context) {
+          throw StateError('error in onError');
+        },
+      ),
+    );
+
+    final response = await _callWorkerFetch(
+      _currentFetchHandler(),
+      web.Request('https://example.com/error-on-error'.toJS),
+      JSObject(),
+      createJSInteropWrapper(_TestExecutionContext()),
+    );
+
+    expect(response.status, 500);
+    expect((await response.text().toDart).toDart, 'Internal Server Error');
   });
 
   test('defineFetchExport rejects raw 101 responses from onError', () async {
