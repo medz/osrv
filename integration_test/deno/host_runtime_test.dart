@@ -1,6 +1,7 @@
 @TestOn('node')
 library;
 
+import 'dart:async';
 import 'dart:js_interop';
 import 'dart:js_interop_unsafe';
 
@@ -56,6 +57,23 @@ final class _FakeDenoSocket {
 }
 
 void main() {
+  test('deno websocket adapter close waits for the host close event', () async {
+    final fakeSocket = _FakeDenoSocket();
+    final adapter = DenoServerWebSocketAdapter(
+      createJSInteropWrapper(fakeSocket) as web.WebSocket,
+    );
+
+    final closeFuture = adapter.close(1000, 'bye');
+
+    await expectLater(
+      closeFuture.timeout(const Duration(milliseconds: 50)),
+      throwsA(isA<TimeoutException>()),
+    );
+
+    fakeSocket.emitClose(1000, 'bye');
+    await closeFuture.timeout(const Duration(milliseconds: 250));
+  });
+
   test(
     'deno websocket adapter emits CloseReceived after a local close once the host closes',
     () async {
@@ -74,9 +92,10 @@ void main() {
         ]),
       );
 
-      await adapter.close(1000, 'bye');
+      final closeFuture = adapter.close(1000, 'bye');
       fakeSocket.emitClose(1000, 'bye');
 
+      await closeFuture;
       await eventsExpectation;
     },
   );

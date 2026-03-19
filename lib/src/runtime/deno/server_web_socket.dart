@@ -101,6 +101,8 @@ final class DenoServerWebSocketAdapter implements ws.WebSocket {
     } else {
       _socket.close();
     }
+
+    await closed;
   }
 
   @override
