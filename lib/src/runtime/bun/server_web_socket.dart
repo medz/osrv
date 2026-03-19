@@ -4,7 +4,6 @@
 library;
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:js_interop';
 import 'dart:typed_data';
 
@@ -60,10 +59,7 @@ final class BunServerWebSocketAdapter implements ws.WebSocket {
       return;
     }
 
-    final event = _webSocketEventFromBunMessage(message);
-    if (event != null) {
-      _events.add(event);
-    }
+    _events.add(_webSocketEventFromBunMessage(message));
   }
 
   void closeFromHost(int? code, String? reason) {
@@ -77,7 +73,7 @@ final class BunServerWebSocketAdapter implements ws.WebSocket {
   }
 }
 
-ws.WebSocketEvent? _webSocketEventFromBunMessage(JSAny message) {
+ws.WebSocketEvent _webSocketEventFromBunMessage(JSAny message) {
   if (message.isA<JSString>()) {
     return ws.TextDataReceived((message as JSString).toDart);
   }
@@ -98,8 +94,8 @@ ws.WebSocketEvent? _webSocketEventFromBunMessage(JSAny message) {
     ByteBuffer() => ws.BinaryDataReceived(dartValue.asUint8List()),
     List<int>() => ws.BinaryDataReceived(Uint8List.fromList(dartValue)),
     String() => ws.TextDataReceived(dartValue),
-    _ => ws.BinaryDataReceived(
-      Uint8List.fromList(utf8.encode(dartValue.toString())),
+    _ => throw UnsupportedError(
+      'Unsupported Bun websocket payload type: ${dartValue.runtimeType}',
     ),
   };
 }

@@ -24,6 +24,19 @@ final class _FakeBunSocket {
 }
 
 void main() {
+  test('bun websocket adapter rejects unsupported host payload types', () {
+    final fakeSocket = _FakeBunSocket();
+    final adapter = BunServerWebSocketAdapter(
+      createJSInteropWrapper(fakeSocket) as BunServerWebSocketHost,
+      protocol: 'chat',
+    );
+
+    expect(
+      () => adapter.addMessage(JSObject()),
+      throwsA(isA<UnsupportedError>()),
+    );
+  });
+
   test(
     'bun websocket adapter emits CloseReceived after a local close once the host closes',
     () async {
