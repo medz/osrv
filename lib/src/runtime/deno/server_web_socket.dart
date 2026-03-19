@@ -66,10 +66,11 @@ final class DenoServerWebSocketAdapter implements ws.WebSocket {
   final Completer<void> _closedCompleter;
   final Completer<void> _openedCompleter;
   final _events = StreamController<ws.WebSocketEvent>();
+  bool _closed = false;
 
   @override
   void sendText(String s) {
-    if (_events.isClosed) {
+    if (_closed || _events.isClosed) {
       throw ws.WebSocketConnectionClosed();
     }
 
@@ -78,7 +79,7 @@ final class DenoServerWebSocketAdapter implements ws.WebSocket {
 
   @override
   void sendBytes(Uint8List b) {
-    if (_events.isClosed) {
+    if (_closed || _events.isClosed) {
       throw ws.WebSocketConnectionClosed();
     }
 
@@ -87,12 +88,11 @@ final class DenoServerWebSocketAdapter implements ws.WebSocket {
 
   @override
   Future<void> close([int? code, String? reason]) async {
-    if (_events.isClosed) {
+    if (_closed || _events.isClosed) {
       throw ws.WebSocketConnectionClosed();
     }
 
-    unawaited(_events.close());
-    _completeClosed();
+    _closed = true;
 
     if (code != null && reason != null) {
       _socket.close(code, reason);
@@ -121,6 +121,7 @@ final class DenoServerWebSocketAdapter implements ws.WebSocket {
       return;
     }
 
+    _closed = true;
     _events.add(ws.CloseReceived(code, reason ?? ''));
     unawaited(_events.close());
     if (!_openedCompleter.isCompleted) {
