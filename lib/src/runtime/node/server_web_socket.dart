@@ -54,32 +54,8 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
     _ensureOpen();
 
     final payload = _closePayload(code, reason);
-    _closed = true;
-    Object? pendingError;
-    StackTrace? pendingStackTrace;
-    try {
-      await _subscription.cancel();
-      await _writeCloseFrame(payload);
-      try {
-        await nodeSocketEnd(_socket);
-      } catch (_) {
-        try {
-          nodeSocketDestroy(_socket);
-        } catch (_) {}
-      }
-    } catch (error, stackTrace) {
-      pendingError = error;
-      pendingStackTrace = stackTrace;
-    } finally {
-      if (!_events.isClosed) {
-        unawaited(_events.close());
-      }
-      _completeClosed();
-    }
-
-    if (pendingError != null && pendingStackTrace != null) {
-      Error.throwWithStackTrace(pendingError, pendingStackTrace);
-    }
+    await _writeCloseFrame(payload);
+    await closed;
   }
 
   @override
@@ -107,7 +83,7 @@ final class NodeServerWebSocketAdapter implements ws.WebSocket {
   }
 
   void _ensureOpen() {
-    if (_closed || _events.isClosed) {
+    if (_closed || _closeSent || _events.isClosed) {
       throw ws.WebSocketConnectionClosed();
     }
   }

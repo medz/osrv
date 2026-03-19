@@ -14,6 +14,7 @@ import 'package:osrv/src/runtime/node/http_host.dart'
 import 'package:osrv/src/runtime/node/server_web_socket.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
+import 'package:web_socket/web_socket.dart' as ws;
 
 @JS('fetch')
 external JSPromise<web.Response> _fetch(JSAny input, [web.RequestInit init]);
@@ -760,17 +761,22 @@ void main() {
     () async {
       final uncaughtErrors = <Object>[];
       final fakeSocket = _FakeNodeSocket();
+      final incoming = StreamController<List<int>>();
 
       await runZonedGuarded(
         () async {
           final adapter = NodeServerWebSocketAdapter(
             socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
-            incoming: const Stream<List<int>>.empty(),
+            incoming: incoming.stream,
             protocol: 'chat',
           );
+          final eventsDrained = adapter.events.drain<void>();
 
-          await adapter.close(1000, 'bye');
-          await Future<void>.delayed(Duration.zero);
+          final closeFuture = adapter.close(1000, 'bye');
+          incoming.add(_maskedCloseFrame(1000, 'bye'));
+          await closeFuture;
+          await eventsDrained;
+          await incoming.close();
         },
         (error, stackTrace) {
           uncaughtErrors.add(error);
@@ -785,12 +791,14 @@ void main() {
   test(
     'node websocket adapter keeps close and closed pending until socket end finishes',
     () async {
+      final incoming = StreamController<List<int>>();
       final fakeSocket = _FakeNodeSocket(failEnd: false, delayEnd: true);
       final adapter = NodeServerWebSocketAdapter(
         socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
-        incoming: const Stream<List<int>>.empty(),
+        incoming: incoming.stream,
         protocol: 'chat',
       );
+      final eventsDrained = adapter.events.drain<void>();
 
       var closeCompleted = false;
       final closeFuture = adapter.close(1000, 'bye').then((_) {
@@ -803,6 +811,12 @@ void main() {
       });
 
       await Future<void>.delayed(Duration.zero);
+      expect(fakeSocket.endCalled, isFalse);
+      expect(closeCompleted, isFalse);
+      expect(closedCompleted, isFalse);
+
+      incoming.add(_maskedCloseFrame(1000, 'bye'));
+      await Future<void>.delayed(Duration.zero);
       expect(fakeSocket.endCalled, isTrue);
       expect(closeCompleted, isFalse);
       expect(closedCompleted, isFalse);
@@ -811,8 +825,42 @@ void main() {
 
       await closeFuture;
       await closedFuture;
+      await incoming.close();
+      await eventsDrained;
       expect(closeCompleted, isTrue);
       expect(closedCompleted, isTrue);
+    },
+  );
+
+  test(
+    'node websocket adapter emits CloseReceived after a local close once the peer closes',
+    () async {
+      final incoming = StreamController<List<int>>();
+      final fakeSocket = _FakeNodeSocket(failEnd: false, delayEnd: true);
+      final adapter = NodeServerWebSocketAdapter(
+        socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
+        incoming: incoming.stream,
+        protocol: 'chat',
+      );
+
+      final eventsExpectation = expectLater(
+        adapter.events,
+        emitsInOrder([
+          isA<ws.CloseReceived>()
+              .having((event) => event.code, 'code', 1000)
+              .having((event) => event.reason, 'reason', 'bye'),
+          emitsDone,
+        ]),
+      );
+
+      final closeFuture = adapter.close(1000, 'bye');
+      incoming.add(_maskedCloseFrame(1000, 'bye'));
+      await Future<void>.delayed(Duration.zero);
+      fakeSocket.completeEnd();
+      await closeFuture;
+      await incoming.close();
+
+      await eventsExpectation;
     },
   );
 }
@@ -862,6 +910,18 @@ Future<void> _expectNodeRuntimeDoesNotPreReadRequestStream(
   expect(response.status, 200);
   expect(response.text, isEmpty);
   expect(response.rawHeaderValues('x-method'), [method]);
+}
+
+List<int> _maskedCloseFrame(int code, String reason) {
+  final reasonBytes = utf8.encode(reason);
+  final payload = <int>[(code >> 8) & 0xFF, code & 0xFF, ...reasonBytes];
+  const mask = [0x11, 0x22, 0x33, 0x44];
+  final maskedPayload = List<int>.generate(
+    payload.length,
+    (index) => payload[index] ^ mask[index % 4],
+  );
+
+  return <int>[0x88, 0x80 | payload.length, ...mask, ...maskedPayload];
 }
 
 Future<void> _expectNodeRuntimeBridgesRequestStreamAfterHeadersAreFlushed(
