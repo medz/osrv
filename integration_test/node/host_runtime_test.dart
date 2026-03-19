@@ -51,8 +51,14 @@ extension type _NodeIncomingMessageReadableState._(JSObject _)
 
 @JSExport()
 final class _FakeNodeSocket {
+  _FakeNodeSocket({this.failEnd = true, this.delayEnd = false});
+
   JSFunction? _errorListener;
+  JSAny? _pendingEndCallback;
   bool destroyed = false;
+  bool endCalled = false;
+  final bool failEnd;
+  final bool delayEnd;
 
   void on(JSAny? event, JSFunction listener) {
     event;
@@ -78,14 +84,47 @@ final class _FakeNodeSocket {
   }
 
   void end([JSAny? first, JSAny? second]) {
+    endCalled = true;
+    final callback = switch ((first, second)) {
+      (final JSAny callback, _) when callback.typeofEquals('function') =>
+        callback,
+      (_, final JSAny callback) when callback.typeofEquals('function') =>
+        callback,
+      _ => null,
+    };
+    if (delayEnd) {
+      _pendingEndCallback = callback;
+      return;
+    }
+
     Future<void>.microtask(() {
-      _errorListener?.callAsFunction(null, 'socket end failed'.toJS);
+      if (failEnd) {
+        _errorListener?.callAsFunction(null, 'socket end failed'.toJS);
+        return;
+      }
+
+      if (callback != null) {
+        (callback as JSFunction).callAsFunction(null);
+      }
     });
   }
 
   void destroy([JSAny? error]) {
     error;
     destroyed = true;
+  }
+
+  void completeEnd() {
+    final callback = _pendingEndCallback;
+    _pendingEndCallback = null;
+    if (callback != null) {
+      (callback as JSFunction).callAsFunction(null);
+    }
+  }
+
+  void failPendingEnd() {
+    _pendingEndCallback = null;
+    _errorListener?.callAsFunction(null, 'socket end failed'.toJS);
   }
 }
 
@@ -740,6 +779,40 @@ void main() {
 
       expect(uncaughtErrors, isEmpty);
       expect(fakeSocket.destroyed, isTrue);
+    },
+  );
+
+  test(
+    'node websocket adapter keeps close and closed pending until socket end finishes',
+    () async {
+      final fakeSocket = _FakeNodeSocket(failEnd: false, delayEnd: true);
+      final adapter = NodeServerWebSocketAdapter(
+        socket: createJSInteropWrapper(fakeSocket) as NodeSocketHost,
+        incoming: const Stream<List<int>>.empty(),
+        protocol: 'chat',
+      );
+
+      var closeCompleted = false;
+      final closeFuture = adapter.close(1000, 'bye').then((_) {
+        closeCompleted = true;
+      });
+
+      var closedCompleted = false;
+      final closedFuture = adapter.closed.then((_) {
+        closedCompleted = true;
+      });
+
+      await Future<void>.delayed(Duration.zero);
+      expect(fakeSocket.endCalled, isTrue);
+      expect(closeCompleted, isFalse);
+      expect(closedCompleted, isFalse);
+
+      fakeSocket.completeEnd();
+
+      await closeFuture;
+      await closedFuture;
+      expect(closeCompleted, isTrue);
+      expect(closedCompleted, isTrue);
     },
   );
 }
