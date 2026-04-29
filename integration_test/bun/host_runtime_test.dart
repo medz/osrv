@@ -6,7 +6,8 @@ import 'dart:js_interop';
 import 'package:osrv/src/runtime/bun/interop.dart' show BunServerWebSocketHost;
 import 'package:osrv/src/runtime/bun/server_web_socket.dart';
 import 'package:test/test.dart';
-import 'package:web_socket/web_socket.dart' as ws;
+
+import '../shared/runtime_contract.dart';
 
 @JSExport()
 final class _FakeBunSocket {
@@ -46,20 +47,15 @@ void main() {
         protocol: 'chat',
       );
 
-      final eventsExpectation = expectLater(
-        adapter.events,
-        emitsInOrder([
-          isA<ws.CloseReceived>()
-              .having((event) => event.code, 'code', 1000)
-              .having((event) => event.reason, 'reason', 'bye'),
-          emitsDone,
-        ]),
+      await expectObservableLocalClose(
+        events: adapter.events,
+        startLocalClose: () => adapter.close(1000, 'bye'),
+        triggerTerminalClose: () => adapter.closeFromHost(1000, 'bye'),
+        expectedCode: 1000,
+        expectedReason: 'bye',
       );
-
-      await adapter.close(1000, 'bye');
-      adapter.closeFromHost(1000, 'bye');
-
-      await eventsExpectation;
+      expect(fakeSocket.closeCode, 1000);
+      expect(fakeSocket.closeReason, 'bye');
     },
   );
 }

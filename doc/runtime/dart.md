@@ -125,6 +125,10 @@ Current `dart` runtime websocket behavior:
 - `context.webSocket` is always present for request handlers
 - `accept(...)` validates the selected protocol against the client handshake
 - returning a manual HTTP `101` without `context.webSocket.accept(...)` is rejected as invalid runtime usage
+- protocol validation is handled by `dart:io`; invalid UTF-8 text frames tear
+  down the connection with an observable `1007` close
+- ping/pong controls, compression negotiation, send backpressure state, and
+  websocket limit/timeout configuration are not portable `osrv` APIs today
 
 ## Current Limitations
 

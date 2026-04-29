@@ -149,6 +149,29 @@ void main() {
     expect(exitCode, 0, reason: stderrBuffer.toString());
     expect(stderrBuffer.toString(), isEmpty);
   });
+
+  test(
+    'deno websocket protocol errors tear down the client connection',
+    () async {
+      if (!await commandAvailable('deno')) {
+        markTestSkipped('deno is not available in the current environment');
+        return;
+      }
+
+      final process = await _startDenoRuntime();
+      attachProcessCleanup(process);
+
+      final stderrBuffer = StringBuffer();
+      process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+      final uri = await waitForRuntimeUrl(stdoutLines(process));
+
+      await expectWebSocketProtocolErrorTeardown(
+        uri,
+        expectedCloseCodes: const {null},
+      );
+      expect(stderrBuffer.toString(), isEmpty);
+    },
+  );
 }
 
 Future<Map<String, dynamic>> _waitForLifecycle(Stream<String> lines) async {

@@ -139,6 +139,10 @@ Current `deno` runtime websocket behavior:
 - `accept(...)` validates the selected protocol against the client handshake
 - returning a manual HTTP `101` without `context.webSocket.accept(...)` is rejected as invalid runtime usage
 - upgrades stay request-scoped in both the public API and the underlying Deno host model
+- protocol validation is host-managed by Deno; malformed transport input can
+  terminate the connection without an observable close frame
+- ping/pong controls, compression negotiation, send backpressure state, and
+  websocket limit/timeout configuration are not portable `osrv` APIs today
 
 ## What It Is Not
 

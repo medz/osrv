@@ -126,6 +126,11 @@ Current `node` runtime websocket behavior:
 - `accept(...)` validates the selected protocol against the client handshake
 - returning a manual HTTP `101` without `context.webSocket.accept(...)` is rejected as invalid runtime usage
 - upgrades are request-scoped in the public API, but internally bridge through Node's HTTP server upgrade path
+- `osrv` owns the server-side frame bridge; invalid UTF-8 text frames close with
+  `1007`, oversized buffered messages close with `1009`, and generic protocol
+  errors close with `1002`
+- ping/pong controls, compression negotiation, send backpressure state, and
+  websocket limit/timeout configuration are not portable `osrv` APIs today
 
 ## Current Limitations
 

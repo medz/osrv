@@ -10,6 +10,8 @@ import 'package:osrv/runtime/dart.dart';
 import 'package:test/test.dart';
 import 'package:web_socket/web_socket.dart' as ws;
 
+import '../shared/runtime_contract.dart';
+
 void main() {
   test('serve starts a dart runtime and handles a request', () async {
     final server = Server(
@@ -345,27 +347,37 @@ void main() {
       expect(httpResponse.statusCode, HttpStatus.ok);
       expect(httpBody, '{"websocket":true,"upgrade":false}');
 
-      final webSocket = await WebSocket.connect(
-        runtime.url!
-            .replace(scheme: 'ws', path: '/chat', query: '', fragment: '')
-            .toString(),
-        protocols: ['chat', 'superchat'],
+      await expectWebSocketEcho(
+        runtime.url!,
+        requestedProtocols: const ['chat', 'superchat'],
       );
-      addTearDown(() async {
-        if (webSocket.closeCode == null) {
-          await webSocket.close();
-        }
-      });
-
-      final events = StreamIterator<Object?>(webSocket);
-      expect(webSocket.protocol, 'chat');
-      expect(await events.moveNext(), isTrue);
-      expect(events.current, 'connected');
-      webSocket.add('ping');
-      expect(await events.moveNext(), isTrue);
-      expect(events.current, 'echo:ping');
     },
   );
+
+  test('dart runtime tears down websocket protocol errors', () async {
+    final server = Server(
+      fetch: (request, context) {
+        final webSocket = context.webSocket;
+        if (webSocket == null || !webSocket.isUpgradeRequest) {
+          return Response('plain http');
+        }
+
+        return webSocket.accept(protocol: 'chat', (socket) async {
+          socket.sendText('connected');
+          await socket.events.drain<void>();
+        });
+      },
+    );
+
+    final runtime = await serve(server, host: '127.0.0.1', port: 0);
+
+    addTearDown(() async {
+      await runtime.close();
+      await runtime.closed;
+    });
+
+    await expectWebSocketProtocolErrorTeardown(runtime.url!);
+  });
 
   test('dart websocket requests reject multiple accept calls', () async {
     Object? secondAcceptError;

@@ -126,6 +126,16 @@ final server = Server(
 `osrv` keeps the public shape request-scoped, then internally bridges that
 outcome to Cloudflare's `WebSocketPair` + `101` response model.
 
+Current Cloudflare websocket behavior:
+
+- `context.capabilities.websocket == true`
+- `context.webSocket` is available for request handlers
+- `accept(...)` validates the selected protocol against the client handshake
+- protocol validation and low-level close behavior are host-managed by the
+  Workers runtime
+- ping/pong controls, compression negotiation, send backpressure state, and
+  websocket limit/timeout configuration are not portable `osrv` APIs today
+
 ## Current Limitations
 
 - the runtime entry is JavaScript-target only and does not compile to native executables

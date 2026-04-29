@@ -223,25 +223,7 @@ void main() {
     final stderrBuffer = StringBuffer();
     process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
     final uri = await _waitForNodeRuntimeUrl(stdoutLines(process));
-    final client = await _RawWebSocketClient.connect(
-      uri.replace(scheme: 'ws', path: '/chat', query: '', fragment: ''),
-      protocols: const ['chat'],
-    );
-    addTearDown(client.dispose);
-
-    final connected = await client.nextFrame(
-      timeout: const Duration(seconds: 5),
-    );
-    expect(connected.opcode, 0x1);
-    expect(utf8.decode(connected.payload), 'connected');
-
-    await client.sendFrame(opcode: 0x1, payload: const [0xC3, 0x28]);
-
-    final close = await client.nextFrame(timeout: const Duration(seconds: 5));
-    expect(close.opcode, 0x8);
-    expect(_decodeClosePayload(close.payload).code, 1007);
-
-    await client.done.timeout(const Duration(seconds: 5));
+    await expectWebSocketProtocolErrorTeardown(uri);
     expect(stderrBuffer.toString(), isEmpty);
   });
 

@@ -14,7 +14,8 @@ import 'package:osrv/src/runtime/node/http_host.dart'
 import 'package:osrv/src/runtime/node/server_web_socket.dart';
 import 'package:test/test.dart';
 import 'package:web/web.dart' as web;
-import 'package:web_socket/web_socket.dart' as ws;
+
+import '../shared/runtime_contract.dart';
 
 @JS('fetch')
 external JSPromise<web.Response> _fetch(JSAny input, [web.RequestInit init]);
@@ -855,24 +856,18 @@ void main() {
         protocol: 'chat',
       );
 
-      final eventsExpectation = expectLater(
-        adapter.events,
-        emitsInOrder([
-          isA<ws.CloseReceived>()
-              .having((event) => event.code, 'code', 1000)
-              .having((event) => event.reason, 'reason', 'bye'),
-          emitsDone,
-        ]),
+      await expectObservableLocalClose(
+        events: adapter.events,
+        startLocalClose: () => adapter.close(1000, 'bye'),
+        triggerTerminalClose: () async {
+          incoming.add(_maskedCloseFrame(1000, 'bye'));
+          await Future<void>.delayed(Duration.zero);
+          fakeSocket.completeEnd();
+        },
+        expectedCode: 1000,
+        expectedReason: 'bye',
       );
-
-      final closeFuture = adapter.close(1000, 'bye');
-      incoming.add(_maskedCloseFrame(1000, 'bye'));
-      await Future<void>.delayed(Duration.zero);
-      fakeSocket.completeEnd();
-      await closeFuture;
       await incoming.close();
-
-      await eventsExpectation;
     },
   );
 

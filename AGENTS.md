@@ -139,13 +139,16 @@ Default workflow for API, runtime, or behavior changes:
 
 1. Read the relevant docs first (`doc/architecture.md`, `doc/config.md`, `doc/capabilities.md`, `doc/terms.md`, and the affected runtime doc).
 2. Identify whether the change touches released public surface in `package:osrv/osrv.dart` or `package:osrv/runtime/*.dart`.
-3. Add or update the focused regression tests.
-4. Implement the smallest change that closes the loop.
-5. Run the targeted verification for the affected runtime families.
-6. Run `dart format .`.
-7. Run `dart analyze` if code changed.
-8. Update docs/examples so they match the real behavior.
-9. Call out any breaking change explicitly in the commit, PR, and docs.
+3. Analyze the current behavior and investigate any host/runtime specifics before changing code.
+4. Add or update the focused behavior tests first.
+5. Run the new or updated tests and confirm they fail for the expected reason before implementing the fix.
+6. Implement the smallest change that closes the loop.
+7. Run the focused tests again and confirm they turn green.
+8. Run the targeted verification for the affected runtime families, then run broader regression when the change affects shared behavior or CI-facing contracts.
+9. Run `dart format .`.
+10. Run `dart analyze` if code changed.
+11. Update docs/examples so they match the real behavior.
+12. Commit only after the red-green loop and required verification are complete, then summarize the next recommended step.
 
 Lightweight workflow for docs-only changes:
 

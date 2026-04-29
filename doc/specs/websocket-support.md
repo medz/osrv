@@ -212,6 +212,31 @@ The spec should define the following baseline behavior:
 
 This keeps the request error boundary and the session error boundary explicit.
 
+## Transport Contract Boundaries
+
+The portable websocket contract covers:
+
+- request-scoped upgrade detection and explicit acceptance
+- selected subprotocol validation
+- text and binary message delivery
+- application-initiated close
+- peer close observability through the shared event stream when the host exposes it
+- protocol-error teardown of the connection
+
+The portable contract does not currently include:
+
+- ping/pong control APIs
+- send backpressure or buffered-state APIs
+- extension or compression negotiation
+- runtime-configurable websocket buffer limits or close timeouts
+- identical protocol-error close codes across every host
+
+Runtime bridges should test the shared behavior, but they should not hide host
+truth. `dart` and `node` can expose close code `1007` for invalid UTF-8 text
+frames. `bun`, `deno`, and `cloudflare` delegate more protocol validation to the
+host, so malformed transport input can close the connection without the same
+observable close frame.
+
 ## Shutdown Semantics
 
 Listener runtimes need explicit websocket shutdown rules.
