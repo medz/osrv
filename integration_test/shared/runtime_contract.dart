@@ -88,11 +88,12 @@ Future<void> expectWebSocketProtocolErrorTeardown(
 
   await client.sendFrame(opcode: 0x1, payload: const [0xC3, 0x28]);
 
+  _ContractServerFrame? closeFrame;
   int? observedCloseCode;
   try {
-    final close = await client.nextFrame(timeout: const Duration(seconds: 5));
-    expect(close.opcode, 0x8);
-    observedCloseCode = _decodeClosePayload(close.payload).code;
+    closeFrame = await client.nextFrame(timeout: const Duration(seconds: 5));
+    expect(closeFrame.opcode, 0x8);
+    observedCloseCode = _decodeClosePayload(closeFrame.payload).code;
   } on StateError {
     observedCloseCode = null;
   }
@@ -102,7 +103,16 @@ Future<void> expectWebSocketProtocolErrorTeardown(
     reason: 'Unexpected protocol-error close code.',
   );
 
+  if (closeFrame != null) {
+    try {
+      await client.sendFrame(opcode: 0x8, payload: closeFrame.payload);
+    } on Object {
+      // The peer may already have closed the socket.
+    }
+  }
+
   await client.done.timeout(const Duration(seconds: 5));
+  await client.dispose();
 }
 
 Future<void> expectObservableLocalClose({
@@ -179,6 +189,8 @@ final class _ContractRawWebSocketClient {
   final _doneCompleter = Completer<void>();
   late final StreamSubscription<List<int>> _subscription;
   bool _handshakeComplete = false;
+  bool _done = false;
+  bool _disposed = false;
 
   Future<void> get done => _doneCompleter.future;
 
@@ -196,6 +208,11 @@ final class _ContractRawWebSocketClient {
     if (queued != null) {
       return Future<_ContractServerFrame>.value(queued);
     }
+    if (_done) {
+      return Future<_ContractServerFrame>.error(
+        StateError('WebSocket closed before the next frame arrived.'),
+      );
+    }
 
     final completer = Completer<_ContractServerFrame>();
     _pendingFrames.add(completer);
@@ -204,8 +221,13 @@ final class _ContractRawWebSocketClient {
   }
 
   Future<void> dispose() async {
+    if (_disposed) {
+      return;
+    }
+    _disposed = true;
     await _subscription.cancel();
     await _socket.close();
+    _done = true;
     if (!_doneCompleter.isCompleted) {
       _doneCompleter.complete();
     }
@@ -274,6 +296,7 @@ final class _ContractRawWebSocketClient {
   }
 
   void _onDone() {
+    _done = true;
     while (_pendingFrames.isNotEmpty) {
       _pendingFrames
           .removeAt(0)
@@ -292,6 +315,7 @@ final class _ContractRawWebSocketClient {
   }
 
   void _onError(Object error, StackTrace stackTrace) {
+    _done = true;
     while (_pendingFrames.isNotEmpty) {
       _pendingFrames.removeAt(0).completeError(error, stackTrace);
     }
