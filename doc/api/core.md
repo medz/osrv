@@ -186,6 +186,10 @@ When websocket handling is supported by the active runtime family, `RequestConte
 - `accept(WebSocketHandler handler, {String? protocol})`
 
 `accept(...)` returns a response-compatible websocket upgrade outcome for `Server.fetch(...)`.
+The shared websocket socket surface covers text, binary, close, and event
+delivery. It does not currently expose portable ping/pong controls, compression
+or extension negotiation, buffered-state reporting, or websocket-specific
+timeout configuration.
 
 Examples:
 - `DartRuntimeExtension`

@@ -43,6 +43,10 @@ The runtime can stream response bodies without forcing everything through one bu
 ### `websocket`
 
 The runtime supports websocket handling through the current `osrv` surface.
+That means the runtime can expose `RequestContext.webSocket`, accept upgrades
+through `WebSocketRequest.accept(...)`, deliver text/binary events through the
+shared websocket event stream, and close the connected socket through the shared
+socket API.
 
 Current status:
 - `true` for `dart`
@@ -55,6 +59,25 @@ Current status:
 For `deno`, websocket support depends on whether the current host exposes
 `Deno.upgradeWebSocket(...)`. `RuntimeCapabilities.websocket` reflects that
 runtime check.
+
+`websocket == true` is not a promise that every advanced transport feature is
+portable or identical across runtimes. Protocol validation and close-code
+observability can be host-managed. For example, `dart` and `node` expose a
+`1007` close for invalid UTF-8 text frames, while `bun` and `deno` can terminate
+the connection without a close frame for the same malformed input.
+
+Advanced transport controls are intentionally not implied by this flag:
+
+| Feature | Portable through `osrv` today? |
+| --- | --- |
+| request-scoped upgrade acceptance | yes |
+| text and binary message delivery | yes |
+| clean application close | yes |
+| protocol-error teardown | yes, with runtime-specific close details |
+| ping/pong control surface | no |
+| send backpressure or buffered-state reporting | no |
+| extension or compression negotiation | no |
+| configurable websocket limits or timeouts | no |
 
 ### `fileSystem`
 

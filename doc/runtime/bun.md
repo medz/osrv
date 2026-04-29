@@ -125,6 +125,10 @@ Current `bun` runtime websocket behavior:
 - `accept(...)` validates the selected protocol against the client handshake
 - returning a manual HTTP `101` without `context.webSocket.accept(...)` is rejected as invalid runtime usage
 - upgrades are request-scoped in the public API, but internally bridge through Bun's server-level websocket handlers
+- protocol validation is host-managed by Bun; malformed transport input can
+  terminate the connection without an observable close frame
+- ping/pong controls, compression negotiation, send backpressure state, and
+  websocket limit/timeout configuration are not portable `osrv` APIs today
 
 ## Current Limitations
 

@@ -140,6 +140,10 @@ void main() {
       expectedRuntimeHeader: 'deno',
     );
     await expectWebSocketEcho(uri);
+    await expectWebSocketProtocolErrorTeardown(
+      uri,
+      expectedCloseCodes: const {null},
+    );
     final closing = await send(uri.resolve('/wait-close'));
     expect(closing.statusCode, 200);
     expect(await closing.transform(utf8.decoder).join(), 'closing');
