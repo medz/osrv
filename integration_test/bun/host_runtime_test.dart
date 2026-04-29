@@ -54,6 +54,8 @@ void main() {
         expectedCode: 1000,
         expectedReason: 'bye',
       );
+      expect(fakeSocket.closeCode, 1000);
+      expect(fakeSocket.closeReason, 'bye');
     },
   );
 }
